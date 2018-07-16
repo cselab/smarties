@@ -1,0 +1,91 @@
+#!/bin/bash -l
+
+#SBATCH --job-name=Racer_softnone_anneal_cShare
+#SBATCH --time=06:00:00
+#SBATCH --output=out.%j.%a.o
+#SBATCH --error=out.%j.%a.e
+#SBATCH --constraint=gpu
+# #SBATCH --partition=debug
+
+# #SBATCH --account=ch7
+#SBATCH --account=s658
+# #SBATCH --account=eth2
+
+#SBATCH --array=0-449
+
+# ======START=====
+COMMNAME=Racer_softnone_anneal_cShare
+# Racer initializes stdev. explNoise=0.4472136 means initial covariance is set to 0.2
+SETTINGS=" --gamma 0.995 --nnl1 128 --nnl2 128 --nnFunc SoftSign --learner RACER --minTotObsNum 262144 --targetDelay 0 --explNoise 0.4472136 --totNumSteps 10000000 --learnrate 0.0001 --nMasters 1 --nThreads 12 --ppn 2 --outWeightsPrefac 0.1 --epsAnneal 5e-7 "
+
+MYNAME=`whoami`
+BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
+
+BUFFSIZE=(1048576 524288 262144)
+IMPSAMPR=(2 4 8)
+TOLPARAM=(0.10)
+BATCHNUM=(256)
+EPERSTEP=(1)
+RUNTRIAL=(1 2 3 4 5)
+
+TASKNAME=(HumanoidStandup-v2 Humanoid-v2 Ant-v2 Walker2d-v2 HalfCheetah-v2 Reacher-v2 Swimmer-v2 Hopper-v2 InvertedPendulum-v2 InvertedDoublePendulum-v2)
+SHORTID=( standu             humanw      spider walker      cheeta         reachr     swimmr     hopper    invpnd              dblpnd)
+
+cases=()
+rundir=()
+appspec=()
+#approximatively sorted by strongest effect on runtime
+for it in `seq 0 ${#TASKNAME[@]}`; do
+
+for b in ${BATCHNUM[@]}; do
+for d in ${TOLPARAM[@]}; do
+for n in ${BUFFSIZE[@]}; do
+for o in ${EPERSTEP[@]}; do
+for c in ${IMPSAMPR[@]}; do
+for r in ${RUNTRIAL[@]}; do
+
+cases+=("--maxTotObsNum $n --clipImpWeight $c --penalTol $d --batchSize $b --obsPerStep $o")
+rundir+=("${SHORTID[$it]}_${COMMNAME}_R${c}_N${n}_D${d}_TRIAL${r}")
+appspec+=("${TASKNAME[$it]}")
+
+done
+done
+done
+done
+done
+done
+
+done
+
+# stuff that depends on SLURM_ARRAY_TASK_ID
+RUNFOLDER=${rundir[$SLURM_ARRAY_TASK_ID]}
+mkdir -p ${BASEPATH}${RUNFOLDER}
+RUNSET=${SETTINGS}${cases[$SLURM_ARRAY_TASK_ID]}
+cat <<EOF >${BASEPATH}${RUNFOLDER}/launchSim.sh
+python3 ../Communicator_gym.py \$1 ${appspec[$SLURM_ARRAY_TASK_ID]}
+EOF
+cat <<EOF >${BASEPATH}${RUNFOLDER}/factory
+Environment exec=../launchSim.sh n=1
+EOF
+chmod +x ${BASEPATH}${RUNFOLDER}/launchSim.sh
+
+# copy over stuff
+cp ../../makefiles/rl ${BASEPATH}${RUNFOLDER}/exec
+cp ../../source/Communicators/Communicator.py     ${BASEPATH}${RUNFOLDER}/
+cp ../../source/Communicators/Communicator_gym.py ${BASEPATH}${RUNFOLDER}/
+cp $0                         ${BASEPATH}${RUNFOLDER}/launch.sh
+git log | head  > ${BASEPATH}${RUNFOLDER}/gitlog.log
+git diff > ${BASEPATH}${RUNFOLDER}/gitdiff.log
+
+cd ${BASEPATH}${RUNFOLDER}
+
+export OMP_NUM_THREADS=12
+export OMP_PROC_BIND=CLOSE
+export OMP_PLACES=cores
+export CRAY_CUDA_MPS=1
+
+srun --ntasks 2 --overcommit --threads-per-core=2 --cpu_bind=sockets --cpus-per-task=12 --ntasks-per-node=2  ./exec ${RUNSET}
+
+#srun  -n 2 --cpu_bind=map_cpu:0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 ./run1 & srun  -n 2 --cpu_bind=map_cpu:18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35 ./run2 & wait
+
+# =====END====

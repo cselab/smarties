@@ -1,0 +1,272 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+.DEFAULT_GOAL	Makefile	/^.DEFAULT_GOAL := engine_cmaes$/;"	m
+ACKLEY	fitfun.h	/^	ACKLEY,  \/* [-32.768, 32.768]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+Action	cmaes_learn.h	/^		Action(){$/;"	f	class:Action
+Action	cmaes_learn.h	/^class Action{$/;"	c
+Adapt_C2	cmaes.c	/^Adapt_C2(cmaes_t * const t, int hsig)$/;"	f	file:
+B	cmaes.h	/^  double **B;  \/* matrix with normalize eigenvectors in columns *\/$/;"	m	struct:__anon6
+C	cmaes.h	/^  double **C;  \/* lower triangular matrix: i>=j for C[i][j] *\/$/;"	m	struct:__anon6
+CC	Makefile	/^CC = gcc$/;"	m
+CMAES_LEARN_H	cmaes_learn.h	13;"	d
+COM_DIR	Makefile	/^COM_DIR = ..\/..\/source\/$/;"	m
+CPP	Makefile	/^CPP = g++$/;"	m
+Check_Eigen	cmaes.c	/^Check_Eigen( int N,  double ** const C, double * const diag, double ** const Q)$/;"	f	file:
+DIXON_PRICE	fitfun.h	/^	DIXON_PRICE,  \/* [-10, 10]; f(x*) = 0, x*[i] = pow(2, -1.+1.\/pow(2, i)) *\/$/;"	e	enum:__anon7
+ERRORMESSAGE	cmaes.c	/^	static void ERRORMESSAGE( char const *s1, char const *s2,$/;"	f	file:
+Eigen	cmaes.c	/^Eigen( int N,  double ** const C, double* const diag, double ** const  Q, double * const rgtmp)$/;"	f	file:
+FATAL	cmaes.c	/^		FATAL(char const *s1, char const *s2, char const *s3,$/;"	f	file:
+FITFUN_H	fitfun.h	3;"	d
+GRIEWANK	fitfun.h	/^	GRIEWANK,  \/* [-600, 600]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+Householder2	cmaes.c	/^		Householder2(int n, double ** const V, double * const d, double * const e) {$/;"	f	file:
+JOBMAXTIME	engine_cmaes.cpp	26;"	d	file:
+JOBMAXTIME	engine_cmaes_omp.cpp	22;"	d	file:
+LEVY	fitfun.h	/^	LEVY,  \/* [-10, 10]; f(x*) = 0, x*[i] = 1 *\/$/;"	e	enum:__anon7
+MaxIdx	cmaes.c	/^		MaxIdx( const double *rgd, int len)$/;"	f	file:
+MinIdx	cmaes.c	/^		MinIdx( const double *rgd, int len)$/;"	f	file:
+N	cmaes.h	/^  int N; \/* problem dimension, must stay constant, should be unsigned or long? *\/$/;"	m	struct:__anon3
+NH_cmaes_h	cmaes.h	16;"	d
+OBJ_FILES	Makefile	/^OBJ_FILES =    cmaes.o$/;"	m
+OBJ_FILES_PP	Makefile	/^OBJ_FILES_PP = engine_cmaes.o cmaes_learn.o fitfun.o Communicator.o$/;"	m
+PERM	fitfun.h	/^	PERM,  \/* [-N, N]; f(x*) = 0, x*[i] = i+1. *\/$/;"	e	enum:__anon7
+PERM0	fitfun.h	/^	PERM0,  \/* [-N, N]; f(x*) = 0, x*[i] = 1.\/(i+1.) *\/$/;"	e	enum:__anon7
+QLalgo2	cmaes.c	/^QLalgo2 (int n, double* const d, double* const e, double ** const V) {$/;"	f	file:
+RASTRIGIN	fitfun.h	/^	RASTRIGIN,  \/* [-5.12, 5.12]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+ROSENBROCK	fitfun.h	/^	ROSENBROCK,  \/* [-5, 10]; f(x*) = 0, x*[i] = 1 *\/$/;"	e	enum:__anon7
+ROTATED_HYPER_ELLIPSOID	fitfun.h	/^	ROTATED_HYPER_ELLIPSOID,  \/* [-65.536, 65.536]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+SCHWEFEL	fitfun.h	/^	SCHWEFEL,  \/* [-500, 500]; f(x*) = 0, x*[i] = 420.9687 *\/$/;"	e	enum:__anon7
+SPHERE	fitfun.h	/^	SPHERE,  \/* [-5.12, 5.12]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+SRC_DIR	Makefile	/^SRC_DIR = .\/$/;"	m
+STYBLINSKI_TANG	fitfun.h	/^	STYBLINSKI_TANG,  \/* [-5, 5]; f(x*) = 0, x*[i] = -2.903534 *\/$/;"	e	enum:__anon7
+SUM_OF_POWER	fitfun.h	/^	SUM_OF_POWER,  \/* [-1, 1]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+SUM_OF_SQUARES	fitfun.h	/^	SUM_OF_SQUARES, \/* [-10, 10]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+SignOfDiff	cmaes.c	/^	static int SignOfDiff(const void *d1, const void * d2)$/;"	f	file:
+Sorted_index	cmaes.c	/^	static void Sorted_index(const double *rgFunVal, int *iindex, int n)$/;"	f	file:
+State	cmaes_learn.h	/^		State( ){$/;"	f	class:State
+State	cmaes_learn.h	/^class State{$/;"	c
+TestMinStdDevs	cmaes.c	/^TestMinStdDevs(cmaes_t * const t)$/;"	f	file:
+VERBOSE	engine_cmaes.cpp	23;"	d	file:
+VERBOSE	engine_cmaes_omp.cpp	19;"	d	file:
+VPATH	Makefile	/^VPATH := $(SRC_DIR):$(COM_DIR)$/;"	m
+WARNINGS	Makefile	/^WARNINGS = -Wall -Wextra -Wredundant-decls -Wshadow -Woverloaded-virtual$/;"	m
+ZAKHAROV	fitfun.h	/^	ZAKHAROV,  \/* [-5, 10]; f(x*) = 0, x*[i] = 0 *\/$/;"	e	enum:__anon7
+_BSD_SOURCE	engine_cmaes.cpp	6;"	d	file:
+_BSD_SOURCE	engine_cmaes_omp.cpp	6;"	d	file:
+_COUNT	fitfun.h	/^	_COUNT$/;"	e	enum:__anon7
+_CRT_SECURE_NO_WARNINGS	cmaes.c	146;"	d	file:
+_GSL_HEADERS_	gsl_headers.h	11;"	d
+_IODUMP_	engine_cmaes.cpp	25;"	d	file:
+_IODUMP_	engine_cmaes_omp.cpp	21;"	d	file:
+_XOPEN_SOURCE	engine_cmaes.cpp	5;"	d	file:
+_XOPEN_SOURCE	engine_cmaes_omp.cpp	5;"	d	file:
+__NGENSKIP	engine_cmaes.cpp	9;"	d	file:
+__NGENSKIP	engine_cmaes_omp.cpp	8;"	d	file:
+__RANDACT	engine_cmaes.cpp	8;"	d	file:
+__RLON	engine_cmaes.cpp	7;"	d	file:
+__RLON	engine_cmaes_omp.cpp	7;"	d	file:
+aktrand	cmaes.h	/^  long int aktrand;$/;"	m	struct:__anon1
+aktseed	cmaes.h	/^  long int aktseed;$/;"	m	struct:__anon1
+arFuncValueHist	cmaes.h	/^  double *arFuncValueHist;$/;"	m	struct:__anon6
+assign_string	cmaes.c	/^	static void assign_string(char ** pdests, const char *ins)$/;"	f	file:
+c_cmaes_version	cmaes.c	/^static const char * c_cmaes_version = "3.20.00.beta";$/;"	v	file:
+ccov	cmaes.h	/^  double ccov;         \/* <- mucov, <- N *\/$/;"	m	struct:__anon3
+ccov1	cmaes.h	/^  double ccov1;$/;"	m	struct:__anon3
+ccovmu	cmaes.h	/^  double ccovmu;$/;"	m	struct:__anon3
+ccumcov	cmaes.h	/^  double ccumcov;      \/* <- N *\/$/;"	m	struct:__anon3
+check_for_nan_inf	cmaes_learn.cpp	/^bool check_for_nan_inf(cmaes_t* const evo, double* const* pop ){$/;"	f
+chiN	cmaes.h	/^  double chiN;$/;"	m	struct:__anon6
+cmaes_ChangePopSize	cmaes.c	/^double * cmaes_ChangePopSize(cmaes_t * const t,const int newlambda)$/;"	f
+cmaes_FATAL	cmaes.c	/^		cmaes_FATAL(char const *s1, char const *s2, char const *s3,$/;"	f
+cmaes_Get	cmaes.c	/^cmaes_Get( cmaes_t * const t, char const *s)$/;"	f
+cmaes_GetInto	cmaes.c	/^cmaes_GetInto( cmaes_t * const t, char const *s, double *res)$/;"	f
+cmaes_GetNew	cmaes.c	/^cmaes_GetNew( cmaes_t * const t, char const *s)$/;"	f
+cmaes_GetPtr	cmaes.c	/^cmaes_GetPtr( cmaes_t * const t, char const *s)$/;"	f
+cmaes_NewDouble	cmaes.c	/^		cmaes_NewDouble(int n)$/;"	f
+cmaes_Optimize	cmaes.c	/^cmaes_Optimize( cmaes_t * const evo, double(*pFun)(double const *, int dim), long iterations)$/;"	f
+cmaes_ReSampleSingle	cmaes.c	/^cmaes_ReSampleSingle( cmaes_t * const t, int iindex)$/;"	f
+cmaes_ReSampleSingle_old	cmaes.c	/^cmaes_ReSampleSingle_old( cmaes_t *t, double *rgx)$/;"	f
+cmaes_ReadFromFilePtr	cmaes.c	/^void cmaes_ReadFromFilePtr( cmaes_t * const t, FILE *fp)$/;"	f
+cmaes_ReadSignals	cmaes.c	/^void cmaes_ReadSignals(cmaes_t * const t, char const *filename)$/;"	f
+cmaes_SamplePopulation	cmaes.c	/^cmaes_SamplePopulation(cmaes_t * const t)$/;"	f
+cmaes_SampleSingleInto	cmaes.c	/^cmaes_SampleSingleInto( cmaes_t * const t, double * rgx)$/;"	f
+cmaes_SayHello	cmaes.c	/^cmaes_SayHello(cmaes_t * const t)$/;"	f
+cmaes_SetMean	cmaes.c	/^cmaes_SetMean(cmaes_t * const t, const double *xmean)$/;"	f
+cmaes_TestForTermination	cmaes.c	/^cmaes_TestForTermination( cmaes_t * const t)$/;"	f
+cmaes_UpdateDistribution	cmaes.c	/^cmaes_UpdateDistribution( cmaes_t * const t, const double *rgFunVal)$/;"	f
+cmaes_UpdateEigensystem	cmaes.c	/^cmaes_UpdateEigensystem(cmaes_t * const t, int flgforce)$/;"	f
+cmaes_WriteToFile	cmaes.c	/^void cmaes_WriteToFile(cmaes_t * const t, const char *key, const char *name)$/;"	f
+cmaes_WriteToFileAW	cmaes.c	/^void cmaes_WriteToFileAW(cmaes_t * const t, const char *key, const char *name,$/;"	f
+cmaes_WriteToFilePtr	cmaes.c	/^void cmaes_WriteToFilePtr(cmaes_t * const t, const char *key, FILE *fp)$/;"	f
+cmaes_exit	cmaes.c	/^cmaes_exit(cmaes_t * const t)$/;"	f
+cmaes_init	cmaes.c	/^cmaes_init(cmaes_t * const t, \/* "this" *\/$/;"	f
+cmaes_init_final	cmaes.c	/^cmaes_init_final(cmaes_t * const t \/* "this" *\/)$/;"	f
+cmaes_init_para	cmaes.c	/^cmaes_init_para(cmaes_t * const t, \/* "this" *\/$/;"	f
+cmaes_random_Gauss	cmaes.c	/^	double cmaes_random_Gauss(cmaes_random_t *t)$/;"	f
+cmaes_random_Start	cmaes.c	/^	long cmaes_random_Start( cmaes_random_t *t, long unsigned inseed)$/;"	f
+cmaes_random_Uniform	cmaes.c	/^	double cmaes_random_Uniform( cmaes_random_t *t)$/;"	f
+cmaes_random_exit	cmaes.c	/^		cmaes_random_exit(cmaes_random_t *t)$/;"	f
+cmaes_random_init	cmaes.c	/^		cmaes_random_init( cmaes_random_t *t, long unsigned inseed)$/;"	f
+cmaes_random_t	cmaes.h	/^} cmaes_random_t;$/;"	t	typeref:struct:__anon1
+cmaes_readpara_ReadFromFile	cmaes.c	/^		cmaes_readpara_ReadFromFile(cmaes_readpara_t * const t, const char * filename)$/;"	f
+cmaes_readpara_SetWeights	cmaes.c	/^		cmaes_readpara_SetWeights(cmaes_readpara_t * const t, const char * mode)$/;"	f
+cmaes_readpara_SupplementDefaults	cmaes.c	/^		cmaes_readpara_SupplementDefaults(cmaes_readpara_t * const t)$/;"	f
+cmaes_readpara_WriteToFile	cmaes.c	/^		cmaes_readpara_WriteToFile(cmaes_readpara_t * const t, const char *filenamedest)$/;"	f
+cmaes_readpara_exit	cmaes.c	/^	void cmaes_readpara_exit(cmaes_readpara_t * const t)$/;"	f
+cmaes_readpara_init	cmaes.c	/^		cmaes_readpara_init (cmaes_readpara_t * const t,$/;"	f
+cmaes_readpara_t	cmaes.h	/^} cmaes_readpara_t;$/;"	t	typeref:struct:__anon3
+cmaes_resume_distribution	cmaes.c	/^void cmaes_resume_distribution(cmaes_t * const t, char *filename)$/;"	f
+cmaes_t	cmaes.h	/^} cmaes_t;$/;"	t	typeref:struct:__anon6
+cmaes_timings_init	cmaes.c	/^		cmaes_timings_init(cmaes_timings_t *t) {$/;"	f
+cmaes_timings_start	cmaes.c	/^		cmaes_timings_start(cmaes_timings_t *t) {$/;"	f
+cmaes_timings_t	cmaes.h	/^} cmaes_timings_t;$/;"	t	typeref:struct:__anon2
+cmaes_timings_tic	cmaes.c	/^		cmaes_timings_tic(cmaes_timings_t *t) {$/;"	f
+cmaes_timings_toc	cmaes.c	/^		cmaes_timings_toc(cmaes_timings_t *t) {$/;"	f
+cmaes_timings_update	cmaes.c	/^		cmaes_timings_update(cmaes_timings_t *t)$/;"	f
+countevals	cmaes.h	/^  double countevals;$/;"	m	struct:__anon6
+cs	cmaes.h	/^  double cs;           \/* -> damps, <- N *\/$/;"	m	struct:__anon3
+dLastMinEWgroesserNull	cmaes.h	/^  double dLastMinEWgroesserNull;$/;"	m	struct:__anon6
+dMaxSignifKond	cmaes.h	/^  double dMaxSignifKond;$/;"	m	struct:__anon6
+damps	cmaes.h	/^  double damps;        \/* <- cs, maxeval, lambda *\/$/;"	m	struct:__anon3
+data	cmaes_learn.h	/^		std::vector<double> data;$/;"	m	class:Action
+data	cmaes_learn.h	/^		std::vector<double> data;$/;"	m	class:State
+diagonalCov	cmaes.h	/^  long diagonalCov;  \/* number of initial iterations *\/$/;"	m	struct:__anon3
+dim	cmaes_learn.h	/^		const int dim   = 6;$/;"	m	class:Action
+dim	cmaes_learn.h	/^		const int dim = 8;$/;"	m	class:State
+douMax	cmaes.c	/^		douMax( double i, double j)$/;"	f	file:
+douMin	cmaes.c	/^		douMin( double i, double j)$/;"	f	file:
+douSquare	cmaes.c	/^		douSquare(double d)$/;"	f	file:
+dump_curgen	cmaes_learn.cpp	/^void dump_curgen( double* const* pop, double *arFunvals, int step, int lambda, int func_dim ){$/;"	f
+eigenTimings	cmaes.h	/^  cmaes_timings_t eigenTimings;$/;"	m	struct:__anon6
+eval_distance_from_optimum	fitfun.c	/^double eval_distance_from_optimum(const double* const found_optimum,$/;"	f
+evaluate_and_update	cmaes_learn.cpp	/^bool evaluate_and_update( cmaes_t* const evo, double* const*  pop, double *arFunvals, int* const info  ){$/;"	f
+facmaxeval	cmaes.h	/^  double facmaxeval;$/;"	m	struct:__anon3
+facupdateCmode	cmaes.h	/^  double facupdateCmode;$/;"	m	struct:__anon3
+filename	cmaes.h	/^  char * filename;  \/* keep record of the file that was taken to read parameters *\/$/;"	m	struct:__anon3
+final_state	cmaes_learn.h	/^		void final_state( int func_dim ){$/;"	f	class:State
+firstprinttime	cmaes.h	/^  time_t firstprinttime;$/;"	m	struct:__anon6
+firstwritetime	cmaes.h	/^  time_t firstwritetime;$/;"	m	struct:__anon6
+fitfun	fitfun.c	/^void fitfun(double * const x, int N, double*const output, int * const info)  {$/;"	f
+flg	cmaes.h	/^  struct { int flg; double val; } stStopFitness;$/;"	m	struct:__anon3::__anon4
+flgCheckEigen	cmaes.h	/^  short flgCheckEigen; \/* control via cmaes_signals.par *\/$/;"	m	struct:__anon6
+flgEigensysIsUptodate	cmaes.h	/^  short flgEigensysIsUptodate;$/;"	m	struct:__anon6
+flgIniphase	cmaes.h	/^  short flgIniphase; \/* not really in use anymore *\/$/;"	m	struct:__anon6
+flgStop	cmaes.h	/^  short flgStop;$/;"	m	struct:__anon6
+flgalways	cmaes.h	/^  struct { int flgalways; double modulo; double maxtime; } updateCmode;$/;"	m	struct:__anon3::__anon5
+flgresumedone	cmaes.h	/^  short flgresumedone;$/;"	m	struct:__anon6
+flgstored	cmaes.h	/^  short flgstored;$/;"	m	struct:__anon1
+flgsupplemented	cmaes.h	/^  short flgsupplemented;$/;"	m	struct:__anon3
+funcID	cmaes.h	/^  int funcID;$/;"	m	struct:__anon3
+function	fitfun.h	/^} function;$/;"	t	typeref:enum:__anon7
+gen	cmaes.h	/^  long gen; \/* Generation number *\/$/;"	m	struct:__anon6
+genOfEigensysUpdate	cmaes.h	/^  double genOfEigensysUpdate;$/;"	m	struct:__anon6
+getTimeStr	cmaes.c	/^getTimeStr(void) {$/;"	f	file:
+get_upper_lower_bounds	fitfun.c	/^void get_upper_lower_bounds(double* const lower_bound, double* const upper_bound,$/;"	f
+hold	cmaes.h	/^  double hold;$/;"	m	struct:__anon1
+index	cmaes.h	/^  int *index;       \/* sorting index of sample pop. *\/$/;"	m	struct:__anon6
+initial_state	cmaes_learn.h	/^		void initial_state( int func_dim ){$/;"	f	class:State
+initialize	cmaes_learn.h	/^		void initialize( int func_dim ){$/;"	f	class:Action
+intMin	cmaes.c	/^		intMin( int i, int j)$/;"	f	file:
+isNoneStr	cmaes.c	/^		isNoneStr(const char * filename)$/;"	f	file:
+isStuck	cmaes.h	/^  int isStuck;$/;"	m	struct:__anon6
+is_feasible	cmaes_learn.cpp	/^int is_feasible(double* const pop, double* const lower_bound, double* const upper_bound, int dim)$/;"	f
+is_feasible	engine_cmaes_omp.cpp	/^int is_feasible(double *pop, double*lower_bound, double*upper_bound, int dim)$/;"	f
+isstarted	cmaes.h	/^  short isstarted;$/;"	m	struct:__anon2
+istic	cmaes.h	/^  short istic;$/;"	m	struct:__anon2
+lambda	cmaes.h	/^  int lambda;          \/* -> mu, <- N *\/$/;"	m	struct:__anon3
+lambda	cmaes_learn.h	/^		int 	lambda;$/;"	m	class:Action
+lambda_0	cmaes_learn.h	/^		int 	lambda_0;$/;"	m	class:Action
+lambda_frac	cmaes_learn.h	/^		double	lambda_frac;$/;"	m	class:Action
+lastclock	cmaes.h	/^  clock_t lastclock;$/;"	m	struct:__anon2
+lastdiff	cmaes.h	/^  double lastdiff;$/;"	m	struct:__anon2
+lasttictoctime	cmaes.h	/^  double lasttictoctime;$/;"	m	struct:__anon2
+lasttime	cmaes.h	/^  time_t lasttime;$/;"	m	struct:__anon2
+main	engine_cmaes.cpp	/^int main(int argn, char **args)$/;"	f
+main	engine_cmaes_omp.cpp	/^int main(int argn, char **args)$/;"	f
+maxEW	cmaes.h	/^  double maxEW;$/;"	m	struct:__anon6
+maxdiagC	cmaes.h	/^  double maxdiagC; \/* repeatedly used for output *\/$/;"	m	struct:__anon6
+maxtime	cmaes.h	/^  struct { int flgalways; double modulo; double maxtime; } updateCmode;$/;"	m	struct:__anon3::__anon5
+meanEW	cmaes.h	/^  double meanEW;$/;"	m	struct:__anon6
+meandiagC	cmaes.h	/^  double meandiagC;$/;"	m	struct:__anon6
+minEW	cmaes.h	/^  double minEW;$/;"	m	struct:__anon6
+mindiagC	cmaes.h	/^  double mindiagC;$/;"	m	struct:__anon6
+modulo	cmaes.h	/^  struct { int flgalways; double modulo; double maxtime; } updateCmode;$/;"	m	struct:__anon3::__anon5
+mu	cmaes.h	/^  int mu;              \/* -> weights, (lambda) *\/$/;"	m	struct:__anon3
+mucov	cmaes.h	/^  double mucov, mueff; \/* <- weights *\/$/;"	m	struct:__anon3
+mueff	cmaes.h	/^  double mucov, mueff; \/* <- weights *\/$/;"	m	struct:__anon3
+myhypot	cmaes.c	/^		myhypot(double a, double b)$/;"	f	file:
+n1outpara	cmaes.h	/^  int n1para, n1outpara;$/;"	m	struct:__anon3
+n1para	cmaes.h	/^  int n1para, n1outpara;$/;"	m	struct:__anon3
+n2para	cmaes.h	/^  int n2para;$/;"	m	struct:__anon3
+new_double	cmaes.c	/^	static double * new_double(int n)$/;"	f	file:
+new_string	cmaes.c	/^	static char * new_string(const char *ins)$/;"	f	file:
+new_void	cmaes.c	/^	static void * new_void(int n, size_t size)$/;"	f	file:
+plot_data	outputlookup.m	/^function plot_data(D, bHold, color, line)$/;"	f
+print_best_ever	cmaes_learn.cpp	/^void print_best_ever( cmaes_t* const evo,  int step ){$/;"	f
+printtime	cmaes.h	/^  time_t printtime;$/;"	m	struct:__anon6
+publicFitness	cmaes.h	/^  double *publicFitness; \/* returned by cmaes_init() *\/$/;"	m	struct:__anon6
+rand	cmaes.h	/^  cmaes_random_t rand; \/* random number generator *\/$/;"	m	struct:__anon6
+random_action	cmaes_learn.cpp	/^void random_action( cmaes_t* const evo, std::mt19937 gen ){$/;"	f
+resample	cmaes_learn.cpp	/^bool resample( cmaes_t* const evo, double* const* pop, double* const lower_bound, double* const upper_bound){$/;"	f
+resumefile	cmaes.h	/^  char resumefile[99];$/;"	m	struct:__anon3
+rgBDz	cmaes.h	/^  double *rgBDz;   \/* for B*D*z *\/$/;"	m	struct:__anon6
+rgD	cmaes.h	/^  double *rgD; \/* axis lengths *\/$/;"	m	struct:__anon6
+rgDiffMinChange	cmaes.h	/^  double * rgDiffMinChange;$/;"	m	struct:__anon3
+rgFuncValue	cmaes.h	/^  double *rgFuncValue;$/;"	m	struct:__anon6
+rgInitialStds	cmaes.h	/^  double * rgInitialStds;$/;"	m	struct:__anon3
+rgdTmp	cmaes.h	/^  double *rgdTmp;  \/* temporary (random) vector used in different places *\/$/;"	m	struct:__anon6
+rgdouMax	cmaes.c	/^		rgdouMax( const double *rgd, int len)$/;"	f	file:
+rgdouMin	cmaes.c	/^		rgdouMin( const double *rgd, int len)$/;"	f	file:
+rgout	cmaes.h	/^  double *rgout;$/;"	m	struct:__anon6
+rgp2adr	cmaes.h	/^  double ***rgp2adr;$/;"	m	struct:__anon3
+rgpadr	cmaes.h	/^  void **rgpadr;$/;"	m	struct:__anon3
+rgpc	cmaes.h	/^  double *rgpc;$/;"	m	struct:__anon6
+rgps	cmaes.h	/^  double *rgps;$/;"	m	struct:__anon6
+rgrand	cmaes.h	/^  long int *rgrand;$/;"	m	struct:__anon1
+rgrgx	cmaes.h	/^  double **rgrgx;   \/* range of x-vectors, lambda offspring *\/$/;"	m	struct:__anon6
+rgsformat	cmaes.h	/^  const char **rgsformat;$/;"	m	struct:__anon3
+rgskeyar	cmaes.h	/^  const char **rgskeyar;$/;"	m	struct:__anon3
+rgxbestever	cmaes.h	/^  double *rgxbestever;$/;"	m	struct:__anon6
+rgxmean	cmaes.h	/^  double *rgxmean;  \/* mean x vector, "parent" *\/$/;"	m	struct:__anon6
+rgxold	cmaes.h	/^  double *rgxold;$/;"	m	struct:__anon6
+sOutString	cmaes.h	/^  char sOutString[330]; \/* 4x80 *\/$/;"	m	struct:__anon6
+seed	cmaes.h	/^  unsigned int seed;$/;"	m	struct:__anon3
+sigma	cmaes.h	/^  double sigma;  \/* step size *\/$/;"	m	struct:__anon6
+sp	cmaes.h	/^  cmaes_readpara_t sp;$/;"	m	struct:__anon6
+stStopFitness	cmaes.h	/^  struct { int flg; double val; } stStopFitness;$/;"	m	struct:__anon3	typeref:struct:__anon3::__anon4
+startseed	cmaes.h	/^  long int startseed;$/;"	m	struct:__anon1
+state	cmaes.h	/^  int state; \/* 1 == sampled, 2 == not in use anymore, 3 == updated *\/$/;"	m	struct:__anon6
+stopMaxFunEvals	cmaes.h	/^  double stopMaxFunEvals;$/;"	m	struct:__anon3
+stopMaxIter	cmaes.h	/^  double stopMaxIter;$/;"	m	struct:__anon3
+stopTolFun	cmaes.h	/^  double stopTolFun;$/;"	m	struct:__anon3
+stopTolFunHist	cmaes.h	/^  double stopTolFunHist;$/;"	m	struct:__anon3
+stopTolUpXFactor	cmaes.h	/^  double stopTolUpXFactor;$/;"	m	struct:__anon3
+stopTolX	cmaes.h	/^  double stopTolX;$/;"	m	struct:__anon3
+szCat	cmaes.c	/^	static char *szCat(const char *sz1, const char*sz2,$/;"	f	file:
+taskfun	engine_cmaes_omp.cpp	/^void taskfun(double *x, int dim, double *res, int *info) {$/;"	f
+ticclock	cmaes.h	/^  clock_t ticclock;$/;"	m	struct:__anon2
+tictime	cmaes.h	/^  time_t tictime;$/;"	m	struct:__anon2
+tictoctime	cmaes.h	/^  double tictoctime;$/;"	m	struct:__anon2
+tictoczwischensumme	cmaes.h	/^  double tictoczwischensumme;$/;"	m	struct:__anon2
+totaltime	cmaes.h	/^  double totaltime; \/* zeroed by calling re-calling cmaes_timings_start *\/$/;"	m	struct:__anon2
+totaltotaltime	cmaes.h	/^  double totaltotaltime;$/;"	m	struct:__anon2
+trace	cmaes.h	/^  double trace;$/;"	m	struct:__anon6
+typicalX	cmaes.h	/^  double * typicalX;$/;"	m	struct:__anon3
+typicalXcase	cmaes.h	/^  int typicalXcase;$/;"	m	struct:__anon3
+update	cmaes_learn.cpp	/^void Action::update(  cmaes_t* const evo, double **arFunvals ){$/;"	f	class:Action
+updateCmode	cmaes.h	/^  struct { int flgalways; double modulo; double maxtime; } updateCmode;$/;"	m	struct:__anon3	typeref:struct:__anon3::__anon5
+update_damps	cmaes_learn.cpp	/^void update_damps( cmaes_t* const evo )$/;"	f
+update_state	cmaes_learn.cpp	/^void State::update_state( cmaes_t* const evo, double* oldFmedian, double* oldXmean )$/;"	f	class:State
+update_state	engine_cmaes_omp.cpp	/^void update_state(cmaes_t * evo, double * const state, double* oldFmedian, double* oldXmean, const int func_dim)$/;"	f
+val	cmaes.h	/^  struct { int flg; double val; } stStopFitness;$/;"	m	struct:__anon3::__anon4
+version	cmaes.h	/^  const char *version;$/;"	m	struct:__anon6
+weights	cmaes.h	/^  double *weights;     \/* <- mu, -> mueff, mucov, ccov *\/$/;"	m	struct:__anon3
+weigkey	cmaes.h	/^  char *weigkey;$/;"	m	struct:__anon3
+write	cmaes_learn.cpp	/^void write_cmaes_perf::write( cmaes_t* const evo, const int thrid, const int func_dim, int func_id, int step, const double final_dist, double ffinal ){$/;"	f	class:write_cmaes_perf
+write	cmaes_learn.cpp	/^void write_cmaes_perf::write( const int thrid ){$/;"	f	class:write_cmaes_perf
+write_cmaes_perf	cmaes_learn.h	/^class write_cmaes_perf{$/;"	c
+writetime	cmaes.h	/^  time_t writetime; \/* ideally should keep track for each output file *\/$/;"	m	struct:__anon6
+xstart	cmaes.h	/^  double * xstart;$/;"	m	struct:__anon3
