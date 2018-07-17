@@ -35,7 +35,7 @@ export OMP_MAX_TASK_PRIORITY=1
 #export OMP_DISPLAY_ENV=TRUE
 export OMP_DYNAMIC=FALSE
 
-echo $SETTINGS > settings.txt
+#echo $SETTINGS > settings.txt
 env > environment.log
 #echo ${NPROCESS} ${NTHREADS} $TASKPERN $NMASTERS
 

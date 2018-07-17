@@ -250,7 +250,6 @@ struct TrainData
 struct StatsTracker
 {
   const Uint n_stats;
-  const string name;
   const MPI_Comm comm;
   const Uint nThreads, learn_size, learn_rank;
   const Real grad_cut_fac, learnR;
@@ -264,8 +263,8 @@ struct StatsTracker
 
   ApproximateReductor reductor = ApproximateReductor(comm, 2*n_stats +1);
 
-  StatsTracker(const Uint N, const string _name, Settings& set, Real fac) :
-  n_stats(N), name(_name), comm(set.mastersComm), nThreads(set.nThreads),
+  StatsTracker(const Uint N, Settings& set, Real fac) :
+  n_stats(N), comm(set.mastersComm), nThreads(set.nThreads),
   learn_size(set.learner_size), learn_rank(set.learner_rank), grad_cut_fac(fac),
   learnR(set.learnrate)
   {
@@ -278,11 +277,6 @@ struct StatsTracker
        avgVec[i+1].resize(n_stats, 0);
        stdVec[i+1].resize(n_stats, 0);
      }
-     // write to log the number of variables, so that it can be then unwrangled
-     FILE * pFile = fopen((name + ".raw").c_str(), "wb");
-     float printvals = n_stats +0.1; // to be floored to an integer in post
-     fwrite(&printvals, sizeof(float), 1, pFile);
-     fflush(pFile); fclose(pFile);
   }
 
   inline void track_vector(const Rvec grad, const Uint thrID) const
@@ -352,10 +346,17 @@ struct StatsTracker
       avgVec[0][j] = mean;
     }
   }
-  inline void printToFile()
+  inline void printToFile(const string base)
   {
     if(!learn_rank) {
-      FILE * pFile = fopen((name + ".raw").c_str(), "ab");
+      FILE * pFile;
+      if(!nStep) {
+        // write to log the number of variables, so that it can be then unwrangled
+        pFile = fopen((base + "_outGrad_stats.raw").c_str(), "wb");
+        float printvals = n_stats +.1; // to be floored to an integer in post
+        fwrite(&printvals, sizeof(float), 1, pFile);
+      }
+      else pFile = fopen((base + "_outGrad_stats.raw").c_str(), "ab");
       vector<float> printvals(n_stats*2);
       for (Uint i=0; i<n_stats; i++) {
         printvals[i]         = avgVec[0][i];
@@ -383,7 +384,7 @@ struct StatsTracker
     numCut = 0; numTot = 0;
     return cutRatio;
   }
-  inline void reduce_stats(const Uint iter = 0)
+  inline void reduce_stats(const string base, const Uint iter = 0)
   {
     const LDvec oldsum = avgVec[0], oldstd = stdVec[0];
     assert(cntVec.size()>1);
@@ -408,16 +409,16 @@ struct StatsTracker
     }
     update();
 
-    if(iter % 1000 == 0) printToFile();
+    if(iter % 1000 == 0) printToFile(base);
     finalize(oldsum, oldstd);
   }
-  inline void reduce_approx(const Uint iter = 0)
+  inline void reduce_approx(const string base, const Uint iter = 0)
   {
     const LDvec oldsum = avgVec[0], oldstd = stdVec[0];
     assert(cntVec.size()>1);
     advance();
     update();
-    if(iter % 1000 == 0) printToFile();
+    if(iter % 1000 == 0) printToFile(base);
     finalize(oldsum, oldstd);
   }
 

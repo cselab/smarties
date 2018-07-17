@@ -12,10 +12,8 @@
 
 #ifdef ADV_GAUS
 #include "../Math/Mixture_advantage_gaus.h"
-#warning "Using Mixture_advantage with Gaussian advantages"
 #else
 #include "../Math/Mixture_advantage_quad.h"
-#warning "Using Mixture_advantage with Quadratic advantages"
 #endif
 
 #ifndef NEXPERTS

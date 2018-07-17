@@ -61,7 +61,7 @@ void Learner::prepareGradient()
   for(auto & net : F) net->prepareUpdate(batchSize);
   input->prepareUpdate(batchSize);
 
-  for(auto & net : F) net->updateGradStats(nStep);
+  for(auto & net : F) net->updateGradStats(learner_name, nStep);
 
   if(nSkipped >= batchSize)
     warn("Too many skipped samples caused temporary pause in resampling. " \

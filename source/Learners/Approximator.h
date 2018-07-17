@@ -84,7 +84,6 @@ struct Approximator
     return forward(traj, samp, thrID, USE_WEIGHTS, USE_ACT, iSample, overwrite);
   }
 
-
   Rvec relay_backprop(const Rvec error, const Uint samp,
     const Uint thrID, const PARAMS USEW) const;
 
@@ -163,9 +162,9 @@ struct Approximator
     opt->restart(base+name);
   }
 
-  inline void updateGradStats(const Uint iter) const
+  inline void updateGradStats(const string base, const Uint iter) const
   {
-    gradStats->reduce_stats(iter);
+    gradStats->reduce_stats(base+name, iter);
   }
 };
 

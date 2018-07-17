@@ -161,7 +161,7 @@ void Approximator::initializeNetwork(Builder& build, Real cutGradFactor)
   #ifdef __CHECK_DIFF //check gradients with finite differences
     net->checkGrads();
   #endif
-  gradStats=new StatsTracker(net->getnOutputs(),name+"_grads",settings,cutGradFactor);
+  gradStats = new StatsTracker(net->getnOutputs(), settings, cutGradFactor);
 }
 
 void Approximator::prepare(const Uint N, const Sequence*const traj,

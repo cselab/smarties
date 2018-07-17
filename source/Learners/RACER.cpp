@@ -9,7 +9,11 @@
 #include "RACER.h"
 #include "../Network/Builder.h"
 
-//#define dumpExtra
+#ifdef ADV_GAUS
+#warning "Using Mixture_advantage with Gaussian advantages"
+#else
+#warning "Using Mixture_advantage with Quadratic advantages"
+#endif
 
 #ifdef DKL_filter
 #undef DKL_filter
