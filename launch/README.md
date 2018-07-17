@@ -5,8 +5,9 @@ The main files that will be maintained are `launch.sh`, `launch_(gym/dmcs/atari)
 `launch.sh` is the main launch script. You must provide:
 * the name of the folder to run in, which will be placed in `../runs/`.
 * the path or name of the folder in the `apps` folder containing the files defining your application.
-* the path to the settings file.
-Then it accepts the following optional arguments:
+* the path to the settings file.  
+
+Then it accepts the following optional arguments:  
 * (optional, default 1) the number of worker ranks per learner rank. If the environment application does not require multiple ranks itself (ie. does not require MPI), it means number of environment instances per learner.  
     - Must be at least 1. If the environment requires multiple ranks itself (ie. MPI app) then the number of workers must be a multiple of the number of ranks required by each instance of the application (smarties reads this from the settings file).  
     - More than one worker rank per learner might be useful if the simulations are particularly slow.  
