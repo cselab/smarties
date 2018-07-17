@@ -41,7 +41,7 @@ public:
   {
     if(buffCnter == 0) return;
     char cpath[256];
-    sprintf(cpath, "obs_rank%02d_agent%03d.raw", rank, ID);
+    sprintf(cpath, "agent%03d_rank%02d_obs.raw", ID, rank);
     FILE * pFile = fopen (cpath, "ab");
 
     fwrite (buf, sizeof(float), buffCnter, pFile);

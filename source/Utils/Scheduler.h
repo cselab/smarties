@@ -26,17 +26,34 @@ private:
   const Uint totNumSteps, outSize, inSize, bAsync;
   const vector<double*> inpBufs;
   const vector<double*> outBufs;
-
-  std::atomic<Uint> stepNum {0};
-  std::atomic<Uint> iterNum {0};
-  std::atomic<Uint>  seqNum {0};
+  Uint iterNum = 0;
+  vector<atomic<Uint>> stepNum = vector<atomic<Uint>>(nPerRank);
+  vector<atomic<Uint>>  seqNum = vector<atomic<Uint>>(nPerRank);
 
   bool bNeedSequentialTasks = false;
   mutable vector<MPI_Request> requests = vector<MPI_Request>(nWorkers, MPI_REQUEST_NULL);
   Profiler* profiler     = nullptr;
-  mutable std::mutex mpi_mutex;
-  mutable std::mutex dump_mutex;
-  mutable std::ostringstream rewardsBuffer;
+  mutable mutex mpi_mutex;
+  mutable mutex dump_mutex;
+  mutable vector<ostringstream> rewardsBuffer = vector<ostringstream>(nPerRank);
+
+  inline Uint getMinSeqId() const {
+
+    Uint lowest = seqNum[0].load();
+    for(int i=1; i<nPerRank; i++) {
+      const Uint tmp = seqNum[i].load();
+      if(tmp<lowest) lowest = tmp;
+    }
+    return lowest;
+  }
+  inline Uint getMinStepId() const {
+    Uint lowest = stepNum[0].load();
+    for(int i=1; i<nPerRank; i++) {
+      const Uint tmp = stepNum[i].load();
+      if(tmp<lowest) lowest = tmp;
+    }
+    return lowest;
+  }
 
   inline Learner* pickLearner(const Uint agentId, const Uint recvId)
   {
@@ -81,29 +98,34 @@ private:
 
   void flushRewardBuffer()
   {
-    streampos pos = rewardsBuffer.tellp(); // store current location
-    rewardsBuffer.seekp(0, ios_base::end); // go to end
-    bool empty = rewardsBuffer.tellp()==0; // check size == 0 ?
-    rewardsBuffer.seekp(pos);              // restore location
-    if(empty) return;                      // else update rewards log
-    char path[256];
-    sprintf(path, "cumulative_rewards_rank%02d.dat", learn_rank);
-    ofstream outf(path, ios::app);
-    outf << rewardsBuffer.str();
-    rewardsBuffer.str(std::string());      // empty buffer
-    outf.flush();
-    outf.close();
+    for(int i=0; i<nPerRank; i++)
+    {
+      ostringstream& agentBuf = rewardsBuffer[i];
+      streampos pos = agentBuf.tellp(); // store current location
+      agentBuf.seekp(0, ios_base::end); // go to end
+      bool empty = agentBuf.tellp()==0; // check size == 0 ?
+      agentBuf.seekp(pos);              // restore location
+      if(empty) continue;               // else update rewards log
+      char path[256];
+      sprintf(path, "agent_%02d_rank%02d_cumulative_rewards.dat", i,learn_rank);
+      ofstream outf(path, ios::app);
+      outf << agentBuf.str();
+      agentBuf.str(std::string());      // empty buffer
+      outf.flush();
+      outf.close();
+    }
   }
 
-  inline void dumpCumulativeReward(const int agent, const unsigned iter,
-    const unsigned tstep) const
+  inline void dumpCumulativeReward(const int agent, const int worker,
+    const unsigned giter, const unsigned tstep) const
   {
-    if (iter == 0 && bTrain) return;
+    if (giter == 0 && bTrain) return;
 
+    const int ID = (worker-1) * nPerRank + agent;
     lock_guard<mutex> lock(dump_mutex);
-    rewardsBuffer<<iter<<" "<<tstep<<" "<<agent<<" "
-    <<agents[agent]->transitionID<<" "<<agents[agent]->cumulative_rewards<<endl;
-    rewardsBuffer.flush();
+    rewardsBuffer[agent]<<giter<<" "<<tstep<<" "<<worker<<" "
+      <<agents[ID]->transitionID<<" "<<agents[ID]->cumulative_rewards<<endl;
+    rewardsBuffer[agent].flush();
   }
 
   static inline vector<double*> alloc_bufs(const int size, const int num)

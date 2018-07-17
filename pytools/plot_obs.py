@@ -1,7 +1,7 @@
 #/usr/bin/env python
 #
 #  smarties
-#  Copyright (c) 2018 CSE-Lab, ETH Zurich, Switzerland. All rights reserved.
+#  Copyright (c) 2018 CSE-Lab, ETH Zurich, Switzerland.
 #  Distributed under the terms of the MIT license.
 #
 #  Created by Guido Novati (novatig@ethz.ch).
@@ -9,12 +9,15 @@
 # SIMPLE PYTHON SCRIPT TO PLOT .raw AGENT OBS FILES
 #
 # usage:
-# python python_plot_obs.py len_state_vec len_action_vec path/to/file.raw column_ID_to_plot
-# also, optional: ( number_of_elements_in_policy_vector )
-# otherwise, assumed continuous pol with 2*NA components (mean, precision of gaussian)
+# python plot_obs.py /path/to/folder ($2) ($3) ($4)
+# optional args:
+# ($2) Fraction of sequences not plotted (to lighten script and plot)
+# ie. If $2=10 we plot all observed states for one sequence every 10 sequences.
+# ($3) Agent id. Useful when running multiple agents.
+# ($4) Master id. Useful when there are multiple master ranks.
 #
 # structure of .raw files is:
-# transition_id [0/1/2] [state] [action] [reward] [policy]
+# [0/1/2] [state_cnter] [state] [action] [reward] [policy]
 # (second column is 1 for first observation of an episode, 2 for last)
 
 import sys
@@ -26,7 +29,7 @@ NS, NA, NP = int(sizes[0]), int(sizes[1]), int(sizes[2])
 NL=(NA*NA+NA)//2
 NREW=3+NS+NA
 NCOL=3+NS+NA+NP
-print('States begin at 2, actions at '+str(2+NS)+' policy at '+str(3+NS+NA)+' end at '+str(NCOL)+'.')
+print('States begin at col 2, actions at col '+str(2+NS)+', rewards is col '+str(2+NS+NA)+', policy at col '+str(3+NS+NA)+' end at '+str(NCOL)+'.')
 ICOL = int( input("Column to print? ") )
 #COLMAX = 1e7
 #COLMAX = 8e6
@@ -36,19 +39,19 @@ COLMAX = -1
 if len(sys.argv) > 2: SKIP=int(sys.argv[2])
 else: SKIP = 10
 
-if len(sys.argv) > 3: XAXIS=int(sys.argv[3])
-else: XAXIS = -1
+if len(sys.argv) > 3: AGENTID=int(sys.argv[3])
+else: AGENTID = 0
 
 if len(sys.argv) > 4: RANK=int(sys.argv[4])
 else: RANK = 0
 
-if len(sys.argv) > 5: AGENTID=int(sys.argv[5])
-else: AGENTID = 0
+if len(sys.argv) > 5: XAXIS=int(sys.argv[5])
+else: XAXIS = -1
 
 if len(sys.argv) > 6: IND0=int(sys.argv[6])
 else: IND0 = 0
 
-FILE = "%s/obs_rank%02d_agent%03d.raw" % (PATH, RANK, AGENTID)
+FILE = "%s/agent%03d_rank%02d_obs.raw" % (PATH, AGENTID, RANK)
 #np.savetxt(sys.stdout, np.fromfile(sys.argv[1], dtype='i4').reshape(2,10).transpose())
 DATA = np.fromfile(FILE, dtype=np.float32)
 NROW = DATA.size // NCOL

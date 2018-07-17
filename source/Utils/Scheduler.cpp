@@ -24,7 +24,7 @@ Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
 {
   profiler = new Profiler();
   for (Uint i=0; i<learners.size(); i++)  learners[i]->profiler = profiler;
-  profiler->stop_start("SLP");
+  for (int i=0; i<nPerRank; i++) { stepNum[i] = 0; seqNum[i] = 0; }
 
   for(const auto& L : learners) // Figure out if I have on-pol learners
     bNeedSequentialTasks = bNeedSequentialTasks || L->bNeedSequentialTrain();
@@ -33,6 +33,7 @@ Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
     die("Mismatch in master's nWorkers nPerRank nAgents.");
   //the following Irecv will be sent after sending the action
   for(int i=1; i<=nWorkers; i++) recvBuffer(i);
+  profiler->stop_start("SLP");
 }
 
 int Master::run()
@@ -80,7 +81,7 @@ int Master::run()
     // buffer that should be done after workers.join() are done here.
     for(const auto& L : learners) L->applyGradient();
 
-    if( stepNum >= totNumSteps ) return 0;
+    if( getMinStepId() >= totNumSteps ) return 0;
   }
   die(" ");
   return 1;
@@ -91,7 +92,7 @@ void Master::processWorker(const int worker)
   assert(worker>0 && worker <= (int) nWorkers);
   while(1)
   {
-    if(!bTrain && seqNum.load() >= totNumSteps) break;
+    if(!bTrain && getMinSeqId() >= totNumSteps) break;
     // Learners lock the workers queue if they have enough data to advance step
     if( bTrain && learnersLockQueue()  ) break;
 
@@ -138,12 +139,13 @@ void Master::processAgent(const int worker, const MPI_Status mpistatus)
 
     if ( recv_status >= TERM_COMM )
     {
-      dumpCumulativeReward(agent, aAlgo->iter(), stepNum.load() );
-      seqNum++;
+      const Uint agentTsteps = stepNum[recv_agent].load();
+      dumpCumulativeReward(recv_agent, worker, aAlgo->iter(), agentTsteps );
+      seqNum[recv_agent]++;
     }
     else if ( aAlgo->iter() )
     {
-      stepNum++;
+      stepNum[recv_agent]++;
     }
   }
 
