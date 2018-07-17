@@ -12,7 +12,7 @@ APP=$2
 SETTINGSNAME=$3
 
 if [ $# -lt 3 ] ; then
-echo "Usage: ./launch_openai.sh RUNFOLDER APP SETTINGS_PATH (for other optional params see launch_base.sh)"
+echo "Usage: ./launch_gym.sh RUNFOLDER APP SETTINGS_PATH (for other optional params see launch_base.sh)"
 exit 1
 fi
 

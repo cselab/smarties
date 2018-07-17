@@ -13,7 +13,7 @@ TASK=$3
 SETTINGSNAME=$4
 
 if [ $# -lt 4 ] ; then
-echo "Usage: ./launch_deepmind.sh RUNFOLDER ENV TASK SETTINGS_PATH (for other optional params see launch_base.sh)"
+echo "Usage: ./launch_dmcs.sh RUNFOLDER ENV TASK SETTINGS_PATH (for other optional params see launch_base.sh)"
 exit 1
 fi
 
