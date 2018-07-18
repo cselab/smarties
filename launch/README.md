@@ -55,13 +55,14 @@ These two scripts set up the launch environment and directory, and then call `ru
 
 # misc
 
-* To evaluate a policy:
-    - Make sure `--bTrain 0`
-    - (optional) `--explNoise 0`
-    - For safety, copy over all the `agent_%02d_*` files onto a new folder in order to not overwrite any file of the training directory and select this new folder as the run directory (ie. arg $1 of launch.sh ).
-    - Run with at least one mpi-rank for the master plus the number of mpi-ranks for one instance of the application (usually 1).
-    - To run a finite number of times, the option `--totNumSteps` is recycled if `bTrain==0` to be the number of sequences that are observed before terminating (instead of the maximum number of gradient steps done for the training if `bTrain==1`)
-    - Make sure the policy is read correctly (eg. if code was compiled with different features or run with different algorithms, network might have different shape), by comparing the `restarted_policy...` files and the policy provided as argument of the launch script.
+* To evaluate the learned behaviors of a concluded training run we have to restore the internal state of smarties. Since the `agent_%02d_*` files contain all the information to recover the correct state/reward rescaling and the network weights we call them 'policy files'. Once read, they allow smarties to recover the same policy as during training. Steps:
+    - (1) Make sure `--bTrain 0`
+    - (2) (optional) `--explNoise 0` if the agents should deterministically perform the most probable discrete action or the mean of the Gaussian policy.
+    - (3) For safety, copy over all the `agent_%02d_*` files onto a new folder in order to not overwrite any file of the training directory and select this new folder as the run directory (ie. arg $1 of launch.sh ). 
+    - (3) Otherwise, the setting `--restart /path/to/dir/` (which defaults to "." if `bTrain==0`) can be used to specify the path to the `agent_%02d_*` files without having to manually copy them over into a new folder.
+    - (4) Run with at least one mpi-rank for the master plus the number of mpi-ranks for one instance of the application (usually 1).
+    - (5) To run a finite number of times, the option `--totNumSteps` is recycled if `bTrain==0` to be the number of sequences that are observed before terminating (instead of the maximum number of gradient steps done for the training if `bTrain==1`)
+    - (6) Make sure the policy is read correctly (eg. if code was compiled with different features or run with different algorithms, network might have different shape), by comparing the `restarted_policy...` files and the original `agent_%02d_*` files. This can be performed with the `diff` command (ie. `diff /path/eval/run/restarted_net_weights.raw /path/train/run/agent_00_net_weights.raw`).
 
 * For a description of the settings read `source/Settings.h`. The file follows 	an uniform pattern:
 	```

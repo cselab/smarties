@@ -395,7 +395,7 @@ void MemoryBuffer::restart(const string base)
       printf("Parameters restart file %s not found.\n", (base+".raw").c_str());
       return;
     } else {
-      printf("Restarting from file %s.\n", (base+"_scaling.raw").c_str());
+      printf("Restarting from file %s.\n", (base+"scaling.raw").c_str());
       fflush(0);
     }
 
@@ -408,6 +408,7 @@ void MemoryBuffer::restart(const string base)
       _die("Mismatch in restarted file %s.", (base+"_scaling.raw").c_str());
   }
   return;
+
   const Uint writesize = 3 +sI.dim +aI.dim +policyVecDim;
   int agentID = 0, info = 0, sampID = 0;
   Rvec policy(policyVecDim), action(aI.dim), state(sI.dim);

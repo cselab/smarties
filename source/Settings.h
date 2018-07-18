@@ -447,6 +447,10 @@ string setupFolder = DEFAULT_setupFolder;
 
     if(bSampleSequences && maxTotSeqNum<batchSize)
     die("Increase memory buffer size or decrease batchsize, or switch to sampling by transitions.");
+    if(bTrain == false && restart == "none") {
+     cout<<"Did not specify path for restart files, assumed current dir."<<endl;
+     restart = ".";
+    }
     if(appendedObs<0)  die("appendedObs<0");
     if(targetDelay<0)  die("targetDelay<0");
     if(splitLayers<0)  die("splitLayers<0");
