@@ -351,6 +351,7 @@ void Approximator::prepareUpdate(const Uint batchSize)
   opt->prepare_update(batchSize, net->Vgrad);
   reducedGradients = 1;
   nAddedGradients = 0;
+  if(mpisize<=1) applyUpdate();
 }
 
 void Approximator::applyUpdate()
