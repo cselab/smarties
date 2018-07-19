@@ -18,6 +18,7 @@ To cite this repository, reference the paper:
 @article{novati2018a,
     title={Remember and Forget for Experience Replay},
     author={Novati, G and Koumoutsakos, P},
+    journal={arXiv preprint arXiv:1807.05827},
     year={2018}
 }
 ```
