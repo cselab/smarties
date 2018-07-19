@@ -1,8 +1,8 @@
 
 # smarties
 
-This repository provides ostensibly high-performance c++ implementations of RACER and other popular RL algorithms including PPO, DQN, DPG, ACER, and NAF.  
-Smarties was largely written during the development of ReF-ER and RACER, and was an honest attempt to maximize code reusability, modularity, and extensibility.  
+This repository provides ostensibly high-performance c++ implementations of [RACER](https://arxiv.org/abs/1807.05827) and other popular RL algorithms including PPO, DQN, DPG, ACER, and NAF.  
+Smarties was largely written during the development of [ReF-ER and RACER](https://arxiv.org/abs/1807.05827), and was an honest attempt to maximize code reusability, modularity, and extensibility.  
 Development should be considered an on-going process, however RACER and DPG were extensively tested and analyzed on the mujoco-based robotic benchmark problems of OpenAI gym and the DeepMind Control Suite.  
 
 Smarties requires gcc version 6.1 or greater, a thread-safe (at least `MPI_THREAD_SERIALIZED`) implementation of MPI, and a serial BLAS implementation with CBLAS interface. Furthermore, in order to test on the benchmark problems, OpenAI gym or the DeepMind Control Suite with python>=3.5.  
@@ -22,4 +22,3 @@ To cite this repository, reference the paper:
     year={2018}
 }
 ```
-(tbd Arxiv link)
