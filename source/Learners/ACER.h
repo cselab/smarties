@@ -19,9 +19,9 @@ class ACER : public Learner_offPolicy
   const Uint nA = Policy_t::compute_nA(&aInfo);
   const Real acerTrickPow = 1. / std::sqrt(nA);
   //const Real acerTrickPow = 1. / nA;
-  const Uint nAexpectation = 5;
-  const Real facExpect = 1./nAexpectation;
-  const Real alpha = 1.0;
+  static constexpr Uint nAexpectation = 5;
+  static constexpr Real facExpect = 1./nAexpectation;
+  static constexpr Real alpha = 1.0;
   //const Real alpha = 0.1;
   Aggregator* relay = nullptr;
 

@@ -34,8 +34,8 @@ These two scripts set up the launch environment and directory, and then call `ru
 * Running the script will produce the following outputs on screen (also backed up into the files `agent_%02d_stats.txt`). According to applicability, these are either statistics computed over the past 1000 steps or are the most recent values:
     - `ID` Learner identifier. If a single environment contains multiple agents, and if each agent requires a different policy (--bSharedPol 0), then we distinguish outputs pertinent to each agent with this ID integer.
     - `#/1e3` Counter of gradient steps divided by 1000
-    - `avgR` Average _SCALED_ cumulative reward among stored episodes (shown scaled for brevity and generality).
-    - `stdR`  Std dev of the distribution of instantaneous rewards. The unscaled average cumulative rewards is avgR x stdR.
+    - `avgR` Average _SCALED_ **cumulative** reward among stored episodes (shown scaled for brevity and generality).
+    - `stdr`  Std dev of the distribution of **instantaneous** rewards. The unscaled average cumulative rewards is `avgR` x `stdr`.
     - `DKL` Average Kullback Leibler of samples in the buffer w.r.t. current policy.
     - `nEp |  nObs | totEp | totObs | oldEp | nFarP` Number of episodes and observations in the Replay Memory. Total ep/obs since beginning of training passing through the buffer. Time stamp of the oldest episode (more precisely, of the last observation of the episode) that is currently in the buffer. Number of far policy samples in the buffer.
     - `RMSE | avgQ | stdQ | minQ | maxQ` RMSE of Q (or V) approximator, its average value, standard deviation, min and max.
@@ -61,7 +61,7 @@ These two scripts set up the launch environment and directory, and then call `ru
     - (3) For safety, copy over all the `agent_%02d_*` files onto a new folder in order to not overwrite any file of the training directory and select this new folder as the run directory (ie. arg $1 of launch.sh ). 
     - (3) Otherwise, the setting `--restart /path/to/dir/` (which defaults to "." if `bTrain==0`) can be used to specify the path to the `agent_%02d_*` files without having to manually copy them over into a new folder.
     - (4) Run with at least one mpi-rank for the master plus the number of mpi-ranks for one instance of the application (usually 1).
-    - (5) To run a finite number of times, the option `--totNumSteps` is recycled if `bTrain==0` to be the number of sequences that are observed before terminating (instead of the maximum number of gradient steps done for the training if `bTrain==1`)
+    - (5) To run a finite number of times, the option `--totNumSteps` is recycled if `bTrain==0` to be the number of sequences that are observed before terminating (instead of the maximum number of time steps done for the training if `bTrain==1`)
     - (6) Make sure the policy is read correctly (eg. if code was compiled with different features or run with different algorithms, network might have different shape), by comparing the `restarted_policy...` files and the original `agent_%02d_*` files. This can be performed with the `diff` command (ie. `diff /path/eval/run/restarted_net_weights.raw /path/train/run/agent_00_net_weights.raw`).
 
 * For a description of the settings read `source/Settings.h`. The file follows 	an uniform pattern:

@@ -1,5 +1,5 @@
-CC=/home/novatig/mpich-3.2/gcc7.1_build/bin/mpicxx
-LIBS+= -L/home/novatig/mpich-3.2/gcc7.1_build/lib
+CC=mpic++
+#LIBS+= -L/home/novatig/mpich-3.2/gcc7.1_build/lib
 LIBS+= -L/opt/OpenBLAS/lib/ -lopenblas
-CPPFLAGS+= -I/home/novatig/mpich-3.2/gcc7.1_build/include
+#CPPFLAGS+= -I/home/novatig/mpich-3.2/gcc7.1_build/include
 CPPFLAGS+= -I/opt/OpenBLAS/include/

@@ -21,7 +21,7 @@ inline string ObjectFactory::_parse(string source, string pattern, bool req)
   size_t pos = source.find(((string)" ")+pattern);
   if (pos == string::npos) {
     if (req)
-      _die("Parse factory file failed: required argument '%s' line '%s'\n",
+      _die("Parse factory file failed: required argument '%s' line '%s'",
           pattern.c_str(), source.c_str());
     else return "";
   }
@@ -53,10 +53,10 @@ inline Real ObjectFactory::_parseReal(string source, string pattern, bool req)
 Environment* ObjectFactory::createEnvironment()
 {
   Environment* env = nullptr;
-  string envStr = settings->environment;
-  if(envStr=="TwoActFishEnvironment") env=new TwoActFishEnvironment(*settings);
-  if(envStr=="AtariEnvironment")      env=new AtariEnvironment(*settings);
-  else env = new Environment(*settings);
+  string envStr = settings.environment;
+  //if(envStr=="TwoActFishEnvironment") env=new TwoActFishEnvironment(settings);
+  if(envStr=="AtariEnvironment")      env=new AtariEnvironment(settings);
+  else env = new Environment(settings);
   if(env == nullptr) die("Env cannot be nullptr\n");
   return env;
 }

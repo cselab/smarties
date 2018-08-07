@@ -151,8 +151,8 @@ private:
     } else {
       lock_guard<mutex> lock(mpi_mutex);
       MPI_Isend(outBufs[i-1],outSize, MPI_BYTE, i,0,workersComm,&tmp);
+      MPI_Request_free(&tmp); //Not my problem
     }
-    MPI_Request_free(&tmp); //Not my problem
   }
 
   inline void recvBuffer(const int i)
@@ -183,6 +183,7 @@ public:
   {
     for(const auto& A : agents) A->writeBuffer(learn_rank);
     _dispose_object(env);
+    _dispose_object(profiler);
     for(int i=0; i<nWorkers; i++) _dealloc(inpBufs[i]);
     for(int i=0; i<nWorkers; i++) _dealloc(outBufs[i]);
     for(const auto& L : learners) _dispose_object(L);

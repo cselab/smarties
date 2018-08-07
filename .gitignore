@@ -49,8 +49,13 @@ Temporary Items
 test.dSYM
 *.dSYM
 
+out.*.*.[oe]
 policies/*
 runs/
 engine_cmaes
+cart-pole
+pp
+terminals.dat
+
 
 *.swp

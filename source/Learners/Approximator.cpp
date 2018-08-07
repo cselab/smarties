@@ -327,18 +327,28 @@ Rvec Approximator::getInput(const Sequence*const traj, const Uint samp,
   return inp;
 }
 
-void Approximator::backward(Rvec error, const Uint samp,
+void Approximator::backward(Rvec error, const Sequence*const traj, const Uint t,
   const Uint thrID, const Uint iSample) const
 {
   const Uint netID = thrID + iSample*nThreads;
+  #ifdef PRIORITIZED_ER
+   const Real anneal = std::min( (Real)1, opt->nStep * opt->epsAnneal);
+   assert( anneal >= 0 );
+   const float beta = 0.5 + 0.5 * anneal, P0 = traj->priorityImpW[t];
+   // if samples never seen by optimizer the samples have high priority
+   // this matches one of last lines of MemoryBuffer::updateImportanceWeights()
+   const auto P = P0<=0 ? data->maxPriorityImpW : P0;
+   const Real PERW = std::pow(data->minPriorityImpW / P, beta);
+   for(Uint i=0; i<error.size(); i++) error[i] *= PERW;
+  #endif
   gradStats->track_vector(error, thrID);
   gradStats->clip_vector(error);
-  const int ind = mapTime2Ind(samp, thrID);
+  const int ind = mapTime2Ind(t, thrID);
   const vector<Activation*>& act = series[netID];
   assert(act[ind]->written == true && iSample <= extraAlloc);
   //ind+1 because we use c-style for loops in other places: TODO:netID
   error_placements[thrID] = std::max(ind+1, error_placements[thrID]);
-  act[ind]->setOutputDelta(error);
+  act[ind]->addOutputDelta(error);
 }
 
 void Approximator::prepareUpdate(const Uint batchSize)
@@ -395,9 +405,12 @@ void Approximator::gradient(const Uint thrID) const
 void Approximator::getHeaders(ostringstream& buff) const
 {
   buff << std::left << std::setfill(' ') <<"| " << std::setw(6) << name;
+  if(opt->tgtUpdateAlpha > 0) buff << "| dTgt ";
 }
 
 void Approximator::getMetrics(ostringstream& buff) const
 {
   real2SS(buff, net->weights->compute_weight_norm(), 7, 1);
+  if(opt->tgtUpdateAlpha > 0)
+    real2SS(buff, net->weights->compute_weight_dist(net->tgt_weights), 6, 1);
 }

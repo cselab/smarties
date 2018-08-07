@@ -70,7 +70,7 @@ void DQN::TrainBySequences(const Uint seq, const Uint thrID) const
     gradient[action] = error;
     traj->setMseDklImpw(k, error*error, 0, 1);
     trainInfo->log(Qs[action], error, thrID);
-    F[0]->backward(gradient, k, thrID);
+    F[0]->backward(gradient, traj, k, thrID);
   }
 
   if(thrID==0)  profiler->stop_start("BCK");
@@ -102,6 +102,6 @@ void DQN::Train(const Uint seq, const Uint samp, const Uint thrID) const
   traj->setMseDklImpw(samp, error*error, 0, 1);
   trainInfo->log(Qs[act], error, thrID);
   if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->backward(gradient, samp, thrID);
+  F[0]->backward(gradient, traj, samp, thrID);
   F[0]->gradient(thrID);
 }

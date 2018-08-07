@@ -20,6 +20,7 @@ struct Quadratic_advantage: public Quadratic_term
   Quadratic_term(starts[0],starts.size()>1? starts[1]:0, aI->dim,compute_nL(aI),
    out, pol==nullptr? Rvec(): pol->mean), aInfo(aI), policy(pol) {}
 
+  #if 0
   inline void grad(const Rvec&act, const Real Qer, Rvec& netGradient) const
   {
     assert(act.size()==nA);
@@ -57,25 +58,34 @@ struct Quadratic_advantage: public Quadratic_term
       }
     }
   }
-
-  inline void grad_unb(const Rvec&act, const Real Qer,
-    Rvec& netGradient) const
+  #else
+  inline void grad(const Rvec&act, const Real Qer, Rvec& netGradient) const
   {
     assert(act.size()==nA);
-    Rvec dErrdP(nA*nA), dPol(nA, 0), dAct(nA);
+    Rvec dErrdP(nA*nA, 0), dPol(nA, 0), dAct(nA);
     for (Uint j=0; j<nA; j++) dAct[j] = act[j] - mean[j];
 
-    if(policy not_eq nullptr)
-    for (Uint j=0; j<nA; j++) dPol[j] = policy->mean[j] - mean[j];
+    assert(policy == nullptr);
+    //for (Uint j=0; j<nA; j++) dPol[j] = policy->mean[j] - mean[j];
 
-    for (Uint j=0; j<nA; j++)
-    for (Uint i=0; i<nA; i++) {
-      const Real dOdPij = -.5*dAct[i]*dAct[j] + .5*dPol[i]*dPol[j]
-        +.5*(i==j && policy not_eq nullptr ? policy->variance[i] : 0);
+    for (Uint i=0; i<nA; i++)
+    for (Uint j=0; j<=i; j++) {
+      Real dOdPij = -dAct[j] * dAct[i];
 
-      dErrdP[nA*j+i] = Qer*dOdPij;
+      dErrdP[nA*j +i] = Qer*dOdPij;
+      dErrdP[nA*i +j] = Qer*dOdPij; //if j==i overwrite, avoid `if'
     }
-    grad_matrix(dErrdP, netGradient);
+
+    for (Uint j=0, kl = start_matrix; j<nA; j++)
+    for (Uint i=0; i<=j; i++) {
+      Real dErrdL = 0;
+      for (Uint k=i; k<nA; k++) dErrdL += dErrdP[nA*j +k] * L[nA*k +i];
+
+      if(i==j) netGradient[kl] = dErrdL * unbPosMap_diff(netOutputs[kl]);
+      else
+      if(i<j)  netGradient[kl] = dErrdL;
+      kl++;
+    }
 
     if(start_mean>0) {
       assert(netGradient.size() >= start_mean+nA);
@@ -85,9 +95,18 @@ struct Quadratic_advantage: public Quadratic_term
           val += Qer * matrix[nA*a + i] * (dAct[i]-dPol[i]);
 
         netGradient[start_mean+a] = val;
+        if(aInfo->bounded[a])
+        {
+          if(mean[a]> BOUNDACT_MAX && netGradient[start_mean+a]>0)
+            netGradient[start_mean+a] = 0;
+          else
+          if(mean[a]<-BOUNDACT_MAX && netGradient[start_mean+a]<0)
+            netGradient[start_mean+a] = 0;
+        }
       }
     }
   }
+  #endif
 
   inline Real computeAdvantage(const Rvec& action) const
   {

@@ -8,7 +8,18 @@
 
 #include "Communicator_internal.h"
 
-extern int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv);
+#include <regex>
+#include <algorithm>
+#include <iterator>
+static inline vector<string> splitter(string& content) {
+    vector<string> split_content;
+    const regex pattern(R"(;)");
+    copy( sregex_token_iterator(content.begin(), content.end(), pattern, -1),
+    sregex_token_iterator(), back_inserter(split_content) );
+    return split_content;
+}
+
+extern int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
 
 Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn) : Communicator(socket, spawn)
 {
@@ -119,17 +130,18 @@ void Communicator_internal::save() const
 
 void Communicator_internal::ext_app_run()
 {
-  char *largv[256];
-  char line[1024];
-  int largc = jobs_init(line, largv);
-
   char initd[256], newd[1024];
   getcwd(initd,256);
-  assert(workerGroup>=0 && rank_inside_app >= 0 && comm_inside_app != MPI_COMM_NULL);
-
+  assert(workerGroup>=0 && rank_inside_app>=0 &&comm_inside_app!=MPI_COMM_NULL);
+  vector<string> argsFiles = splitter(paramfile);
+  vector<string> stepNmbrs = splitter(nStepPerFile);
+  if(argsFiles.size() not_eq stepNmbrs.size() or argsFiles.size() == 0)
+    die("error reading settings: nStepPappSett and appSettings");
+  stepNmbrs.back() = "0";
+  size_t simIter = 0;
   while(1)
   {
-    sprintf(newd,"%s/%s_%d_%lu", initd, "simulation", workerGroup, iter);
+    sprintf(newd,"%s/%s_%03d_%05lu", initd, "simulation", workerGroup, simIter);
 
     if(rank_inside_app==0) // app's root sets up working dir
       mkdir(newd, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -137,49 +149,76 @@ void Communicator_internal::ext_app_run()
     MPI_Barrier(comm_inside_app);
     chdir(newd);  // go to the task private directory
 
-
     if (rank_inside_app==0 && setupfolder != "") //copy any additional file
-      if (copy_from_dir(setupfolder.c_str()) !=0 )
+      if (copy_from_dir(("../"+setupfolder).c_str()) !=0 )
         _die("Error in copy from dir %s\n", setupfolder.c_str());
 
     MPI_Barrier(comm_inside_app);
 
-    redirect_stdout_init();
+    redirect_stdout_init(simIter);
     // app only needs lower level functionalities:
     // ie. send state, recv action, specify state/action spaces properties...
     Communicator* commptr = static_cast<Communicator*>(this);
-    app_main(commptr, comm_inside_app, largc, largv);
-    redirect_stdout_finalize();
+    const Uint settingsInd = std::min(simIter, stepNmbrs.size()-1);
+    const long numStepTSet = std::stol(stepNmbrs[settingsInd]);
+    vector<char*> args = readRunArgLst(argsFiles[settingsInd]);
 
+    //for(size_t i=0; i<args.size(); i++) cout<<args[i]<<endl;
+    //cout<<endl; fflush(0);
+    app_main(commptr, comm_inside_app, args.size()-1, args.data(), numStepTSet);
+    for(size_t i = 0; i < args.size()-1; i++) delete[] args[i];
+
+    redirect_stdout_finalize();
     chdir(initd);  // go up one level
-    iter++;
+    simIter++;
   }
 }
 
-int Communicator_internal::jobs_init(char *line, char **largv)
+vector<char*> Communicator_internal::readRunArgLst(const string _paramfile)
 {
-  if (paramfile == "") return 0;
-
-  FILE * cmdfp = fopen(paramfile.c_str(), "r");
-
-  if (cmdfp == NULL)
-    _die("Missing %s\n", paramfile.c_str());
-  if(fgets(line, 1024, cmdfp)== NULL)
-    _die("Empty %s\n",   paramfile.c_str());
-
-  fclose(cmdfp);
-
-  return parse2(line, largv);
+  if (_paramfile == "") die("empty parameter file path");
+  std::ifstream t(("../"+_paramfile).c_str());
+  std::string linestr((std::istreambuf_iterator<char>(t)),
+                       std::istreambuf_iterator<char>());
+  if(linestr.size() == 0) die("did not find parameter file");
+  std::istringstream iss(linestr); // params file is read into iss
+  std::vector<char*> args;
+  std::string token;
+  while(iss >> token) {
+    // If one runs an executable and provides an argument like ./exec 'foo bar'
+    // then `foo bar' is put in its entirety in argv[1]. However, when we ask
+    // user to write a settingsfile, apostrophes are read as characters, not as
+    // special symbols, therefore we must do the following workaround to put
+    // anything that is written between parenteses in a single argv entry.
+    if(token[0]=='\'') {
+      token.erase(0, 1); // remove apostrophe ( should have been read as \' )
+      std::string continuation;
+      while(1) {
+        if(!(iss >> continuation)) die("missing matching apostrophe");
+        token += " " + continuation; // add next line to argv entry
+        if(continuation.back() == '\'') { // if match apostrophe, we are done
+          token.erase(token.end()-1, token.end()); // remove trailing apostrophe
+          break;
+        }
+      }
+    }
+    char *arg = new char[token.size() + 1];
+    copy(token.begin(), token.end(), arg);  // write into char array
+    arg[token.size()] = '\0';
+    args.push_back(arg);
+  }
+  args.push_back(0); // push back nullptr as last entry
+  return args; // remember to deallocate it!
 }
 
-void Communicator_internal::redirect_stdout_init()
+void Communicator_internal::redirect_stdout_init(const size_t simIter)
 {
   fflush(stdout);
   fgetpos(stdout, &pos);
   fd = dup(fileno(stdout));
   char buf[500];
   int wrank = getRank(MPI_COMM_WORLD);
-  sprintf(buf, "output_%d_%lu",wrank,iter);
+  sprintf(buf, "output_%03d_%05lu", wrank, simIter);
   freopen(buf, "w", stdout);
 }
 

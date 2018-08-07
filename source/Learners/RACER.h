@@ -79,18 +79,20 @@ class RACER : public Learner_offPolicy
 
   inline void updateQretFront(Sequence*const S, const Uint t) const {
     if(t == 0) return;
-    const Real D = data->scaledReward(S,t) + gamma*S->state_vals[t];
+    //called only after a new ep is added to membuf. assumed rho=1
+    const Fval D = data->scaledReward(S,t) + gamma * S->state_vals[t];
     S->Q_RET[t-1] = D +gamma*(S->Q_RET[t]-S->action_adv[t]) -S->state_vals[t-1];
   }
   inline void updateQretBack(Sequence*const S, const Uint t) const {
     assert( t > 0 && not S->isLast(t) );
-    const Real W = S->offPolicImpW[t], R = data->scaledReward(S, t);
-    const Real delta = R +gamma*S->state_vals[t] -S->state_vals[t-1];
-    S->Q_RET[t-1] = delta + gamma*(W<1? W:1)*(S->Q_RET[t] - S->action_adv[t]);
+    const Fval W = S->offPolicImpW[t], R = data->scaledReward(S, t);
+    const Fval G = gamma, C = W < 1 ? W : 1;
+    const Fval D = R +G*S->state_vals[t] -S->state_vals[t-1];
+    S->Q_RET[t-1] = D + G*C*(S->Q_RET[t] - S->action_adv[t]);
   }
 
-  inline Real updateQret(Sequence*const S, const Uint t, const Real A,
-    const Real V, const Policy_t& pol) const {
+  inline Fval updateQret(Sequence*const S, const Uint t, const Fval A,
+    const Fval V, const Policy_t& pol) const {
     // shift retrace advantage with update estimate for V(s_t)
     S->setRetrace(t, S->Q_RET[t] + S->state_vals[t] -V );
     S->setStateValue(t, V); S->setAdvantage(t, A);
@@ -98,13 +100,13 @@ class RACER : public Learner_offPolicy
     return updateQret(S, t, A, V, pol.sampImpWeight);
   }
 
-  inline Real updateQret(Sequence*const S, const Uint t, const Real A,
-    const Real V, const Real rho) const {
+  inline Fval updateQret(Sequence*const S, const Uint t, const Fval A,
+    const Fval V, const Fval rho) const {
     assert(rho >= 0);
     if(t == 0) return 0;
-    const Real oldRet = S->Q_RET[t-1], W = rho<1 ? rho : 1;
-    const Real delta = data->scaledReward(S,t) +gamma*V - S->state_vals[t-1];
-    S->setRetrace(t-1, delta + gamma*W*(S->Q_RET[t] - A) );
+    const Fval oldRet = S->Q_RET[t-1], W = rho < 1 ? rho : 1, G = gamma;
+    const Fval D = data->scaledReward(S,t) +G*V - S->state_vals[t-1];
+    S->setRetrace(t-1, D + G*W*(S->Q_RET[t] - A) );
     return std::fabs(S->Q_RET[t-1] - oldRet);
   }
 

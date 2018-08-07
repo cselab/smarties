@@ -14,12 +14,8 @@
 
 namespace ArgParser
 {
-Parser::Parser(const std::vector<OptionStruct> optionsMap):opts(optionsMap)
+Parser::Parser(const std::vector<OptionStruct> optionsMap) : opts(optionsMap)
 {
-  ctrlString = "";
-  nOpt = opts.size();
-  long_options = new option[nOpt + 1];
-
   for (int i=0; i<nOpt; i++)
   {
     long_options[i].name = opts[i].longOpt.c_str();
@@ -34,8 +30,8 @@ Parser::Parser(const std::vector<OptionStruct> optionsMap):opts(optionsMap)
     if (opts[i].type != NONE) ctrlString += ':';
 
     if (optsMap.find(long_options[i].val) != optsMap.end())
-      die("Duplicate short options in declaration, please correct the source code\n");
-      else optsMap[long_options[i].val] = opts[i];
+      die("Duplicate short options in declaration. Correct Settings.h");
+    else optsMap[long_options[i].val] = opts[i];
 
   }
 
@@ -60,7 +56,7 @@ void Parser::parse(int argc, char * const * argv, bool verbose)
 
         for (int i=0; i<nOpt; i++)
         {
-          OptionStruct& myOpt = opts[i];
+          const OptionStruct& myOpt = opts[i];
           if (myOpt.longOpt.length() > 4)
           {
             printf("-%c  or  --%s \t: %s\n", myOpt.shortOpt, myOpt.longOpt.c_str(), myOpt.description.c_str());
@@ -105,7 +101,7 @@ void Parser::parse(int argc, char * const * argv, bool verbose)
     if( not fout.is_open()) die("Save fail\n");
 
     for (int i=0; i<nOpt; i++) {
-      OptionStruct& myOpt = opts[i];
+      const OptionStruct& myOpt = opts[i];
       fout << myOpt.description.c_str() <<": ";
 
       switch (myOpt.type) {

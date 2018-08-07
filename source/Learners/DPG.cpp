@@ -133,13 +133,13 @@ void DPG::Train(const Uint seq, const Uint t, const Uint thrID) const
   POL.finalize_grad(mixG, finalG);
   //#pragma omp critical //"O:"<<print(polVec)<<
   //if(!thrID) cout<<"G:"<<print(polG)<<" D:"<<print(penG)<<endl;
-  F[0]->backward(finalG, t, thrID);
+  F[0]->backward(finalG, traj, t, thrID);
 
 
   //code to compute value grad:
   const Rvec grad_val = {isOff ? 0 : (target-q_curr[0])};
   //traj->SquaredError[t] = grad_val[0]*grad_val[0];
-  F[1]->backward(grad_val, t, thrID);
+  F[1]->backward(grad_val, traj, t, thrID);
 
   //bookkeeping:
   trainInfo->log(q_curr[0], grad_val[0], polG, penG, {beta,rho}, thrID);

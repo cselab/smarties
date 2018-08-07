@@ -1,32 +1,28 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=DPG_softfin_penal
+#SBATCH --job-name=DPG_perp
 #SBATCH --time=24:00:00
 #SBATCH --output=out.%j.%a.o
 #SBATCH --error=out.%j.%a.e
 #SBATCH --constraint=gpu
 # #SBATCH --partition=debug
 
-#SBATCH --account=ch7
-# #SBATCH --account=s658
+# #SBATCH --account=ch7
+#SBATCH --account=s658
 # #SBATCH --account=eth2
 
-#SBATCH --array=0-249
+#SBATCH --array=0-49
 
 # #SBATCH --ntasks=1
 # #SBATCH --ntasks-per-node=1
 
 # ======START=====
-COMMNAME=DPG_softfin_penal
-
-SETTINGS=" --gamma 0.995 --nnl1 128 --nnl2 128 --nnFunc SoftSign --learner DPG --maxTotObsNum 524288 --minTotObsNum 262144 --targetDelay 0.01 --explNoise 0.2 --totNumSteps 10000000 --learnrate 0.00001 --nMasters 1 --nThreads 12 --ppn 2 --outWeightsPrefac 0.1 --epsAnneal 5e-7 --batchSize 128 --obsPerStep 1 "
+COMMNAME=DPG_perp
+SETTINGS=" --gamma 0.995 --nnl1 128 --nnl2 128 --nnFunc SoftSign --learner DPG --maxTotObsNum 524288 --minTotObsNum 262144 --targetDelay 0.01 --explNoise 0.2 --totNumSteps 10000000 --learnrate 0.00001 --nMasters 1 --nThreads 12 --ppn 2 --outWeightsPrefac 0.1 --epsAnneal 0 --batchSize 128 --obsPerStep 1 --penalTol 0.1  --clipImpWeight 0 --nnOutputFunc Tanh "
 
 MYNAME=`whoami`
 SMARTIESDIR="${HOME}/smarties/"
-BASEPATH="/scratch/snx3000/${MYNAME}/smarties/Guido/"
-IMPSAMPR=(0 0 2 4 8)
-FUNC=(Tanh Linear Linear Linear Linear)
-TOLPARAM=(0.10)
+BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
 RUNTRIAL=(1 2 3 4 5)
 
 TASKNAME=(HumanoidStandup-v2 Humanoid-v2 Ant-v2 Walker2d-v2 HalfCheetah-v2 Reacher-v2 Swimmer-v2 Hopper-v2 InvertedPendulum-v2 InvertedDoublePendulum-v2)
@@ -37,22 +33,13 @@ rundir=()
 appspec=()
 #approximatively sorted by strongest effect on runtime
 for it in `seq 0 ${#TASKNAME[@]}`; do
-
-for d in ${TOLPARAM[@]}; do
-for ic in `seq 0 ${#IMPSAMPR[@]}`; do
 for r in ${RUNTRIAL[@]}; do
 
-c=${IMPSAMPR[$ic]}
-f=${FUNC[$ic]}
-
-cases+=("--clipImpWeight $c --penalTol $d --nnOutputFunc $f")
-rundir+=("${SHORTID[$it]}_${COMMNAME}_R${c}_F${f}_TRIAL${r}")
+cases+=("")
+rundir+=("${SHORTID[$it]}_${COMMNAME}_TRIAL${r}")
 appspec+=("${TASKNAME[$it]}")
 
 done
-done
-done
-
 done
 
 # stuff that depends on SLURM_ARRAY_TASK_ID
@@ -73,7 +60,7 @@ EOF
 chmod +x ${RUNPATH}/launchSim.sh
 
 # copy over stuff
-cp ${SMARTIESDIR}/makefiles/rl                            ${RUNPATH}/exec
+cp ${SMARTIESDIR}/makefiles2/rl                            ${RUNPATH}/exec
 cp ${SMARTIESDIR}/source/Communicators/Communicator.py     ${RUNPATH}/
 cp ${SMARTIESDIR}/source/Communicators/Communicator_gym.py ${RUNPATH}/
 cp $0                                                      ${RUNPATH}/launch.sh

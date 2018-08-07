@@ -10,16 +10,6 @@
 
 #include "VRACER.h"
 
-//#define dumpExtra
-#ifndef DACER_SKIP
-#define DACER_SKIP 1
-#endif
-
-#define DACER_BACKWARD
-//#ifndef DACER_FORWARD
-#define DACER_FORWARD 0
-//#endif
-
 #define DACER_simpleSigma
 
 template<typename Policy_t, typename Action_t>
@@ -51,14 +41,11 @@ void VRACER<Policy_t, Action_t>::Train(const Uint seq, const Uint samp, const Ui
   if(thrID==0)  profiler->stop_start("CMP");
   Rvec grad;
 
-  #if   DACER_SKIP == 1
-    if(isOff) grad = offPolGrad(traj, samp, out_cur, pol, thrID);
-    else
-  #endif
-      grad = compute(traj, samp, out_cur, pol, thrID);
+  if(isOff) grad = offPolGrad(traj, samp, out_cur, pol, thrID);
+  else grad = compute(traj, samp, out_cur, pol, thrID);
 
   if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->backward(grad, samp, thrID); // place gradient onto output layer
+  F[0]->backward(grad, traj, samp, thrID); // place gradient onto output layer
   F[0]->gradient(thrID);  // backprop
 }
 
@@ -168,7 +155,6 @@ void VRACER<Policy_t, Action_t>::prepareGradient()
 {
   Learner_offPolicy::prepareGradient();
 
-  #ifdef RACER_BACKWARD
   if(updateToApply)
   {
     profiler->stop_start("QRET");
@@ -180,7 +166,6 @@ void VRACER<Policy_t, Action_t>::prepareGradient()
       for(int j = data->Set[i]->just_sampled; j>=0; j--)
         updateVret(data->Set[i], j, data->Set[i]->state_vals[j], data->Set[i]->offPolicImpW[j]);
   }
-  #endif
 }
 
 template<typename Policy_t, typename Action_t>
@@ -195,12 +180,6 @@ void VRACER<Policy_t, Action_t>::initializeLearner()
   #pragma omp parallel for schedule(dynamic)
   for(Uint i = 0; i < data->Set.size(); i++) {
     Sequence* const traj = data->Set[i];
-    const int N = traj->ndata(); traj->setRetrace(N, 0);
-    for(Uint j=N; j>0; j--) updateVret(traj, j-1, traj->state_vals[j-1], 1);
-  }
-
-  for(Uint i = 0; i < data->inProgress.size(); i++) {
-    Sequence* const traj = data->inProgress[i];
     const int N = traj->ndata(); traj->setRetrace(N, 0);
     for(Uint j=N; j>0; j--) updateVret(traj, j-1, traj->state_vals[j-1], 1);
   }

@@ -43,15 +43,18 @@ struct Sequence
 {
   vector<Tuple*> tuples;
   int ended = 0, ID = -1, just_sampled = -1;
-  Real nOffPol = 0, MSE = 0, sumKLDiv = 0, totR = 0;
-  Rvec action_adv;
-  Rvec state_vals;
-  Rvec Q_RET;
+  Uint prefix = 0;
+  Fval nOffPol = 0, MSE = 0, sumKLDiv = 0, totR = 0;
+  Fvec action_adv;
+  Fvec state_vals;
+  Fvec Q_RET;
   //Used for sampling, filtering, and sorting off policy data:
-  Rvec SquaredError;
-  Rvec offPolicImpW;
-  //Rvec priorityImpW;
-  Rvec KullbLeibDiv;
+  Fvec SquaredError;
+  Fvec offPolicImpW;
+  #ifdef PRIORITIZED_ER
+    vector<float> priorityImpW;
+  #endif
+  Fvec KullbLeibDiv;
   mutable std::mutex seq_mutex;
 
   inline Uint ndata() const {
@@ -77,6 +80,9 @@ struct Sequence
     //priorityImpW.clear();
     SquaredError.clear();
     offPolicImpW.clear();
+    #ifdef PRIORITIZED_ER
+      priorityImpW.clear();
+    #endif
     KullbLeibDiv.clear();
     action_adv.clear();
     state_vals.clear();
@@ -87,25 +93,25 @@ struct Sequence
     lock_guard<mutex> lock(seq_mutex);
     if(just_sampled < t) just_sampled = t;
   }
-  inline void setRetrace(const Uint t, const Real Q)
+  inline void setRetrace(const Uint t, const Fval Q)
   {
     assert( t < Q_RET.size() );
     lock_guard<mutex> lock(seq_mutex);
     Q_RET[t] = Q;
   }
-  inline void setAdvantage(const Uint t, const Real A)
+  inline void setAdvantage(const Uint t, const Fval A)
   {
     assert( t < action_adv.size() );
     lock_guard<mutex> lock(seq_mutex);
     action_adv[t] = A;
   }
-  inline void setStateValue(const Uint t, const Real V)
+  inline void setStateValue(const Uint t, const Fval V)
   {
     assert( t < state_vals.size() );
     lock_guard<mutex> lock(seq_mutex);
     state_vals[t] = V;
   }
-  inline void setMseDklImpw(const Uint t,const Real E,const Real D,const Real W)
+  inline void setMseDklImpw(const Uint t,const Fval E,const Fval D,const Fval W)
   {
     lock_guard<mutex> lock(seq_mutex);
     SquaredError[t] = E;
@@ -113,19 +119,19 @@ struct Sequence
     offPolicImpW[t] = W;
   }
 
-  inline bool isFarPolicyPPO(const Uint t, const Real W, const Real C) const
+  inline bool isFarPolicyPPO(const Uint t, const Fval W, const Fval C) const
   {
     assert(C<1) ;
-    const bool isOff = W > 1+C || W < 1-C;
+    const bool isOff = W > (Fval)1 + C || W < (Fval)1 - C;
     return isOff;
   }
-  inline bool isFarPolicy(const Uint t, const Real W, const Real C) const
+  inline bool isFarPolicy(const Uint t, const Fval W, const Fval C) const
   {
-    const bool isOff = W > C || W < 1/C;
+    const bool isOff = W > C || W < (Fval)1 / C;
     // If C<=1 assume we never filter far policy samples
-    return C>1 && isOff;
+    return C > (Fval)1 && isOff;
   }
-  inline bool distFarPolicy(const Uint t, const Real D, const Real target) const
+  inline bool distFarPolicy(const Uint t, const Fval D, const Fval target) const
   {
     // If target<=0 assume we never filter far policy samples
     return target>0 && D > target;
@@ -148,19 +154,12 @@ struct Sequence
     ID = index;
     // whatever the meaning of SquaredError, initialize with all zeros
     // this must be taken into account when sorting/filtering
-    SquaredError = Rvec(ndata(), 0);
+    SquaredError = Fvec(ndata(), 0);
     // off pol importance weights are initialized to 1s
-    offPolicImpW = Rvec(ndata(), 1);
-    KullbLeibDiv = Rvec(ndata(), 0);
-  }
-};
-
-struct Gen
-{
-  mt19937* const g;
-  Gen(mt19937 * gen) : g(gen) { }
-  size_t operator()(size_t n) {
-    std::uniform_int_distribution<size_t> d(0, n ? n-1 : 0);
-    return d(*g);
+    offPolicImpW = Fvec(ndata(), 1);
+    #ifdef PRIORITIZED_ER
+      priorityImpW = vector<float>(ndata(), 1);
+    #endif
+    KullbLeibDiv = Fvec(ndata(), 0);
   }
 };

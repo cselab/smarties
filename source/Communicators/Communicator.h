@@ -116,10 +116,7 @@ class Communicator
     return sendState(iAgent, CONT_COMM, state, reward);
   }
   // receive action sent by smarties
-  std::vector<double> recvAction(const int iAgent = 0)
-  {
-    return stored_actions[iAgent];
-  }
+  std::vector<double> recvAction(const int iAgent = 0);
 
   void launch();
 

@@ -2,6 +2,7 @@ SETTINGS=
 #discount factor in RL
 #the closer to 1 it is, the harder it is to learn
 #but, the agent might find better long-term strategies
+SETTINGS+=" --samplesFile 1"
 SETTINGS+=" --gamma 0.995"
 #size of network layers
 SETTINGS+=" --nnl1 64"
@@ -21,10 +22,10 @@ SETTINGS+=" --bTrain 1"
 #variables for user-specified environment
 
 #RL algorithm: NAF, DPG are continuous actions, NFQ (also accepted DQN) is for discrete actions
-SETTINGS+=" --learner GAE"
+SETTINGS+=" --learner PPO"
 
 #chance of taking random actions
-SETTINGS+=" --explNoise 0.5"
+SETTINGS+=" --explNoise 0.4472136"
 SETTINGS+=" --klDivConstraint 0.01"
 SETTINGS+=" --totNumSteps 10000000"
 SETTINGS+=" --lambda 0.97"
@@ -39,4 +40,4 @@ SETTINGS+=" --obsPerStep 6.4" # equivalent to 10 epoch with BS 64
 #batch size for network gradients compute
 SETTINGS+=" --batchSize 64"
 #network update learning rate
-SETTINGS+=" --learnrate 0.0001"
+SETTINGS+=" --learnrate 0.0003"

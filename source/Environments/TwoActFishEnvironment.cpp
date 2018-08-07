@@ -18,15 +18,6 @@ press((_settings.senses/4) % 2 ||  _settings.senses==8), //if eq {      4,5,6,7}
 goalDY((_settings.goalDY>1)? 1-_settings.goalDY : _settings.goalDY)
 {
   printf("TwoActFishEnvironment.\n");
-
-  //#ifdef __Cubism3D
-    //mpi_ranks_per_env = 1;
-    mpi_ranks_per_env = 2;
-  //#else
-    mpi_ranks_per_env = 0;
-  //#endif
-  //paramsfile="settings_32.txt";
-  paramsfile="settings_64.txt";
   assert(settings.senses<=8);
 }
 

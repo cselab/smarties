@@ -180,9 +180,9 @@ struct Encapsulator
     error_placements[thrID] = -1; //to stop additional backprops
   }
 
-  void save(const string base = string())
+  void save(const string base, const bool bBackup)
   {
-    if(opt not_eq nullptr) opt->save(base+name);
+    if(opt not_eq nullptr) opt->save(base+name, bBackup);
   }
   void restart(const string base = string())
   {

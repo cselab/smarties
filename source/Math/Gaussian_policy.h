@@ -13,7 +13,7 @@ struct Gaussian_policy
 {
   const ActionInfo* const aInfo;
   const Uint start_mean, start_prec, nA;
-  const Real P_trunc = (1-std::erf(NORMDIST_MAX/std::sqrt(2)))/(2*NORMDIST_MAX);
+  //const Real P_trunc = (1-std::erf(NORMDIST_MAX/std::sqrt(2)))/(2*NORMDIST_MAX);
   const Rvec netOutputs;
   const Rvec mean, stdev, variance, precision;
 
@@ -56,7 +56,6 @@ private:
   }
   inline Rvec extract_stdev() const
   {
-    if(start_prec == 0) return Rvec (nA, ACER_CONST_STDEV);
     Rvec ret(nA);
     assert(netOutputs.size() >= start_prec + nA);
     for(Uint i=0; i<nA; i++) ret[i] = noiseMap_func(netOutputs[start_prec+i]);
@@ -225,7 +224,7 @@ public:
     return 0.5*ret;
   }
 
-  Rvec updateOrUhState(Rvec& state, Rvec& beta, const Real fac)
+  Rvec updateOrUhState(Rvec& state, const Rvec beta, const Real fac)
   {
     for (Uint i=0; i<nA; i++) {
       const Real noise = sampAct[i] - mean[i];

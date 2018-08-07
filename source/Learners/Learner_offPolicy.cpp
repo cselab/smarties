@@ -81,7 +81,6 @@ void Learner_offPolicy::spawnTrainTasks_par()
   if(bSampleSequences) data->sampleSequences(samp_seq);
   else data->sampleTransitions(samp_seq, samp_obs);
 
-  profiler->stop_start("SLP"); // so we see inactive time during parallel loop
   #pragma omp parallel for schedule(dynamic) num_threads(nThreads)
   for (Uint i=0; i<batchSize; i++)
   {
@@ -104,8 +103,8 @@ void Learner_offPolicy::spawnTrainTasks_par()
 
     input->gradient(thrID);
     data->Set[seq]->setSampled(obs);
-    if(thrID==0) profiler->stop_start("SLP");
   }
+  profiler->stop_start("SLP");
 
   updateComplete = true;
 }
@@ -130,9 +129,12 @@ void Learner_offPolicy::applyGradient()
 
     if(CmaxPol>0) // assume ReF-ER
     {
+      #ifdef PRIORITIZED_ER
+        die("ReFER and Prioritized ER are incompatible. Set CmaxPol to 0");
+      #endif
       CmaxRet = 1 + annealRate(CmaxPol, currStep, epsAnneal);
       if(CmaxRet<=1) die("Either run lasted too long or epsAnneal is wrong.");
-      data->prune(REFER_FILTER, CmaxRet);
+      data->prune(ERFILTER, CmaxRet);
       Real fracOffPol = data->nOffPol / (Real) data->readNData();
 
       if (learn_size > 1) {
@@ -157,7 +159,7 @@ void Learner_offPolicy::applyGradient()
     }
     else
     {
-      data->prune(MEMBUF_FILTER_ALGO);
+      data->prune(ERFILTER);
     }
   }
   else

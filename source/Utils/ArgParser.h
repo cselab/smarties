@@ -28,12 +28,11 @@ struct OptionStruct
 
   template <typename T>
   OptionStruct(char _shortOpt, string _longOpt, argumentTypes _type,
-      string _description, T* _val, T _defVal) :
-      shortOpt(_shortOpt), longOpt(_longOpt), type(_type),
-      description(_description), value((void*)_val)
-      {
+    string _description, T* _val, T _defVal) : shortOpt(_shortOpt),
+    longOpt(_longOpt), type(_type), description(_description), value((void*)_val)
+  {
     *_val = _defVal;
-      }
+  }
 
   OptionStruct() {};
   ~OptionStruct() {};
@@ -43,11 +42,11 @@ struct OptionStruct
 class Parser
 {
 private:
-  int nOpt;
-  vector<OptionStruct> opts;
+  const vector<OptionStruct> opts;
   map<char, OptionStruct> optsMap;
-  struct option* long_options;
-  string ctrlString;
+  const int nOpt = opts.size();
+  struct option* long_options = new option[nOpt + 1];
+  string ctrlString = "";
 
 public:
   ~Parser() {delete [] long_options;}

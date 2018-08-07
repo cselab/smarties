@@ -122,15 +122,12 @@ struct Parameters
     return std::sqrt(sumWeights);
   }
 
-  void compute_dist_norm(long double& norm, long double& dist,
-    const Parameters*const TGT) const
+  long double compute_weight_dist(const Parameters*const TGT) const
   {
-    norm = 0; dist = 0;
-    #pragma omp parallel for schedule(static) reduction(+ : norm, dist)
-    for (Uint w=0; w<nParams; w++) {
-      norm += std::fabs(params[w]);
-      dist += std::fabs(params[w] - TGT->params[w]);
-    }
+    long double dist = 0;
+    #pragma omp parallel for schedule(static) reduction(+ : dist)
+    for(Uint w=0; w<nParams; w++) dist += std::pow(params[w]-TGT->params[w], 2);
+    return std::sqrt(dist);
   }
 
   inline void clear() const {

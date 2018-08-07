@@ -16,7 +16,7 @@
 
 #include <random>
 std::string printableTuple(std::vector<double> s,double r,std::vector<double> a);
-int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv);
+int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
 
 std::string printableTuple(std::vector<double> s,double r,std::vector<double> a)
 {
@@ -29,7 +29,7 @@ std::string printableTuple(std::vector<double> s,double r,std::vector<double> a)
   return o.str();
 }
 
-int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv)
+int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps)
 {
   //std::ostringstream o;
   //o << argc << ":";

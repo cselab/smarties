@@ -1,7 +1,6 @@
 hn ?= $(shell hostname)
 username ?= $(shell whoami)
 UNAME_S := $(shell uname -s)
-viz ?= 0
 config ?= prod
 extra ?=
 
@@ -92,9 +91,9 @@ CPPFLAGS+= -falign-functions=32 #-DBOOST_UBLAS_NDEBUG
 DIRS = $(sort $(dir $(wildcard ../source/*/)))
 OBJ_FILES = ArgParser.o main.o ObjectFactory.o Communicator.o RACER.o \
 		PPO.o ACER.o VRACER.o AtariEnvironment.o Approximator.o Network.o \
-		Environment.o TwoActFishEnvironment.o Learner.o NAF.o DQN.o DPG.o \
 		Learner_onPolicy.o MemoryBuffer.o Learner_offPolicy.o Optimizer.o \
-		RETPG.o Scheduler.o Math_tests.o Communicator_internal.o
+		Environment.o DQN.o RETPG.o Math_tests.o Communicator_internal.o \
+		Learner.o NAF.o DPG.o Scheduler.o
 
 #ExternalAgent.o TestEnvironment.o CMAEnvironment.o CartEnvironment.o GliderEnvironment.o
 #TwoFishEnvironment.o HingedFishEnvironment.o BlowfishEnvironment.o alebotEnvironment.o
@@ -109,23 +108,28 @@ ifneq "$(MAKECMDGOALS)" "clean"
 -include $(notdir $(patsubst %.cpp,%.d,$(CPP_FILES)))
 endif
 
-ifeq "$(app)" "cubism"
-lib:
-	make -C ../../CubismUP_3D/makefiles/ clean
-	#make -C ../../CubismUP_3D/makefiles/ train=true librl -j
-	make -C ../../CubismUP_3D/makefiles/ librl -j
+############### Compile application as static library if needed ###############
+ifneq "$(app)" "ext_app_test"
+# let's check if app requires some flag / lib
+ifneq ("$(wildcard ../apps/$(app)/make.flags)","")
+include ../apps/$(app)/make.flags
+endif
+CPPFLAGS+= -DINTERNALAPP # app is linked directly to smarties
+
+lib: Communicator.o
+	make -C ../apps/$(app)/ clean
+	make -C ../apps/$(app)/ CC=$(CC)
 else
-lib: $(app).o Communicator.o
+# app is compiled independently and uses communication through sockets
+# this is just for testing:
+lib: ext_app_test.o Communicator.o
 	ar rs libsimulation.a $^
 endif
-ifneq "$(app)" "ext_app_test"
-CPPFLAGS+= -DINTERNALAPP # app is linked directly to smarties
-endif #else app is compiled independently and uses communication through sockets
-
-LIBAPP= -L. -lsimulation
+LIBS+= -L. -lsimulation
+#
 
 rl: $(OBJ_FILES) lib
-	$(CC) $(OBJ_FILES) $(LIBAPP) $(LIBS) -o $@
+	$(CC) $(OBJ_FILES) $(LIBS) -o $@
 
 %.o: %.cpp
 	$(CC) $(extra)  $(CPPFLAGS) -c $< -o $@
@@ -138,6 +142,7 @@ vpath %.h   $(DIRS)
 
 clean:
 	rm -f *.o
+	rm -f *.so
 	rm -f *.s
 	rm -f *.d
 	rm -f libsimulation.a rl

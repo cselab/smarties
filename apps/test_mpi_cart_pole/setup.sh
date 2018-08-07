@@ -1,3 +1,3 @@
 make -C ../makefiles/ clean
 
-make -C ../makefiles/ app=../apps/test_mpi_cart_pole/cart-pole -j config=prod
+make -C ../makefiles/ app=test_mpi_cart_pole -j config=prod

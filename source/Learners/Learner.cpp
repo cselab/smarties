@@ -72,8 +72,7 @@ void Learner::prepareGradient()
 
 void Learner::initializeLearner()
 {
-  // All sequences obtained before this point should share the same time stamp
-  for(Uint i=0;i<data->Set.size();i++) data->Set[i]->ID= data->readNSeenSeq()-1;
+  data->initialize();
 }
 
 void Learner::applyGradient()
@@ -91,9 +90,12 @@ void Learner::applyGradient()
     profiler->printSummary();
     profiler->reset();
 
-    for(auto & net : F) net->save(learner_name);
-    input->save(learner_name);
-    data->save(learner_name, nStep);
+    const Real freqSave = 1000*PRFL_DMPFRQ;
+    const Uint freqBackup = std::ceil(settings.saveFreq / freqSave)*freqSave;
+    const bool bBackup = nStep % freqBackup == 0;
+    for(auto & net : F) net->save(learner_name, bBackup);
+    input->save(learner_name, bBackup);
+    data->save(learner_name, nStep, bBackup);
   }
 
   if(nStep%1000 ==0)
@@ -150,8 +152,8 @@ void Learner::restart()
   input->restart(settings.restart+"/"+learner_name);
   data->restart(settings.restart+"/"+learner_name);
 
-  for(auto & net : F) net->save("restarted_");
-  input->save("restarted_");
+  for(auto & net : F) net->save("restarted_"+learner_name, false);
+  input->save("restarted_"+learner_name, false);
 }
 
 bool Learner::workerHasUnfinishedSeqs(const int worker) const
@@ -163,35 +165,30 @@ bool Learner::workerHasUnfinishedSeqs(const int worker) const
 }
 
 //TODO: generalize!!
-bool Learner::predefinedNetwork(Builder& input_net)
+bool Learner::predefinedNetwork(Builder& input_net, Uint privateNum)
 {
-  if(settings.nnl2<=0) return false;
-
+  bool ret = false; // did i add layers to input net?
   if(input_net.nOutputs > 0) {
-    input_net.nOutputs = 0;
-    input_net.layers.back()->bOutput = false;
+     input_net.nOutputs = 0;
+     input_net.layers.back()->bOutput = false;
+     warn("Overwritten ENV's specification of CNN to add shared layers");
   }
-  //                 size       function     is output (of input net)?
-  input_net.addLayer(settings.nnl1, settings.nnFunc, settings.nnl3<=0);
-  settings.nnl1 = settings.nnl2;
-  if(settings.nnl3>0) {
-    input_net.addLayer(settings.nnl2, settings.nnFunc, settings.nnl4<=0);
-    settings.nnl1 = settings.nnl3;
-    if(settings.nnl4>0) {
-      input_net.addLayer(settings.nnl3, settings.nnFunc, settings.nnl5<=0);
-      settings.nnl1 = settings.nnl4;
-      if(settings.nnl5>0) {
-        input_net.addLayer(settings.nnl4, settings.nnFunc, settings.nnl6<=0);
-        settings.nnl1 = settings.nnl5;
-        if(settings.nnl6>0) {
-          input_net.addLayer(settings.nnl5, settings.nnFunc, true);
-          settings.nnl1 = settings.nnl6;
-        }
-      }
-    }
+  vector<int> sizeOrig = settings.readNetSettingsSize();
+  while ( sizeOrig.size() != privateNum )
+  {
+    const int size = sizeOrig[0];
+    sizeOrig.erase(sizeOrig.begin(), sizeOrig.begin()+1);
+    const bool bOutput = sizeOrig.size() == privateNum;
+    input_net.addLayer(size, settings.nnFunc, bOutput);
+    ret = true;
   }
-  settings.nnl2 = 0; // value, adv and pol nets will be one-layer
-  return true;
+  settings.nnl1 = sizeOrig.size() > 0? sizeOrig[0] : 0;
+  settings.nnl2 = sizeOrig.size() > 1? sizeOrig[1] : 0;
+  settings.nnl3 = sizeOrig.size() > 2? sizeOrig[2] : 0;
+  settings.nnl4 = sizeOrig.size() > 3? sizeOrig[3] : 0;
+  settings.nnl5 = sizeOrig.size() > 4? sizeOrig[4] : 0;
+  settings.nnl6 = sizeOrig.size() > 5? sizeOrig[5] : 0;
+  return ret;
 }
 
 //bool Learner::predefinedNetwork(Builder & input_net)

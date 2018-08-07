@@ -14,7 +14,7 @@
 #include <functional>
 
 #include "mpi.h"
-#include "../../source/Communicators/Communicator.h"
+#include "Communicator.h"
 #define SWINGUP 0
 using namespace std;
 
@@ -154,8 +154,12 @@ struct CartPole
   }
 };
 
-int app_main(Communicator*const comm, MPI_Comm mpicom, int argc, char**argv)
-{
+int app_main(
+  Communicator*const comm, // communicator with smarties
+  MPI_Comm mpicom,         // mpi_comm that mpi-based apps can use
+  int argc, char**argv,    // arguments read from app's runtime settings file
+  const Uint numSteps      // number of time steps to run before exit
+) {
   comm->update_state_action_dims(6, 1);
 
   //OPTIONAL: action bounds

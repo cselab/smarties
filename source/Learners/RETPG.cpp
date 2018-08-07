@@ -54,13 +54,13 @@ void RETPG::Train(const Uint seq, const Uint t, const Uint thrID) const
   Rvec mixG = weightSum2Grads(polG, penG, beta);
   Rvec finalG = Rvec(F[0]->nOutputs(), 0);
   POL.finalize_grad(mixG, finalG);
-  F[0]->backward(finalG, t, thrID);
+  F[0]->backward(finalG, traj, t, thrID);
 
   //code to compute value grad. Q_RET holds adv, sum with previous est of state
   // val: analogous to having target weights in original DPG
   const Real retTarget = traj->Q_RET[t] +traj->state_vals[t];
   const Rvec grad_val={isOff? 0: retTarget - q_curr[0]};
-  F[1]->backward(grad_val, t, thrID);
+  F[1]->backward(grad_val, traj, t, thrID);
 
   //bookkeeping:
   const Real dAdv = updateQret(traj, t, q_curr[0]-v_curr[0], v_curr[0], POL);
@@ -154,12 +154,6 @@ void RETPG::initializeLearner()
   #pragma omp parallel for schedule(dynamic)
   for(Uint i = 0; i < data->Set.size(); i++)
   for(Uint j=data->Set[i]->ndata(); j>0; j--) updateQretFront(data->Set[i],j);
-
-  for(Uint i = 0; i < data->inProgress.size(); i++) {
-    if(data->inProgress[i]->tuples.size() == 0) continue;
-    for(Uint j=data->inProgress[i]->ndata(); j>0; j--)
-      updateQretFront(data->inProgress[i],j);
-  }
 }
 
 RETPG::RETPG(Environment*const _e, Settings& _s) : Learner_offPolicy(_e, _s)

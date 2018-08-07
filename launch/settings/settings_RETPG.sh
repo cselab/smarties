@@ -2,7 +2,7 @@ SETTINGS=
 #discount factor in RL
 #the closer to 1 it is, the harder it is to learn
 #but, the agent might find better long-term strategies
-SETTINGS+=" --gamma 0.995"
+SETTINGS+=" --gamma 0.995 --samplesFile 1"
 
 #size of network layers
 SETTINGS+=" --nnl1 128"
@@ -36,7 +36,7 @@ SETTINGS+=" --explNoise 0.2"
 SETTINGS+=" --bSampleSequences 0"
 
 #C in paper. Determines c_max: boundary between (used) near-policy samples and (skipped) far policy ones
-SETTINGS+=" --clipImpWeight 2"
+SETTINGS+=" --clipImpWeight 4"
 # Here, fraction of far pol samples allowed in memory buffer
 SETTINGS+=" --penalTol 0.1"
 
@@ -47,5 +47,4 @@ SETTINGS+=" --targetDelay 0"
 #batch size for network gradients compute
 SETTINGS+=" --batchSize 128"
 #network update learning rate
-#SETTINGS+=" --learnrate 0.00001"
 SETTINGS+=" --learnrate 0.00001"

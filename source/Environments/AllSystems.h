@@ -11,8 +11,8 @@
 #include "Environment.h"
 
 class Environment;
-class TwoActFishEnvironment;
 /*
+class TwoActFishEnvironment;
 class AcrobotEnvironment;
 class CartEnvironment;
 class TwoFishEnvironment;
@@ -26,9 +26,9 @@ class GliderEnvironment;
 class openAICartEnvironment;
 class BlowfishEnvironment;
  */
-#include "TwoActFishEnvironment.h"
 #include "AtariEnvironment.h"
 /*
+#include "TwoActFishEnvironment.h"
 #include "Environments/AcrobotEnvironment.h"
 #include "Environments/CMAEnvironment.h"
 #include "Environments/CartEnvironment.h"

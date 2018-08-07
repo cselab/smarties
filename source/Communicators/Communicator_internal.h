@@ -15,6 +15,7 @@ class Communicator_internal: public Communicator
  protected:
   std::string execpath    = std::string();
   std::string paramfile   = std::string();
+  std::string nStepPerFile= std::string();
   std::string setupfolder = std::string();
 
   void launch_forked() override;
@@ -31,6 +32,8 @@ public:
   void answerTerminateReq(const double answer);
 
   void set_params_file(const std::string fname) { paramfile = fname; }
+  void set_nstepp_file(const std::string fname) { nStepPerFile = fname; }
+
   void set_exec_path(const std::string fname) { execpath = fname; }
   void set_folder_path(const std::string fname) { setupfolder = fname; }
   void set_application_mpicom(const MPI_Comm acom, const int group)
@@ -44,8 +47,8 @@ public:
   void save() const;
 
   void ext_app_run();
-  int jobs_init(char *line, char **largv);
-  void redirect_stdout_init();
+  vector<char*> readRunArgLst(const string _paramfile);
+  void redirect_stdout_init(const size_t simIter);
   void redirect_stdout_finalize();
   //called by smarties
   Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn);

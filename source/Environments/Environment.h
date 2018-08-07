@@ -25,9 +25,6 @@ public:
     Uint nAgents, nAgentsPerRank;
     const Real gamma;
 
-    Uint mpi_ranks_per_env = 1;
-    string paramsfile = string();
-
     vector<Agent*> agents;
     StateInfo  sI;
     ActionInfo aI;

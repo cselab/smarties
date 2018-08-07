@@ -84,15 +84,16 @@ Communicator_internal Environment::create_communicator(
     #ifdef INTERNALAPP
       settings.nWorkers = settings.workers_size-1; //one is the master
 
-      if(settings.nWorkers % mpi_ranks_per_env != 0)
+      if(settings.nWorkers % settings.workersPerEnv != 0)
         die("Number of ranks does not match app\n");
 
-      int workerGroup = settings.nWorkers / mpi_ranks_per_env;
+      int workerGroup = (settings.workers_rank-1) / settings.workersPerEnv;
 
       MPI_Comm app_com;
       MPI_Comm_split(workersComm, workerGroup, settings.workers_rank, &app_com);
 
       comm.set_params_file(settings.appSettings);
+      comm.set_nstepp_file(settings.nStepPappSett);
       comm.set_folder_path(settings.setupFolder);
       comm.set_application_mpicom(app_com, workerGroup);
       comm.ext_app_run(); //worker rank will remain here for ever

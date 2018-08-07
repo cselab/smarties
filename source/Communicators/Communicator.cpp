@@ -10,6 +10,7 @@
 #include "Communicator_utils.cpp"
 #include <iomanip>
 #include <fstream>
+#include <iostream>
 
 //APPLICATION SIDE CONSTRUCTOR
 Communicator::Communicator(const int socket, const int state_components, const int action_components, const int number_of_agents) : gen(std::mt19937(socket))
@@ -106,6 +107,11 @@ void Communicator::sendState(const int iAgent, const envInfo status,
   }
 }
 
+std::vector<double> Communicator::recvAction(const int iAgent)
+{
+  return stored_actions[iAgent];
+}
+
 void Communicator::set_action_scales(const std::vector<double> upper,
   const std::vector<double> lower, const bool bound)
 {
@@ -181,6 +187,7 @@ void Communicator::sendStateActionShape()
 
   // only rank 0 of MPI-based apps send the info to smarties:
   if(rank_inside_app > 0) return;
+  if(workerGroup > 0) return;
 
   double sizes[4] = {nStates+.1, nActions+.1, discrete_actions+.1, nAgents+.1};
   #ifdef MPI_INCLUDED
@@ -210,6 +217,9 @@ void Communicator::update_state_action_dims(const int sdim, const int adim)
     assert(sdim==nStates);
     return;
   }
+  assert(adim>0);
+  assert(sdim>0);
+  assert(nAgents>0);
   nStates = sdim;
   nActions = adim;
   discrete_action_values = 2*adim;
@@ -343,8 +353,8 @@ Communicator::~Communicator()
     else   close(ServerSocket);
   } //if with forked process paradigm
 
-  if(data_state not_eq nullptr) free(data_state);
-  if(data_action not_eq nullptr) free(data_action);
+  if(data_state not_eq nullptr)  _dealloc(data_state);
+  if(data_action not_eq nullptr) _dealloc(data_action);
 }
 
 // ONLY FOR CHILD CLASS
@@ -373,6 +383,6 @@ void Communicator::print()
   o <<" size_action:"<<size_action<< " size_state:"<< size_state<<"\n";
   o <<"MPI comm: size_s"<<size_learn_pool<<" rank_s:"<<rank_learn_pool;
   o <<" size_a:"<<size_inside_app<< " rank_a:"<< rank_inside_app<<"\n";
-  o <<"Socket comm: prefix:"<<socket_id<<" PATH:"<<SOCK_PATH<<"\n";
+  //o <<"Socket comm: prefix:"<<socket_id<<" PATH:"<<std::string(SOCK_PATH)<<"\n";
   o.close();
 }

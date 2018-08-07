@@ -2,7 +2,7 @@ SETTINGS=
 #discount factor in RL
 #the closer to 1 it is, the harder it is to learn
 #but, the agent might find better long-term strategies
-SETTINGS+=" --gamma 0.995"
+SETTINGS+=" --gamma 0.995  --samplesFile 1"
 
 #size of network layers
 SETTINGS+=" --nnl1 128"
@@ -12,6 +12,7 @@ SETTINGS+=" --nnl2 128"
 #SETTINGS+=" --nnType RNN"
 #SETTINGS+=" --nnFunc PRelu"
 SETTINGS+=" --nnFunc SoftSign"
+SETTINGS+=" --outWeightsPrefac 0.1"
 
 #whether you are training a policy or testing an already trained network
 SETTINGS+=" --bTrain 1"

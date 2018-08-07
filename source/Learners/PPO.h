@@ -38,8 +38,9 @@ class PPO : public Learner_onPolicy
       //are far-pol and therefore policy loss is 0. To keep samples on policy
       //we adapt DKL_target s.t. approx. 80% of samples are always near-Policy.
       //For most gym tasks with eta=1e-4 this results in ~0 penalty term.
-      if(      farPolSample && DKL_target>DivKL) DKL_target = DKL_target*0.9995;
-      else if(!farPolSample && DKL_target<DivKL) DKL_target = DKL_target*1.0001;
+      if( farPolSample && DKL_target>DivKL) DKL_target = DKL_target*0.9995;
+      else
+      if(!farPolSample && DKL_target<DivKL) DKL_target = DKL_target*1.0001;
     #endif
   }
 

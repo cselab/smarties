@@ -20,13 +20,11 @@ protected:
   Real nData_last = 0, nStep_last = 0;
   Real obsPerStep = obsPerStep_orig;
 
-  //to be overwritten if algo needs specific filtering of old episodes
-  FORGET MEMBUF_FILTER_ALGO = OLDEST;
-
-
   Real beta = CmaxPol<=0? 1 : 0.2; // if CmaxPol==0 do naive Exp Replay
   Real CmaxRet = 1 + CmaxPol;
 
+  const FORGET ERFILTER =
+    MemoryBuffer::readERfilterAlgo(settings.ERoldSeqFilter, CmaxPol>0);
   ApproximateReductor reductor = ApproximateReductor(mastersComm, 2);
 public:
   Learner_offPolicy(Environment*const env, Settings& _s);

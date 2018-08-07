@@ -1,31 +1,30 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=DPG_softfin_penal
+#SBATCH --job-name=NAF_REFER
 #SBATCH --time=24:00:00
 #SBATCH --output=out.%j.%a.o
 #SBATCH --error=out.%j.%a.e
 #SBATCH --constraint=gpu
 # #SBATCH --partition=debug
 
-#SBATCH --account=ch7
-# #SBATCH --account=s658
+# SBATCH --account=ch7
+#SBATCH --account=s658
 # #SBATCH --account=eth2
 
-#SBATCH --array=0-249
+#SBATCH --array=0-199
 
 # #SBATCH --ntasks=1
 # #SBATCH --ntasks-per-node=1
 
 # ======START=====
-COMMNAME=DPG_softfin_penal
+COMMNAME=NAF_REFER
 
-SETTINGS=" --gamma 0.995 --nnl1 128 --nnl2 128 --nnFunc SoftSign --learner DPG --maxTotObsNum 524288 --minTotObsNum 262144 --targetDelay 0.01 --explNoise 0.2 --totNumSteps 10000000 --learnrate 0.00001 --nMasters 1 --nThreads 12 --ppn 2 --outWeightsPrefac 0.1 --epsAnneal 5e-7 --batchSize 128 --obsPerStep 1 "
+SETTINGS=" --gamma 0.995 --nnl1 128 --nnl2 128 --nnFunc SoftSign --learner NAF --maxTotObsNum 524288 --minTotObsNum 262144 --targetDelay 0.01 --explNoise 0.2 --totNumSteps 10000000 --learnrate 0.0001 --nMasters 1 --nThreads 12 --ppn 2 --outWeightsPrefac 0.1 --epsAnneal 5e-7 --batchSize 256 --obsPerStep 1 "
 
 MYNAME=`whoami`
 SMARTIESDIR="${HOME}/smarties/"
-BASEPATH="/scratch/snx3000/${MYNAME}/smarties/Guido/"
-IMPSAMPR=(0 0 2 4 8)
-FUNC=(Tanh Linear Linear Linear Linear)
+BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
+IMPSAMPR=(0 2 4 8)
 TOLPARAM=(0.10)
 RUNTRIAL=(1 2 3 4 5)
 
@@ -39,14 +38,11 @@ appspec=()
 for it in `seq 0 ${#TASKNAME[@]}`; do
 
 for d in ${TOLPARAM[@]}; do
-for ic in `seq 0 ${#IMPSAMPR[@]}`; do
+for c in ${IMPSAMPR[@]}; do
 for r in ${RUNTRIAL[@]}; do
 
-c=${IMPSAMPR[$ic]}
-f=${FUNC[$ic]}
-
-cases+=("--clipImpWeight $c --penalTol $d --nnOutputFunc $f")
-rundir+=("${SHORTID[$it]}_${COMMNAME}_R${c}_F${f}_TRIAL${r}")
+cases+=("--clipImpWeight $c --penalTol $d ")
+rundir+=("${SHORTID[$it]}_${COMMNAME}_R${c}_TRIAL${r}")
 appspec+=("${TASKNAME[$it]}")
 
 done
@@ -73,7 +69,7 @@ EOF
 chmod +x ${RUNPATH}/launchSim.sh
 
 # copy over stuff
-cp ${SMARTIESDIR}/makefiles/rl                            ${RUNPATH}/exec
+cp ${SMARTIESDIR}/makefiles1/rl                            ${RUNPATH}/exec
 cp ${SMARTIESDIR}/source/Communicators/Communicator.py     ${RUNPATH}/
 cp ${SMARTIESDIR}/source/Communicators/Communicator_gym.py ${RUNPATH}/
 cp $0                                                      ${RUNPATH}/launch.sh

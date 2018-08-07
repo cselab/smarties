@@ -15,7 +15,7 @@
 #warning "Using Mixture_advantage with Quadratic advantages"
 #endif
 
-#ifdef DKL_filter
+#ifdef DKL_filter // this is so bad let's force undefined
 #undef DKL_filter
 #endif
 #define RACER_simpleSigma
@@ -43,9 +43,9 @@ TrainBySequences(const Uint seq, const Uint thrID) const
   {
     const Rvec out_cur = F[0]->get(traj, k, thrID);
     const Policy_t pol = prepare_policy(out_cur, traj->tuples[k]);
-    #ifdef DKL_filter
+    #ifdef DKL_filter // far policy definition depends on divKL, not on rho
       const bool isOff = traj->distFarPolicy(k, pol.sampKLdiv, CmaxRet-1);
-    #else
+    #else // far policy definition depends on rho (as in paper)
       const bool isOff = traj->isFarPolicy(k, pol.sampImpWeight, CmaxRet);
     #endif
     // in case rho outside bounds, do not compute gradient
@@ -55,7 +55,7 @@ TrainBySequences(const Uint seq, const Uint thrID) const
       continue;
     } else G = compute(traj,k, out_cur, pol, thrID);
     //write gradient onto output layer:
-    F[0]->backward(G, k, thrID);
+    F[0]->backward(G, traj, k, thrID);
   }
 
   if(thrID==0)  profiler->stop_start("BCK");
@@ -74,6 +74,7 @@ Train(const Uint seq, const Uint samp, const Uint thrID) const
   F[0]->prepare_one(traj, samp, thrID); // prepare thread workspace
   const Rvec out_cur = F[0]->forward(traj, samp, thrID); // network compute
 
+  //Update Qret of eps' last state if sampled T-1. (and V(s_T) for truncated ep)
   if( traj->isTerminal(samp+1) ) updateQret(traj, samp+1, 0, 0, 0);
   else if( traj->isTruncated(samp+1) ) {
     const Rvec nxt = F[0]->forward(traj, samp+1, thrID);
@@ -91,7 +92,7 @@ Train(const Uint seq, const Uint samp, const Uint thrID) const
   else grad = compute(traj, samp, out_cur, pol, thrID);
 
   if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->backward(grad, samp, thrID); // place gradient onto output layer
+  F[0]->backward(grad, traj, samp, thrID); // place gradient onto output layer
   F[0]->gradient(thrID);  // backprop
 }
 
@@ -106,6 +107,7 @@ compute(Sequence*const traj, const Uint samp, const Rvec& outVec,
   const Real A_RET = traj->Q_RET[samp] +traj->state_vals[samp]-V_cur;
   const Real rho = POL.sampImpWeight, dkl = POL.sampKLdiv;
   const Real Ver = std::min((Real)1, rho) * (A_RET-A_cur);
+  // all these min(CmaxRet,rho_cur) have no effect with ReFer enabled
   const Real Aer = std::min(CmaxRet, rho) * (A_RET-A_cur);
   const Rvec polG = policyGradient(traj->tuples[samp], POL,ADV,A_RET, thrID);
   const Rvec penalG  = POL.div_kl_grad(traj->tuples[samp]->mu, -1);
@@ -116,13 +118,14 @@ compute(Sequence*const traj, const Uint samp, const Rvec& outVec,
   //  <<" pen: "<<print(penalG)<<" fin: "<<print(finalG)<<endl;
   //prepare Q with off policy corrections for next step:
   const Real dAdv = updateQret(traj, samp, A_cur, V_cur, POL);
-
+  // compute the gradient:
   Rvec gradient = Rvec(F[0]->nOutputs(), 0);
   gradient[VsID] = beta*alpha * Ver;
   POL.finalize_grad(finalG, gradient);
   ADV.grad(POL.sampAct, beta*alpha * Aer, gradient);
+  traj->setMseDklImpw(samp, Ver*Ver, dkl, rho); // update ER metrics of sample
+  // logging for diagnostics:
   trainInfo->log(V_cur+A_cur, A_RET-A_cur, polG,penalG, {beta,dAdv,rho}, thrID);
-  traj->setMseDklImpw(samp, Ver*Ver, dkl, rho);
   return gradient;
 }
 
@@ -139,6 +142,7 @@ offPolCorrUpdate(Sequence*const S, const Uint t, const Rvec output,
   updateQret(S, t, A_cur, output[VsID], pol);
   S->setMseDklImpw(t, Ver*Ver, pol.sampKLdiv, pol.sampImpWeight);
   const Rvec pg = pol.div_kl_grad(S->tuples[t]->mu, beta-1);
+  // only non zero gradient is policy penalization
   Rvec gradient = Rvec(F[0]->nOutputs(), 0);
   pol.finalize_grad(pg, gradient);
   return gradient;
@@ -150,7 +154,7 @@ policyGradient(const Tuple*const _t, const Policy_t& POL,
   const Advantage_t& ADV, const Real A_RET, const Uint thrID) const
 {
   const Real rho_cur = POL.sampImpWeight;
-  #if defined(RACER_TABC)
+  #if defined(RACER_TABC) // apply ACER's var trunc and bias corr trick
     //compute quantities needed for trunc import sampl with bias correction
     const Action_t sample = POL.sample(&generators[thrID]);
     const Real polProbOnPolicy = POL.evalLogProbability(sample);
@@ -164,7 +168,7 @@ policyGradient(const Tuple*const _t, const Policy_t& POL,
     const Rvec gradAcer_2 = POL.policy_grad(sample,      gain2);
     return sum2Grads(gradAcer_1, gradAcer_2);
   #else
-    // remember, all these min(CmaxRet,rho_cur) have no effect with ReFer
+    // all these min(CmaxRet,rho_cur) have no effect with ReFer enabled
     return POL.policy_grad(POL.sampAct, A_RET*std::min(CmaxRet,rho_cur));
   #endif
 }
@@ -193,16 +197,7 @@ select(Agent& agent)
     traj->action_adv.push_back(advantage);
     traj->state_vals.push_back(output[VsID]);
     agent.act(act);
-
-    #ifdef dumpExtra
-      traj->add_action(agent.a->vals, mu);
-      Rvec param = adv.getParam();
-      assert(param.size() == nL);
-      mu.insert(mu.end(), param.begin(), param.end());
-      agent.writeData(learn_rank, mu);
-    #else
-      data->add_action(agent, mu);
-    #endif
+    data->add_action(agent, mu);
 
     #ifndef NDEBUG
       Policy_t dbg = prepare_policy(output);
@@ -211,7 +206,7 @@ select(Agent& agent)
       if(err>1e-10) _die("Imp W err %20.20e", err);
     #endif
   }
-  else
+  else // either terminal or truncation state
   {
     if( agent.Status == TRNC_COMM ) {
       Rvec output = F[0]->forward_agent(traj, agent);
@@ -225,23 +220,12 @@ select(Agent& agent)
     assert(traj->tuples.size() == traj->action_adv.size());
     assert(traj->tuples.size() == traj->state_vals.size());
     assert(traj->Q_RET.size()  == 0);
-    //within Retrace, we use the state_vals vector to write the Q retrace values
+    //within Retrace, we use the Q_RET vector to write the Adv retrace values
     traj->Q_RET.resize(traj->tuples.size(), 0);
-    for(Uint i=traj->ndata(); i>0; i--) {
-      updateQretFront(traj, i);
-      //cout<<traj->Q_RET[i]<<" "<<traj->action_adv[i]<<" "<<traj->state_vals[i]<<endl;
-    }
-    //cout << traj->Q_RET[0]<<" "<<traj->action_adv[0]<<" "<<traj->state_vals[0]<<endl;
+    for(Uint i=traj->ndata(); i>0; i--) updateQretFront(traj, i);
 
     OrUhState[agent.ID] = Rvec(nA, 0); //reset temp. corr. noise
-    #ifdef dumpExtra
-      agent.a->set(Rvec(nA,0));
-      traj->add_action(agent.a->vals, Rvec(policyVecDim,0));
-      agent.writeData(learn_rank, Rvec(policyVecDim+nL, 0));
-      data->push_back(agent.ID);
-    #else
-      data->terminate_seq(agent);
-    #endif
+    data->terminate_seq(agent);
   }
 }
 
@@ -253,7 +237,7 @@ prepareGradient()
 
   if(updateToApply)
   {
-    debugL("Update Retrace est. for episodes samples in prev. grad update");
+    debugL("Update Retrace est. for episodes sampled in prev. grad update");
     // placed here because this happens right after update is computed
     // this can happen before prune and before workers are joined
     profiler->stop_start("QRET");
@@ -278,13 +262,9 @@ initializeLearner()
   #pragma omp parallel for schedule(dynamic)
   for(Uint i=0; i<data->Set.size(); i++)
     for(Uint j=data->Set[i]->ndata(); j>0; j--) updateQretFront(data->Set[i],j);
-
-  for(Uint i = 0; i < data->inProgress.size(); i++) {
-    if(data->inProgress[i]->tuples.size() == 0) continue;
-    for(Uint j=data->inProgress[i]->ndata(); j>0; j--)
-      updateQretFront(data->inProgress[i],j);
-  }
 }
+
+// Template specializations. From now on, nothing relevant to algorithm itself.
 
 template<> vector<Uint>
 RACER<Discrete_advantage, Discrete_policy, Uint>::

@@ -125,6 +125,6 @@ public:
   virtual void prepareGradient();
   virtual void applyGradient();
   virtual void initializeLearner();
-  bool predefinedNetwork(Builder& input_net);
+  bool predefinedNetwork(Builder& input_net, const Uint privateNum = 1);
   void restart();
 };

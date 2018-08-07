@@ -9,11 +9,7 @@
 #pragma once
 
 #include <assert.h>
-#undef min
-#undef max
 #include <vector>
-#undef min
-#undef max
 #include <map>
 #include <string>
 #include <stdio.h>
@@ -114,7 +110,7 @@ protected:
   stack<string> m_mapStoppedAgents;
 
 public:
-  inline void push_start(string sAgentName)
+  inline void push_start(const string& sAgentName)
   {
     //if (m_mapStoppedAgents.size() > 0)
     //  getAgent(m_mapStoppedAgents.top()).stop();
@@ -123,12 +119,12 @@ public:
     getAgent(sAgentName).start();
   }
 
-  inline void stop_start(string sAgentName)
+  inline void stop_start(const string& sAgentName)
   {
     stop_all();
     push_start(sAgentName);
   }
-  inline void check_start(string sAgentName)
+  inline void check_start(const string& sAgentName)
   {
     if(m_mapStoppedAgents.size() > 0)
     {
@@ -141,7 +137,7 @@ public:
   {
     if(m_mapStoppedAgents.size() > 0)
     {
-      string sCurrentAgentName = m_mapStoppedAgents.top();
+      const string& sCurrentAgentName = m_mapStoppedAgents.top();
       getAgent(sCurrentAgentName).stop();
       m_mapStoppedAgents.pop();
     }
@@ -153,7 +149,7 @@ public:
   {
     while(m_mapStoppedAgents.size() > 0)
     {
-      string sCurrentAgentName = m_mapStoppedAgents.top();
+      const string& sCurrentAgentName = m_mapStoppedAgents.top();
       getAgent(sCurrentAgentName).stop();
       m_mapStoppedAgents.pop();
     }
@@ -164,7 +160,8 @@ public:
   void clear()
   {
     for(auto &item : m_mapAgents) {
-      delete item.second;
+      if(item.second not_eq nullptr)
+        delete item.second;
       item.second = nullptr;
     }
 
@@ -226,7 +223,7 @@ public:
     for(const auto &item : m_mapAgents) item.second->_reset();
   }
 
-  ProfileAgent& getAgent(string sName)
+  ProfileAgent& getAgent(const string& sName)
   {
     if (bVerboseProfiling) {printf("%s ", sName.data());}
 
@@ -236,7 +233,7 @@ public:
 
     if (bFound) return *it->second;
 
-    ProfileAgent * agent = new ProfileAgent();
+    ProfileAgent * const agent = new ProfileAgent();
 
     m_mapAgents[sName] = agent;
 

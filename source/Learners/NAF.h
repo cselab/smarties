@@ -18,6 +18,11 @@ class NAF : public Learner_offPolicy
   const vector<Uint> net_outputs = {1, compute_nL(aInfo.dim), aInfo.dim};
   const vector<Uint> net_indices = {0, 1, 1+compute_nL(aInfo.dim)};
 
+  const Uint nA = env->aI.dim;
+  const Real OrUhDecay = CmaxPol<=0? .85 : 0;
+  //const Real OrUhDecay = 0; // as in original
+  vector<Rvec> OrUhState = vector<Rvec>( nAgents, Rvec(nA, 0) );
+
   inline Quadratic_advantage prepare_advantage(const Rvec& out) const
   {
     return Quadratic_advantage(vector<Uint>{net_indices[1], net_indices[2]}, &aInfo, out);

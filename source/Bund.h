@@ -61,20 +61,12 @@ using namespace std;
 // Bound of pol mean for bounded act. spaces (ie tanh(+/- 8)) Helps avoid nans
 #define BOUNDACT_MAX 8
 
-// Optional constant stdev in case of Acer:
-#define ACER_CONST_STDEV 0.3
-
-// Number of previous time steps to include in back-prop through time:
-#define MAX_UNROLL_BFORE 20
-
 // Sample white Gaussian noise and add it to state vector before input to net
 // This has been found to help in case of dramatic dearth of data
 // The noise stdev for state s_t is = ($NOISY_INPUT) * || s_{t-1} - s_{t+1} ||
 //#define NOISY_INPUT 0.01
 
-// Switch between filter policies when employing ReF-ER. Recommended:
-#define REFER_FILTER FARPOLFRAC // remove seqs with highest frac of far-pol obs
-//#define REFER_FILTER OLDEST   // remove oldest seqs
+// #define PRIORITIZED_ER
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////// OPTIMIZER TWEAKS ////////////////////////////////
@@ -123,8 +115,6 @@ typedef double memReal;
 // hint to reserve memory for the network workspaces, can be breached
 #define MAX_SEQ_LEN 1200
 
-#define FREQ_BACKUP 1000000 // frequency of network weights backups
-
 //#define _dumpNet_ // deprecated
 
 typedef unsigned Uint;
@@ -133,9 +123,11 @@ typedef unsigned Uint;
 typedef long double Real;
 #define MPI_VALUE_TYPE MPI_LONG_DOUBLE
 #else
-typedef double Real;
 #define MPI_VALUE_TYPE MPI_DOUBLE
 #endif
+typedef float  Fval;
+typedef vector<Fval> Fvec;
+typedef double Real;
 typedef vector<Real> Rvec;
 typedef vector<long double> LDvec;
 

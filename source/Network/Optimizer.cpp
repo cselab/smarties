@@ -178,7 +178,7 @@ void Optimizer::apply_update()
   }
 }
 
-void Optimizer::save(const string fname)
+void Optimizer::save(const string fname, const bool backup)
 {
   weights->save(fname+"_weights");
   if(tgt_weights not_eq nullptr) tgt_weights->save(fname+"_tgt_weights");
@@ -188,7 +188,7 @@ void Optimizer::save(const string fname)
   _2ndMax->save(fname+"_2ndMax");
   #endif
 
-  if(nStep % FREQ_BACKUP == 0 && nStep > 0) {
+  if(backup) {
     ostringstream ss; ss << std::setw(9) << std::setfill('0') << nStep;
     weights->save(fname+"_"+ss.str()+"_weights");
     _1stMom->save(fname+"_"+ss.str()+"_1stMom" );

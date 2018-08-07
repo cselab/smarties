@@ -17,9 +17,7 @@ class Optimizer
   const MPI_Comm mastersComm;
   const Uint learn_size;
   const Real eta, beta_1, beta_2;
-  long unsigned nStep = 0;
   Real beta_t_1 = beta_1, beta_t_2 = beta_2;
-  const Real lambda, epsAnneal, tgtUpdateAlpha;
   const Parameters * const weights;
   const Parameters * const tgt_weights;
   const Parameters * const gradSum;
@@ -36,14 +34,16 @@ class Optimizer
 
  public:
   bool bAnnealLearnRate = true;
+  const Real lambda, epsAnneal, tgtUpdateAlpha;
+  long unsigned nStep = 0;
 
   Optimizer(Settings&S, const Parameters*const W, const Parameters*const W_TGT,
     const Real B1=.9, const Real B2=.999) : mastersComm(S.mastersComm),
     learn_size(S.learner_size), eta(S.learnrate), beta_1(B1), beta_2(B2),
-    lambda(S.nnLambda), epsAnneal(S.epsAnneal), tgtUpdateAlpha(S.targetDelay),
     weights(W), tgt_weights(W_TGT), gradSum(W->allocateGrad()),
     _1stMom(W->allocateGrad()), _2ndMom(W->allocateGrad()),
-    _2ndMax(W->allocateGrad()), generators(S.generators) {
+    _2ndMax(W->allocateGrad()), generators(S.generators), lambda(S.nnLambda),
+    epsAnneal(S.epsAnneal), tgtUpdateAlpha(S.targetDelay) {
       //_2ndMom->set(std::sqrt(nnEPS));
       //_2ndMom->set(1);
     }
@@ -64,6 +64,6 @@ class Optimizer
 
   void apply_update();
 
-  void save(const string fname);
+  void save(const string fname, const bool bBackup);
   int restart(const string fname);
 };

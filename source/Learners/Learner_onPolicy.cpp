@@ -35,12 +35,14 @@ void Learner_onPolicy::spawnTrainTasks_seq()
   if(updateComplete || updateToApply) die("undefined behavior");
   if( data->readNData() < nHorizon ) die("undefined behavior");
   if( not bTrain ) return;
-
+  #ifdef PRIORITIZED_ER // NOT SUPPORTED
+    vector<float> probs(data->readNData(), 1);
+    data->distPER = discrete_distribution<Uint>(probs.begin(), probs.end());
+  #endif
   debugL("sampling update from (nearly) on-pol data");
   vector<Uint> samp_seq(batchSize, -1), samp_obs(batchSize, -1);
   data->sampleTransitions(samp_seq, samp_obs);
 
-  profiler->stop_start("SLP"); // so we see inactive time during parallel loop
   #pragma omp parallel for schedule(dynamic) num_threads(nThreads)
   for (Uint i=0; i<batchSize; i++)
   {
@@ -49,8 +51,9 @@ void Learner_onPolicy::spawnTrainTasks_seq()
     Train(seq, obs, thrID);
     input->gradient(thrID);
     data->Set[seq]->setSampled(obs);
-    if(thrID==0) profiler->stop_start("SLP");
   }
+
+  profiler->stop_start("SLP");
   updateComplete = true;
 }
 
@@ -65,15 +68,20 @@ void Learner_onPolicy::prepareGradient()
   debugL("shift counters of epochs over the stored data");
   cntBatch += batchSize;
   if(cntBatch >= nHorizon) {
+    const Real annlLR = annealRate(learnR, nStep, epsAnneal);
+    data->updateRewardsStats(nStep, 0.001, annlLR);
     cntBatch = 0;
     cntEpoch++;
   }
 
   if(cntEpoch >= nEpochs) {
     debugL("finished epochs, compute state/rew stats, clear buffer to gather new onpol samples");
-    const Real annlLR = annealRate(learnR, nStep, epsAnneal);
-    data->updateRewardsStats(nStep, annlLR, annlLR);
-    cntKept = data->clearOffPol(CmaxPol, 0.05);
+    #if 0 // keep nearly on policy data
+      cntKept = data->clearOffPol(CmaxPol, 0.05);
+    #else
+      data->clearAll();
+      cntKept = 0;
+    #endif
     //reset batch learning counters
     cntEpoch = 0;
     cntBatch = 0;
