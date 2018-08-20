@@ -44,21 +44,15 @@ env > environment.log
 # Let's assume for now users can sort this out themselves
 isOpenMPI=$(mpirun --version | grep "Open MPI" | wc -l)
 HOST=`hostname`
+OS_D=`uname`
 if [ ${isOpenMPI} -ge 1 ]; then
-	if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:5} == 'eu-lo' ] || [ ${HOST:0:4} == 'eu-c' ];
-  then # eth's server, but second command can be probably used by YOU!
-		if [ ${NTHREADS} -ge 24 ]; then
-			mpirun -n ${NPROCESS} -oversubscribe --map-by node:PE=${NTHREADS} -report-bindings --mca mpi_cuda_support 0 ./rl ${SETTINGS} | tee out.log
-		else
-			mpirun -n ${NPROCESS} -oversubscribe --map-by socket:PE=${NTHREADS} -report-bindings --mca mpi_cuda_support 0 ./rl ${SETTINGS} | tee out.log
-		fi
-	else
-		mpirun -n ${NPROCESS} -oversubscribe -report-bindings ./rl ${SETTINGS} | tee out.log
-	fi
+if [ ${OS_D} == 'Darwin' ] ; then
+mpirun -n ${NPROCESS} ./rl ${SETTINGS} | tee out.log
+else
+mpirun -n ${NPROCESS} --map-by socket:PE=${NTHREADS} -report-bindings --mca mpi_cuda_support 0 ./rl ${SETTINGS} | tee out.log
+fi
 else # mpich / mvapich
 #mpirun -n ${NPROCESS} -ppn ${TASKPERN} -bind-to core:${NTHREADS} valgrind --num-callers=100  --tool=memcheck  ./rl ${SETTINGS} | tee out.log
 mpirun -n ${NPROCESS} -ppn ${TASKPERN} -bind-to core:${NTHREADS} ./rl ${SETTINGS} | tee out.log
 fi
 
-# mpirun -n ${NPROCESS} -ppn ${TASKPERN} -bind-to none xterm -hold -e gdb -ex run --args ./rl ${SETTINGS}
-#mpirun -n ${NPROCESS} -ppn ${TASKPERN} -bind-to none xterm -e gdb --tui --args ./rl ${SETTINGS}

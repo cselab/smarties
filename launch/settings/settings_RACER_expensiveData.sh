@@ -33,6 +33,7 @@ SETTINGS+=" --totNumSteps 50000000"
 
 #C in paper. Determines c_max: boundary between (used) near-policy samples and (skipped) far policy ones
 SETTINGS+=" --clipImpWeight 1"
+SETTINGS+=" --ERoldSeqFilter oldest"
 
 # Here, fraction of far pol samples allowed in memory buffer
 SETTINGS+=" --penalTol 0.1"

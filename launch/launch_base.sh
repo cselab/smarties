@@ -48,11 +48,12 @@ git diff > ${BASEPATH}${RUNFOLDER}/gitdiff.log
 cd ${BASEPATH}${RUNFOLDER}
 
 HOST=`hostname`
-# || [ ${HOST:0:4} == 'eu-c' ]
-if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:5} == 'eu-lo' ] ; then
-	NTHREADSPERNODE=24
+
+if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:3} == 'eu-' ] ; then
+	NTHREADSPERNODE=36
 	NPROCESSORS=$((${NNODES}*${NTHREADSPERNODE}))
-	bsub -J ${RUNFOLDER} -R "select[model==XeonE5_2680v3]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
+	bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonGold_6150]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
+	#bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonE5_2680v3]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
 else
 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} ${NMASTERS}
 fi
