@@ -126,12 +126,7 @@ void Master::processAgent(const int worker, const MPI_Status mpistatus)
   sendBuffer(worker, agent);
 
   if ( recv_status >= TERM_COMM )
-  {
-    const Uint agentTsteps = (*stepNum[recv_agent]).load();
-    dumpCumulativeReward(recv_agent, worker, aAlgo->iter(), agentTsteps );
-    (*seqNum[recv_agent])++;
-  }
-  else if ( aAlgo->iter() ) (*stepNum[recv_agent])++;
+    dumpCumulativeReward(recv_agent,worker,aAlgo->iter(),aAlgo->tStepsTrain());
 
   recvBuffer(worker);
 }

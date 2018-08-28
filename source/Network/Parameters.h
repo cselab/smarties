@@ -69,7 +69,10 @@ struct Parameters
    nParams(computeNParams(_nWeights, _nBiases)), nLayers(_nWeights.size()),
    params(allocate_ptr(nParams))  { }
 
-  ~Parameters() { if(params not_eq nullptr) free(params); }
+  ~Parameters() {
+    if(params not_eq nullptr) free(params);
+    if(params_T not_eq nullptr) free(params_T);
+  }
 
   void reduceThreadsGrad(const vector<Parameters*>& g) const
   {

@@ -28,9 +28,7 @@ private:
   const Uint inSize = (3 + env->sI.dim) * sizeof(double);
   const vector<double*> inpBufs = alloc_bufs(inSize, nWorkers);
   const vector<double*> outBufs = alloc_bufs(outSize,nWorkers);
-  Uint iterNum = 0;
-  vector<atomic<Uint>*> stepNum = alloc_counts(nPerRank);
-  vector<atomic<Uint>*>  seqNum = alloc_counts(nPerRank);
+  Uint iterNum = 0; // no need to restart this one
 
   bool bNeedSequentialTasks = false;
   mutable vector<MPI_Request> requests = vector<MPI_Request>(nWorkers, MPI_REQUEST_NULL);
@@ -40,19 +38,23 @@ private:
   mutable vector<ostringstream> rewardsBuffer = vector<ostringstream>(nPerRank);
 
   inline Uint getMinSeqId() const {
-    Uint lowest = (*seqNum[0]).load();
-    for(int i=1; i<nPerRank; i++) {
-      const Uint tmp = (*seqNum[i]).load();
+    Uint lowest = learners[0]->nSeqsEval();
+    for(size_t i=1; i<learners.size(); i++) {
+      const Uint tmp = learners[i]->nSeqsEval();
       if(tmp<lowest) lowest = tmp;
     }
+    // if agents share learning algo, return number of eps performed by env:
+    if(learners.size() == 1) lowest /= nPerRank;
     return lowest;
   }
   inline Uint getMinStepId() const {
-    Uint lowest = (*stepNum[0]).load();
-    for(int i=1; i<nPerRank; i++) {
-      const Uint tmp = (*stepNum[i]).load();
+    Uint lowest = learners[0]->tStepsTrain();
+    for(size_t i=1; i<learners.size(); i++) {
+      const Uint tmp = learners[i]->tStepsTrain();
       if(tmp<lowest) lowest = tmp;
     }
+    // if agents share learning algo, return number of turns performed by env:
+    if(learners.size() == 1) lowest /= nPerRank;
     return lowest;
   }
 
@@ -195,8 +197,6 @@ public:
     for(int i=0; i<nWorkers; i++) _dealloc(inpBufs[i]);
     for(int i=0; i<nWorkers; i++) _dealloc(outBufs[i]);
     for(const auto& L : learners) _dispose_object(L);
-    for(const auto& C : stepNum) _dispose_object(C);
-    for(const auto& C : seqNum) _dispose_object(C);
     flushRewardBuffer();
   }
 

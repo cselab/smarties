@@ -102,8 +102,7 @@ public:
   // }
 
   template<typename T>
-  inline Rvec standardizeAppended(const vector<T>& state) const
-  {
+  inline Rvec standardizeAppended(const vector<T>& state) const {
     Rvec ret(sI.dimUsed*(1+nAppended));
     assert(state.size() == sI.dimUsed*(1+nAppended));
     for (Uint j=0; j<1+nAppended; j++)
@@ -112,8 +111,7 @@ public:
     return ret;
   }
   template<typename T>
-  inline Rvec standardize(const vector<T>& state) const
-  {
+  inline Rvec standardize(const vector<T>& state) const {
     Rvec ret(sI.dimUsed);
     assert(state.size() == sI.dimUsed && mean.size() == sI.dimUsed);
     for (Uint i=0; i<sI.dimUsed; i++) ret[i] =(state[i]-mean[i])*invstd[i];
@@ -135,8 +133,7 @@ public:
   }
   #endif // NOISY_INPUT
 
-  inline Real scaledReward(const Uint seq, const Uint samp) const
-  {
+  inline Real scaledReward(const Uint seq, const Uint samp) const {
     assert(samp>0 && samp < Set[seq]->tuples.size());
     return Set[seq]->tuples[samp]->r * invstd_reward;
   }
@@ -146,15 +143,13 @@ public:
     return seq->tuples[samp]->r * invstd_reward;
   }
 
-  void clearFailedSim(const int agentOne, const int agentEnd)
-  {
+  void clearFailedSim(const int agentOne, const int agentEnd) {
     for (int i = agentOne; i<agentEnd; i++) {
       _dispose_object(inProgress[i]);
       inProgress[i] = new Sequence();
     }
   }
-  void pushBackEndedSim(const int agentOne, const int agentEnd)
-  {
+  void pushBackEndedSim(const int agentOne, const int agentEnd) {
     for(int i=agentOne; i<agentEnd; i++) if(inProgress[i]->ndata()) push_back(i);
   }
 

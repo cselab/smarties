@@ -16,7 +16,6 @@ protected:
   const Real obsPerStep_orig;
   const Uint nObsPerTraining;
   mutable int percData = -5;
-  Uint nData_b4Startup = 0;
   Real nData_last = 0, nStep_last = 0;
   Real obsPerStep = obsPerStep_orig;
 

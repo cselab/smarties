@@ -5,12 +5,14 @@ SETTINGS=
 SETTINGS+=" --gamma 0.99 --samplesFile 1"
 
 #size of network layers
-SETTINGS+=" --nnl1 128"
-SETTINGS+=" --nnl2 128"
+SETTINGS+=" --nnl1 32"
+SETTINGS+=" --nnl2 32"
 #SETTINGS+=" --nnl3 128"
 
 # Activation functions:
 #SETTINGS+=" --nnFunc LRelu"
+SETTINGS+=" --nnType GRU"
+SETTINGS+=" --nnBPTTseq 8"
 SETTINGS+=" --nnFunc SoftSign"
 #SETTINGS+=" --nnFunc Tanh"
 # Multiplies initial weights of output layer. Ie U[-.1/sqrt(f), .1/sqrt(f)]
@@ -42,6 +44,6 @@ SETTINGS+=" --penalTol 0.1"
 SETTINGS+=" --epsAnneal 0"
 
 #batch size for network gradients compute
-SETTINGS+=" --batchSize 128"
+SETTINGS+=" --batchSize 64"
 #network update learning rate
 SETTINGS+=" --learnrate 0.0001"

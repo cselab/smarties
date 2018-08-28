@@ -79,7 +79,6 @@ cat <<EOF >daint_sbatch
 #SBATCH --error=${RUNFOLDER}_err_%j.txt
 #SBATCH --time=24:00:00
 #SBATCH --nodes=${NNODES}
-#SBATCH --ntasks-per-node=${NTASKPERNODE}
 #SBATCH --constraint=gpu
 
 # #SBATCH --time=00:30:00
@@ -89,12 +88,13 @@ cat <<EOF >daint_sbatch
 #SBATCH --mail-user="${MYNAME}@ethz.ch"
 #SBATCH --mail-type=ALL
 
-export OMP_NUM_THREADS=${NTHREADS}
-export CRAY_CUDA_MPS=1
-export OMP_PROC_BIND=CLOSE
+export MPICH_MAX_THREAD_SAFETY=multiple;
 export OMP_PLACES=cores
+export OMP_PROC_BIND=close
+export OMP_NUM_THREADS=12
+export CRAY_CUDA_MPS=1
 
-srun --ntasks ${NPROCESS} --ntasks-per-node=${NTASKPERNODE} --cpus-per-task=${NTHREADS} --threads-per-core=1 ./rl ${SETTINGS}
+srun -n ${NNODES} --nodes=${NNODES}  --ntasks-per-node=1 ./rl ${SETTINGS}
 EOF
 
 chmod 755 daint_sbatch

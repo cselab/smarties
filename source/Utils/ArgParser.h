@@ -45,7 +45,7 @@ private:
   const vector<OptionStruct> opts;
   map<char, OptionStruct> optsMap;
   const int nOpt = opts.size();
-  struct option* long_options = new option[nOpt + 1];
+  struct option* const long_options = new option[nOpt + 1];
   string ctrlString = "";
 
 public:

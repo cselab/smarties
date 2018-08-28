@@ -26,6 +26,7 @@ protected:
   const Real CmaxPol, ReFtol, learnR, gamma, explNoise, epsAnneal;
   const int learn_rank=settings.learner_rank, learn_size=settings.learner_size;
   unsigned long nStep = 0;
+  Uint nData_b4Startup = 0;
   Uint nAddedGradients = 0;
   mutable Uint nSkipped = 0;
 
@@ -82,24 +83,19 @@ public:
     learnID = id;
   }
 
-  inline unsigned time() const
-  {
-    return data->readNSeen();
-  }
-  inline unsigned iter() const
-  {
+  inline unsigned iter() const {
     return nStep;
   }
-  inline unsigned nData() const
-  {
+  inline unsigned tStepsTrain() const {
+    return data->readNSeen() - nData_b4Startup;
+  }
+  inline unsigned nSeqsEval() const {
+    return data->readNSeenSeq();
+  }
+  inline unsigned nData() const {
     return data->readNData();
   }
-  inline bool reachedMaxGradStep() const
-  {
-    return nStep > totNumSteps;
-  }
-  inline Real annealingFactor() const
-  {
+  inline Real annealingFactor() const {
     //number that goes from 1 to 0 with optimizer's steps
     assert(epsAnneal>1.);
     if(nStep*epsAnneal >= 1 || !bTrain) return 0;

@@ -58,5 +58,5 @@ bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonGold_6150]" -n $
 
 #bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonE5_2680v3]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
 else
-./run.sh
+ source run.sh
 fi
