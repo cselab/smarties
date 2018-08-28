@@ -27,7 +27,8 @@
 #define TERM_COMM 2
 #define TRNC_COMM 3
 #define FAIL_COMM 4
-#define _AGENT_KILLSIGNAL -256
+#define AGENT_KILLSIGNAL -256
+#define AGENT_TERMSIGNAL  256
 
 #ifdef OPEN_MPI
 #define MPI_INCLUDED
@@ -69,7 +70,7 @@ class Communicator
   std::vector<std::vector<double>> stored_actions;
   //internal counters
   unsigned long seq_id = 0, msg_id = 0, iter = 0;
-
+  unsigned learner_step_id = 0;
   std::mt19937 gen;
 
   bool sentStateActionShape = false;

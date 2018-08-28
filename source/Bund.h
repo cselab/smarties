@@ -105,10 +105,6 @@ using namespace std;
 /////////////////////////////// BEHAVIOR TWEAKS ////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-// Data format for storage in memory buffer. Switch to float for example for
-// Atari where the memory buffer is in the order of GBs.
-typedef double memReal;
-//typedef float memReal;
 
 #define PRFL_DMPFRQ 50 // regulates how frequently print profiler info
 
@@ -118,18 +114,38 @@ typedef double memReal;
 //#define _dumpNet_ // deprecated
 
 typedef unsigned Uint;
-
-#if 0
-typedef long double Real;
-#define MPI_VALUE_TYPE MPI_LONG_DOUBLE
-#else
+////////////////////////////////////////////////////////////////////////////////
+#if 1 // MAIN CODE PRECISION
+typedef double Real;
 #define MPI_VALUE_TYPE MPI_DOUBLE
+#else
+typedef float Real;
+#define MPI_VALUE_TYPE MPI_FLOAT
 #endif
+///////////////////////////////////////////////////////////////////////////////
+#if 1 // NETWORK PRECISION
+  #define gemv cblas_dgemv
+  #define gemm cblas_dgemm
+  typedef double nnReal;
+  #define MPI_NNVALUE_TYPE MPI_DOUBLE
+  #define EXP_CUT 8 //prevent under/over flow with exponentials
+#else
+  #define gemv cblas_sgemv
+  #define gemm cblas_sgemm
+  #define MPI_NNVALUE_TYPE MPI_FLOAT
+  typedef float nnReal;
+  #define EXP_CUT 4 //prevent under/over flow with exponentials
+#endif
+////////////////////////////////////////////////////////////////////////////////
+// Data format for storage in memory buffer. Switch to float for example for
+// Atari where the memory buffer is in the order of GBs.
+//typedef double memReal;
+typedef float memReal;
 typedef float  Fval;
 typedef vector<Fval> Fvec;
-typedef double Real;
 typedef vector<Real> Rvec;
 typedef vector<long double> LDvec;
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 void _dispose_object(T *& ptr)

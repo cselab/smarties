@@ -14,17 +14,13 @@
 #include <chrono>
 
 Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
-  Settings&_s): workersComm(_c), learners(_l), env(_e), aI(_e->aI), sI(_e->sI),
-  agents(_e->agents), bTrain(_s.bTrain), nPerRank(_e->nAgentsPerRank),
+  Settings&_s): workersComm(_c), learners(_l), env(_e), bTrain(_s.bTrain),
   nWorkers(_s.nWorkers), nThreads(_s.nThreads), learn_rank(_s.learner_rank),
   learn_size(_s.learner_size), totNumSteps(_s.totNumSteps),
-  outSize(_e->aI.dim*sizeof(double)), inSize((3+_e->sI.dim)*sizeof(double)),
-  bAsync(_s.threadSafety>=MPI_THREAD_MULTIPLE),
-  inpBufs(alloc_bufs(inSize,nWorkers)), outBufs(alloc_bufs(outSize,nWorkers))
+  bAsync(_s.threadSafety>=MPI_THREAD_MULTIPLE)
 {
   profiler = new Profiler();
   for (Uint i=0; i<learners.size(); i++)  learners[i]->profiler = profiler;
-  for (int i=0; i<nPerRank; i++) { stepNum[i] = 0; seqNum[i] = 0; }
 
   for(const auto& L : learners) // Figure out if I have on-pol learners
     bNeedSequentialTasks = bNeedSequentialTasks || L->bNeedSequentialTrain();
@@ -36,7 +32,7 @@ Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
   profiler->stop_start("SLP");
 }
 
-int Master::run()
+void Master::run()
 {
   { // gather initial data OR if not training evaluated restarted policy
     vector<std::thread> worker_replies = asyncReplyWorkers();
@@ -44,7 +40,7 @@ int Master::run()
     for(int i=0; i<nWorkers; i++) worker_replies[i].join();
   }
 
-  if( not bTrain ) return 0;
+  if( not bTrain ) return;
 
   profiler->reset();
   profiler->stop_start("SLP");
@@ -81,10 +77,8 @@ int Master::run()
     // buffer that should be done after workers.join() are done here.
     for(const auto& L : learners) L->applyGradient();
 
-    if( getMinStepId() >= totNumSteps ) return 0;
+    if( getMinStepId() >= totNumSteps ) return;
   }
-  die(" ");
-  return 1;
 }
 
 void Master::processWorker(const int worker)
@@ -118,44 +112,33 @@ void Master::processAgent(const int worker, const MPI_Status mpistatus)
   const int agent = (worker-1) * nPerRank + recv_agent;
   Learner*const aAlgo = pickLearner(agent, recv_agent);
 
-  if (recv_status == FAIL_COMM) //app crashed :sadface:
-  { //TODO fix for on-pol & multiple algos
-    aAlgo->clearFailedSim((worker-1)*nPerRank, worker*nPerRank);
-    for(int i=(worker-1)*nPerRank; i<worker*nPerRank; i++) agents[i]->reset();
-    warn("Received a FAIL_COMM\n");
-  }
-  else
+  if (recv_status == FAIL_COMM) die("app crashed");
+
+  agents[agent]->update(recv_status, recv_state, reward);
+  //pick next action and ...do a bunch of other stuff with the data:
+  aAlgo->select(*agents[agent]);
+
+  debugS("Agent %d (%d): [%s] -> [%s] rewarded with %f going to [%s]",
+    agent, agents[agent]->Status, agents[agent]->sOld._print().c_str(),
+    agents[agent]->s._print().c_str(), agents[agent]->r,
+    agents[agent]->a._print().c_str());
+
+  sendBuffer(worker, agent);
+
+  if ( recv_status >= TERM_COMM )
   {
-    agents[agent]->update(recv_status, recv_state, reward);
-    //pick next action and ...do a bunch of other stuff with the data:
-    aAlgo->select(*agents[agent]);
-
-    debugS("Agent %d (%d): [%s] -> [%s] rewarded with %f going to [%s]",
-      agent, agents[agent]->Status, agents[agent]->sOld._print().c_str(),
-      agents[agent]->s._print().c_str(), agents[agent]->r,
-      agents[agent]->a._print().c_str());
-
-    sendBuffer(worker, agent);
-
-    if ( recv_status >= TERM_COMM )
-    {
-      const Uint agentTsteps = stepNum[recv_agent].load();
-      dumpCumulativeReward(recv_agent, worker, aAlgo->iter(), agentTsteps );
-      seqNum[recv_agent]++;
-    }
-    else if ( aAlgo->iter() )
-    {
-      stepNum[recv_agent]++;
-    }
+    const Uint agentTsteps = (*stepNum[recv_agent]).load();
+    dumpCumulativeReward(recv_agent, worker, aAlgo->iter(), agentTsteps );
+    (*seqNum[recv_agent])++;
   }
+  else if ( aAlgo->iter() ) (*stepNum[recv_agent])++;
 
   recvBuffer(worker);
 }
 
 Worker::Worker(Communicator_internal*const _c, Environment*const _e, Settings& _s): comm(_c), env(_e), bTrain(_s.bTrain), status(_e->agents.size(),1) {}
 
-void Worker::run()
-{
+void Worker::run() {
   while(true) {
 
     while(true) {

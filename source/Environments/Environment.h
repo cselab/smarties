@@ -17,11 +17,11 @@ class Environment
 {
 protected:
     mt19937 * const g; //only ok if only thread 0 accesses
-    Settings & settings;
     Communicator_internal* comm_ptr = nullptr;
     void commonSetup();
 
 public:
+    Settings & settings;
     Uint nAgents, nAgentsPerRank;
     const Real gamma;
 

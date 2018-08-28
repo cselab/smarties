@@ -30,7 +30,7 @@ class MGULayer: public Layer
     bOutputs.push_back(bOutput);
     bInputs.push_back(bInput);
   }
-  virtual void biasInitialValues(const vector<nnReal> init) {}
+  virtual void biasInitialValues(const vector<Real> init) {}
 
   ~MGULayer() { _dispose_object(cell); }
 
@@ -117,6 +117,7 @@ class MGULayer: public Layer
     nnReal* const deltaC = curr->Y(ID) + nCells;
     nnReal* const prvOut = prev==nullptr? allocate_ptr(nCells) : prev->Y(ID);
     nnReal* const prvErr = prev==nullptr? nullptr : prev->E(ID);
+    nnReal* const tmp = allocate_dirty(nCells);
 
     #pragma omp simd aligned(deltaC, deltas, forget, cellst : VEC_WIDTH)
     for (Uint o=0; o<nCells; o++)
@@ -124,14 +125,13 @@ class MGULayer: public Layer
 
     #if 1
     if(prev not_eq nullptr) {
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
-      para->W(ID) +(2*nCells)*nInputs +nCells, 2*nCells,
-      deltaC, 1, 0, deltaF, 1);
-    } else memset( deltaF, 0, nCells*sizeof(nnReal) );
+      gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1, para->W(ID)
+        +(2*nCells)*nInputs +nCells, 2*nCells, deltaC, 1, 0, tmp, 1);
+    } else memset( tmp, 0, nCells*sizeof(nnReal) );
 
-    #pragma omp simd aligned(deltaF, prvOut, cellst, deltas, forget : VEC_WIDTH)
+    #pragma omp simd aligned(deltaF,prvOut,cellst,deltas,forget,tmp : VEC_WIDTH)
     for (Uint o=0; o<nCells; o++)
-      deltaF[o] = ((prvOut[o]-cellst[o])*deltas[o] + deltaF[o]*prvOut[o]) *forget[o]*(1-forget[o]);
+      deltaF[o] = ((prvOut[o]-cellst[o])*deltas[o] + tmp[o]*prvOut[o]) *forget[o]*(1-forget[o]);
     #else // more compact and readable:
       for (Uint o=0; o<nCells; o++) {
         nnReal dF = (prvOut[o] - cellst[o]) * deltas[o];
@@ -144,17 +144,13 @@ class MGULayer: public Layer
 
     #if 1
     if(prev not_eq nullptr) {
-      nnReal* const tmp = allocate_dirty(nCells);
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
-      para->W(ID) +(2*nCells)*nInputs +nCells, 2*nCells, deltaC, 1, 0, tmp, 1);
-
       #pragma omp simd aligned(prvErr, forget, deltas, tmp : VEC_WIDTH)
       for(Uint o=0; o<nCells; o++) prvErr[o] += forget[o]*(deltas[o] + tmp[o]);
-      free(tmp);
 
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
-      para->W(ID) +(2*nCells)*nInputs, 2*nCells, deltaF, 1, 1, prvErr, 1);
+      gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
+        para->W(ID) +(2*nCells)*nInputs, 2*nCells, deltaF, 1, 1, prvErr, 1);
     }
+    free(tmp);
     #else // more compact and readable
     for (Uint o=0; o<nCells && prev not_eq nullptr; o++) {
       prvErr[o] += forget[o] * deltas[o];
@@ -168,10 +164,10 @@ class MGULayer: public Layer
     {
             nnReal* const errors = curr->E(ID-link);
       const nnReal* const weight = para->W(ID);
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
+      gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
         weight + startCompInpGrads*2*nCells,          2*nCells,
         deltaF, 1, 1, errors + startCompInpGrads, 1);
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
+      gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
         weight + startCompInpGrads*2*nCells + nCells, 2*nCells,
         deltaC, 1, 1, errors + startCompInpGrads, 1);
     }

@@ -363,7 +363,7 @@ training buffer"
 checkpoints can be used to evaluate learners, but not yet to restart learning."
 #define TYPEVAL_saveFreq int
 #define TYPENUM_saveFreq INT
-#define DEFAULT_saveFreq 1000000
+#define DEFAULT_saveFreq 200000
   int saveFreq = DEFAULT_saveFreq;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -405,7 +405,7 @@ use. Must be a list of positive numbers separated by semicolons. Last number \
 will be overwritten to 0; i.e. last appSettings will be used til termination."
 #define TYPEVAL_nStepPappSett string
 #define TYPENUM_nStepPappSett STRING
-#define DEFAULT_nStepPappSett "0"
+#define DEFAULT_nStepPappSett ""
   string nStepPappSett = DEFAULT_nStepPappSett;
 
 #define CHARARG_launchfile '7'

@@ -11,45 +11,54 @@
 #include <regex>
 #include <algorithm>
 #include <iterator>
-static inline vector<string> splitter(string& content) {
-    vector<string> split_content;
-    const regex pattern(R"(;)");
-    copy( sregex_token_iterator(content.begin(), content.end(), pattern, -1),
-    sregex_token_iterator(), back_inserter(split_content) );
-    return split_content;
+
+static inline vector<string> split(const string &s, const char delim) {
+  stringstream ss(s); string item; vector<string> tokens;
+  while (getline(ss, item, delim)) tokens.push_back(item);
+  return tokens;
 }
 
 extern int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
 
-Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn) : Communicator(socket, spawn)
-{
+Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn) : Communicator(socket, spawn) {
   comm_learn_pool = scom;
   update_rank_size();
 }
 
-Communicator_internal::~Communicator_internal()
-{
+Communicator_internal::~Communicator_internal() {
   if (rank_learn_pool>0) {
-    data_action[0] = _AGENT_KILLSIGNAL;
+    data_action[0] = AGENT_KILLSIGNAL;
     send_all(Socket, data_action, size_action);
   }
 }
 
-void Communicator_internal::launch_forked()
-{
+void Communicator_internal::launch_forked() {
   assert(not called_by_app);
-  mkdir(("simulation_"+std::to_string(socket_id)+"_"
-      +std::to_string(iter)+"/").c_str(),
-      S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-  chdir(("simulation_"+std::to_string(socket_id)+"_"
-      +std::to_string(iter)+"/").c_str());
-
-  fd = redirect_stdout_stderr();
+  createGo_rundir();
+  redirect_stdout_init();
   launch_exec("../"+execpath, socket_id);
 }
 
-int Communicator_internal::recvStateFromApp()
-{
+void Communicator_internal::createGo_rundir() {
+  char newd[1024];
+  getcwd(initd, 512);
+  struct stat fileStat;
+  while(true) {
+    const int workID = workerGroup>=0? workerGroup : socket_id;
+    sprintf(newd,"%s/%s_%03d_%05lu", initd, "simulation", workID, iter);
+    if ( stat(newd, &fileStat) >= 0 ) iter++; // directory already exists
+    else {
+      if(rank_inside_app>=0) MPI_Barrier(comm_inside_app);
+      if(rank_inside_app<=0) // app's root sets up working dir
+        mkdir(newd, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+      if(rank_inside_app>=0) MPI_Barrier(comm_inside_app);
+      chdir(newd);
+      break;
+    }
+  }
+}
+
+int Communicator_internal::recvStateFromApp() {
   int bytes = recv_all(Socket, data_state, size_state);
 
   if (bytes <= 0)
@@ -69,120 +78,80 @@ int Communicator_internal::recvStateFromApp()
   return bytes <= 0;
 }
 
-int Communicator_internal::sendActionToApp()
-{
+int Communicator_internal::sendActionToApp() {
   //printf("I think im sending action %f\n",data_action[0]);
   if(comm_learn_pool != MPI_COMM_NULL) workerRecv_MPI();
 
-  bool endSignal = fabs(data_action[0]-_AGENT_KILLSIGNAL)<2.2e-16;
+  bool endSignal = fabs(data_action[0]-AGENT_KILLSIGNAL)<2.2e-16;
 
   send_all(Socket, data_action, size_action);
 
   return endSignal;
 }
 
-void Communicator_internal::answerTerminateReq(const double answer)
-{
+void Communicator_internal::answerTerminateReq(const double answer) {
   data_action[0] = answer;
    //printf("I think im givign the goahead %f\n",data_action[0]);
   send_all(Socket, data_action, size_action);
 }
 
-void Communicator_internal::restart(std::string fname)
-{
-  int wrank = getRank(MPI_COMM_WORLD);
-  FILE * f = fopen(("comm_"+to_string(wrank)+".status").c_str(), "r");
-  if (f == NULL) return;
-  {
-    long unsigned ret = 0;
-    fscanf(f, "sim number: %lu\n", &ret);
-    iter = ret;
-    printf("sim number: %lu\n", iter);
-  }
-  {
-    long unsigned ret = 0;
-    fscanf(f, "message ID: %lu\n", &ret);
-    msg_id = ret;
-    printf("message ID: %lu\n", msg_id);
-  }
-  {
-    int ret = -1;
-    fscanf(f, "socket  ID: %d\n", &ret);
-    if(ret>=0) socket_id = ret;
-    printf("socket  ID: %d\n", socket_id);
-  }
-  fclose(f);
-}
-
-void Communicator_internal::save() const
-{
-  int wrank = getRank(MPI_COMM_WORLD);
-  FILE * f = fopen(("comm_"+to_string(wrank)+".status").c_str(), "w");
-  if (f != NULL)
-  {
-    fprintf(f, "sim number: %lu\n", iter);
-    fprintf(f, "message ID: %lu\n", msg_id);
-    fprintf(f, "socket  ID: %d\n", socket_id);
-    fclose(f);
-  }
-  //printf( "sim number: %d\n", env->iter);
-}
-
-void Communicator_internal::ext_app_run()
-{
-  char initd[256], newd[1024];
-  getcwd(initd,256);
+void Communicator_internal::ext_app_run() {
   assert(workerGroup>=0 && rank_inside_app>=0 &&comm_inside_app!=MPI_COMM_NULL);
-  vector<string> argsFiles = splitter(paramfile);
-  vector<string> stepNmbrs = splitter(nStepPerFile);
-  if(argsFiles.size() not_eq stepNmbrs.size() or argsFiles.size() == 0)
+  vector<string> argsFiles = split(paramfile, ';');
+  vector<string> stepNmbrs = split(nStepPerFile, ';');
+  if(argsFiles.size() not_eq stepNmbrs.size())
     die("error reading settings: nStepPappSett and appSettings");
-  stepNmbrs.back() = "0";
-  size_t simIter = 0;
+  if(argsFiles.size() == 0) {
+    if(paramfile not_eq "") die("");
+    argsFiles.push_back("");
+  }
+  vector<Uint> stepPrefix(argsFiles.size(), 0);
+  for (size_t i=1; i<stepNmbrs.size(); i++)
+    stepPrefix[i] = stepPrefix[i-1] + std::stol(stepNmbrs[i-1]);
+  stepPrefix.push_back(numeric_limits<Uint>::max()); //last setup used for ever
+  assert(stepPrefix.size() == argsFiles.size() + 1);
+
   while(1)
   {
-    sprintf(newd,"%s/%s_%03d_%05lu", initd, "simulation", workerGroup, simIter);
-
-    if(rank_inside_app==0) // app's root sets up working dir
-      mkdir(newd, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-
-    MPI_Barrier(comm_inside_app);
-    chdir(newd);  // go to the task private directory
-
+    createGo_rundir();
     if (rank_inside_app==0 && setupfolder != "") //copy any additional file
       if (copy_from_dir(("../"+setupfolder).c_str()) !=0 )
         _die("Error in copy from dir %s\n", setupfolder.c_str());
-
     MPI_Barrier(comm_inside_app);
 
-    redirect_stdout_init(simIter);
     // app only needs lower level functionalities:
     // ie. send state, recv action, specify state/action spaces properties...
     Communicator* commptr = static_cast<Communicator*>(this);
-    const Uint settingsInd = std::min(simIter, stepNmbrs.size()-1);
-    const long numStepTSet = std::stol(stepNmbrs[settingsInd]);
+    Uint settingsInd = 0;
+    for(size_t i=0; i<argsFiles.size(); i++)
+      if(learner_step_id >= stepPrefix[i]) settingsInd = i;
+    Uint numStepTSet = stepPrefix[settingsInd+1] - learner_step_id;
+    numStepTSet = numStepTSet / (size_learn_pool-1);
     vector<char*> args = readRunArgLst(argsFiles[settingsInd]);
-
     //for(size_t i=0; i<args.size(); i++) cout<<args[i]<<endl;
     //cout<<endl; fflush(0);
-    app_main(commptr, comm_inside_app, args.size()-1, args.data(), numStepTSet);
-    for(size_t i = 0; i < args.size()-1; i++) delete[] args[i];
 
+    redirect_stdout_init();
+    app_main(commptr, comm_inside_app, args.size()-1, args.data(), numStepTSet);
     redirect_stdout_finalize();
+    for(size_t i = 0; i < args.size()-1; i++) delete[] args[i];
     chdir(initd);  // go up one level
-    simIter++;
   }
 }
 
 vector<char*> Communicator_internal::readRunArgLst(const string _paramfile)
 {
-  if (_paramfile == "") die("empty parameter file path");
+  std::vector<char*> args;
+  if (_paramfile == "") {
+    warn("empty parameter file path");
+    args.push_back(0);
+    return args;
+  }
   std::ifstream t(("../"+_paramfile).c_str());
   std::string linestr((std::istreambuf_iterator<char>(t)),
                        std::istreambuf_iterator<char>());
   if(linestr.size() == 0) die("did not find parameter file");
   std::istringstream iss(linestr); // params file is read into iss
-  std::vector<char*> args;
   std::string token;
   while(iss >> token) {
     // If one runs an executable and provides an argument like ./exec 'foo bar'
@@ -211,14 +180,14 @@ vector<char*> Communicator_internal::readRunArgLst(const string _paramfile)
   return args; // remember to deallocate it!
 }
 
-void Communicator_internal::redirect_stdout_init(const size_t simIter)
+void Communicator_internal::redirect_stdout_init()
 {
   fflush(stdout);
   fgetpos(stdout, &pos);
   fd = dup(fileno(stdout));
   char buf[500];
   int wrank = getRank(MPI_COMM_WORLD);
-  sprintf(buf, "output_%03d_%05lu", wrank, simIter);
+  sprintf(buf, "output_%03d_%05lu", wrank, iter);
   freopen(buf, "w", stdout);
 }
 

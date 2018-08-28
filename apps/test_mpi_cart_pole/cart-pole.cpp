@@ -73,8 +73,7 @@ struct CartPole
   Vec4 u;
   double F=0, t=0;
 
-	void reset(std::mt19937& gen)
-	{
+	void reset(std::mt19937& gen) {
 		#if SWINGUP
 	    std::uniform_real_distribution<double> dist(-.1,.1);
 		#else
@@ -85,8 +84,7 @@ struct CartPole
 		info = 1;
 	}
 
-  bool is_over()
-  {
+  bool is_over() {
     #if SWINGUP
       return step>=500 || std::fabs(u.y1)>2.4;
     #else
@@ -94,8 +92,7 @@ struct CartPole
     #endif
   }
 
-  int advance(vector<double> action)
-  {
+  int advance(vector<double> action) {
     F = action[0];
     step++;
     for (int i=0; i<nsteps; i++) {
@@ -106,8 +103,7 @@ struct CartPole
     return 0;
   }
 
-	vector<double> getState()
-	{
+	vector<double> getState() {
     vector<double> state(6);
 		state[0] = u.y1;
 		state[1] = u.y2;
@@ -125,7 +121,7 @@ struct CartPole
   		angle = angle<0 ? angle+2*M_PI : angle;
   		return fabs(angle-M_PI)<M_PI/6 ? 1 : 0;
     #else
-      return -1*( fabs(u.y3)>M_PI/15 || fabs(u.y1)>2.4 );
+      return 1 - ( std::fabs(u.y3)>M_PI/15 || std::fabs(u.y1)>2.4 );
 		#endif
   }
 
@@ -136,6 +132,7 @@ struct CartPole
     const double cosy = std::cos(u.y3);
     const double siny = std::sin(u.y3);
     const double w = u.y4;
+
     #if SWINGUP
 			const double fac1 = 1./(mc + mp * siny*siny);
 			const double fac2 = fac1/l;
@@ -143,7 +140,7 @@ struct CartPole
 			res.y4 = fac2*(-F*cosy -mp*l*w*w*cosy*siny -(mc+mp)*g*siny);
     #else
       const double totMass = mp+mc;
-      const double fac2 = l*(4./3. - (mp*cosy*cosy)/totMass);
+      const double fac2 = l*(4./3. - mp*cosy*cosy/totMass);
       const double F1 = F + mp * l * w * w * siny;
       res.y4 = (g*siny - F1*cosy/totMass)/fac2;
       res.y2 = (F1 - mp*l*res.y4*cosy)/totMass;
@@ -158,7 +155,7 @@ int app_main(
   Communicator*const comm, // communicator with smarties
   MPI_Comm mpicom,         // mpi_comm that mpi-based apps can use
   int argc, char**argv,    // arguments read from app's runtime settings file
-  const Uint numSteps      // number of time steps to run before exit
+  const unsigned numSteps      // number of time steps to run before exit
 ) {
   comm->update_state_action_dims(6, 1);
 
@@ -176,7 +173,8 @@ int app_main(
 
   //OPTIONAL: hide state variables.
   // e.g. show cosine/sine but not angle
-  vector<bool> b_observable = {true, true, true, false, true, true};
+  //vector<bool> b_observable = {true, true, true, false, true, true};
+  vector<bool> b_observable = {true, false, false, false, true, true};
   comm->set_state_observable(b_observable);
 
   //OPTIONAL: set space bounds

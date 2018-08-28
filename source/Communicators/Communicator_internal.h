@@ -13,6 +13,7 @@
 class Communicator_internal: public Communicator
 {
  protected:
+  char initd[512];
   std::string execpath    = std::string();
   std::string paramfile   = std::string();
   std::string nStepPerFile= std::string();
@@ -48,8 +49,9 @@ public:
 
   void ext_app_run();
   vector<char*> readRunArgLst(const string _paramfile);
-  void redirect_stdout_init(const size_t simIter);
+  void redirect_stdout_init();
   void redirect_stdout_finalize();
+  void createGo_rundir();
   //called by smarties
   Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn);
   ~Communicator_internal();

@@ -21,13 +21,15 @@ public:
   Environment * const env;
   const bool bWriteToFile, bTrain, bSampleSeq;
   const Uint nAppended, batchSize, maxTotObsNum, nThreads, policyVecDim;
-  const StateInfo& sI;
-  const ActionInfo& aI;
-  const vector<Agent*> _agents;
+  const StateInfo& sI = env->sI;
+  const ActionInfo& aI = env->aI;
+  const vector<Agent*>& _agents = env->agents;
   std::vector<std::mt19937>& generators;
-  vector<memReal> mean, invstd, std;
-  const int learn_rank, learn_size;
+  vector<memReal> invstd = sI.inUseInvStd();
+  vector<memReal> mean = sI.inUseMean();
+  vector<memReal> std = sI.inUseStd();
   const Real gamma;
+  const int learn_rank, learn_size;
   bool needs_pass = true;
   #ifdef PRIORITIZED_ER
     Uint stepSinceISWeep = 0;
@@ -37,7 +39,7 @@ public:
     void updateImportanceWeights();
   #endif
   //bool bRecurrent;
-  Uint nPruned = 0, minInd = 0;
+  Uint nPruned = 0, minInd = 0, learnID = 0;
   Real invstd_reward = 1, nOffPol = 0, avgDKL = 0;
 
   vector<Sequence*> Set, inProgress;
@@ -46,8 +48,7 @@ public:
   const Uint dimS = sI.dimUsed, nReduce = 2 + 2*dimS;
   ApproximateReductor reductor = ApproximateReductor(mastersComm, nReduce);
 
-private:
-  std::atomic<Uint> nBroken{0}, nTransitions{0}, nSequences{0};
+  std::atomic<Uint> nTransitions{0}, nSequences{0};
   std::atomic<Uint> nSeenSequences{0}, nSeenTransitions{0};
   std::atomic<Uint> nCmplTransitions{0}, iOldestSaved{0};
 public:
@@ -78,7 +79,6 @@ public:
     //for(auto& old_traj: data->inProgress)
     //  old_traj->clear();//remove from in progress: now off policy
     Set.clear(); //clear trajectories used for learning
-    nBroken = 0;
     nSequences = 0;
     nTransitions = 0;
   }

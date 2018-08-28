@@ -19,14 +19,14 @@ else
 NSLAVESPERMASTER=1
 fi
 if [ $# -gt 4 ] ; then #n threads on each master
-NTHREADS=$5
+export NTHREADS=$5
 else
-NTHREADS=$([[ $(uname) = 'Darwin' ]] && sysctl -n hw.physicalcpu_max || lscpu -p | egrep -v '^#' | sort -u -t, -k 2,4 | wc -l)
+export NTHREADS=$([[ $(uname) = 'Darwin' ]] && sysctl -n hw.physicalcpu_max || lscpu -p | egrep -v '^#' | sort -u -t, -k 2,4 | wc -l)
 fi
 if [ $# -gt 5 ] ; then
-NMASTERS=$6
+export NMASTERS=$6
 else
-NMASTERS=1 #n master ranks
+export NMASTERS=1 #n master ranks
 fi
 if [ $# -gt 6 ] ; then
 NNODES=$7
@@ -35,8 +35,8 @@ NNODES=1 #n master ranks
 fi
 
 NTASKPERMASTER=$((1+${NSLAVESPERMASTER})) # master plus its slaves
-NPROCESS=$((${NMASTERS}*$NTASKPERMASTER))
-NTASKPERNODE=$((${NPROCESS}/${NNODES}))
+export NPROCESS=$((${NMASTERS}*$NTASKPERMASTER))
+export TASKPERN=$((${NPROCESS}/${NNODES}))
 
 cp run.sh ${BASEPATH}${RUNFOLDER}/run.sh
 cp ../makefiles/rl ${BASEPATH}${RUNFOLDER}/rl
@@ -50,10 +50,13 @@ cd ${BASEPATH}${RUNFOLDER}
 HOST=`hostname`
 
 if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:3} == 'eu-' ] ; then
-	NTHREADSPERNODE=36
-	NPROCESSORS=$((${NNODES}*${NTHREADSPERNODE}))
-	bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonGold_6150]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
-	#bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonE5_2680v3]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
+NTHREADSPERNODE=36
+export NTHREADS=18
+NPROCESSORS=$((${NNODES}*${NTHREADSPERNODE}))
+echo bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonGold_6150]" -n ${NPROCESSORS} -W 24:00 ./run.sh
+bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonGold_6150]" -n ${NPROCESSORS} -W 24:00 < run.sh
+
+#bsub -J ${RUNFOLDER} -R "rusage[mem=128]" -R "select[model==XeonE5_2680v3]" -n ${NPROCESSORS} -W 24:00 ./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} 1
 else
-./run.sh ${NPROCESS} ${NTHREADS} ${NTASKPERNODE} ${NMASTERS}
+./run.sh
 fi

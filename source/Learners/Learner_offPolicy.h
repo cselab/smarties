@@ -38,4 +38,6 @@ public:
   virtual void applyGradient() override;
   bool bNeedSequentialTrain() override;
   virtual void initializeLearner() override;
+  void save() override;
+  void restart() override;
 };

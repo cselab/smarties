@@ -41,7 +41,7 @@ class Layer
                                   vector<Uint>& bInputs) const = 0;
   // Some classes might allow user to specify an initial value for the bias
   // vector (eg. parametric layer or linear output layer)
-  virtual void biasInitialValues(const vector<nnReal> init) = 0;
+  virtual void biasInitialValues(const vector<Real> init) = 0;
 
   Layer(
     Uint _ID,
@@ -89,7 +89,7 @@ class Layer
     {
             nnReal* const errors = curr->E(ID-link);
       const nnReal* const weight = para->W(ID);
-      cblas_dgemv(CblasRowMajor, CblasNoTrans,
+      gemv(CblasRowMajor, CblasNoTrans,
         spanCompInpGrads,
         NO,
         1,
@@ -106,7 +106,7 @@ class Layer
     {
             nnReal* const errors = prev->E(ID);
       const nnReal* const weight = para->W(ID) +NOsimd*NI;
-      cblas_dgemv(CblasRowMajor, CblasNoTrans, NR, NO, 1,
+      gemv(CblasRowMajor, CblasNoTrans, NR, NO, 1,
         weight, NOsimd, deltas, 1, 1, errors, 1);
     }
 
@@ -170,7 +170,7 @@ class InputLayer: public Layer
     bOutputs.push_back(false);
     bInputs.push_back(bInput);
   }
-  void biasInitialValues(const vector<nnReal> init) override { }
+  void biasInitialValues(const vector<Real> init) override { }
   void forward( const Activation*const prev,
                 const Activation*const curr,
                 const Parameters*const para) const override { }
@@ -213,7 +213,7 @@ class JoinLayer: public Layer
     bOutputs.push_back(bOutput);
     bInputs.push_back(bInput);
   }
-  void biasInitialValues(const vector<nnReal> init) override { }
+  void biasInitialValues(const vector<Real> init) override { }
   void forward( const Activation*const prev,
                 const Activation*const curr,
                 const Parameters*const para) const override {
@@ -250,9 +250,9 @@ class ParamLayer: public Layer
   vector<nnReal> initVals;
  public:
   ~ParamLayer() { delete func; }
-  ParamLayer(Uint _ID, Uint _size, string funcType, vector<nnReal> init) :
-    Layer(_ID, _size, true), func(makeFunction(funcType)), initVals(init) {
-    if(initVals.size() != size) _die("size of initVals:%lu.", initVals.size());
+  ParamLayer(Uint _ID, Uint _size, string funcType, vector<Real> init) :
+    Layer(_ID, _size, true), func(makeFunction(funcType)) {
+    biasInitialValues(init);
   }
   string printSpecs() const override {
     std::ostringstream o;
@@ -271,9 +271,10 @@ class ParamLayer: public Layer
                           vector<Uint>& bInputs) const override {
     sizes.push_back(size); bOutputs.push_back(true); bInputs.push_back(bInput);
   }
-  void biasInitialValues(const vector<nnReal> init) override {
+  void biasInitialValues(const vector<Real> init) override {
     if(init.size() != size) _die("size of init:%lu.", init.size());
-    initVals = init;
+    initVals.resize(size, 0);
+    std::copy(initVals.begin(), initVals.end(), initVals.begin());
   }
   void forward( const Activation*const prev,
                 const Activation*const curr,

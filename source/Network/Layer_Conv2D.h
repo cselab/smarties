@@ -56,7 +56,7 @@ class ConvLayer : public Layer
     bOutputs.push_back(bOutput);
     bInputs.push_back(bInput);
   }
-  void biasInitialValues(const vector<nnReal> init) override { }
+  void biasInitialValues(const vector<Real> init) override { }
 
   void forward( const Activation*const prev,
                 const Activation*const curr,
@@ -82,9 +82,9 @@ class ConvLayer : public Layer
     static const int mm_nInner = Kn_Y * Kn_X * In_C;
     static const int mm_outCol = Kn_C;
 
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-      mm_outRow, mm_outCol, mm_nInner, 1, &buf[0][0][0][0][0], mm_nInner,
-      para->W(ID), mm_outCol, 1, curr->X(ID), mm_outCol);
+    gemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, mm_outRow, mm_outCol,
+      mm_nInner, 1, &buf[0][0][0][0][0], mm_nInner, para->W(ID), mm_outCol,
+      1, curr->X(ID), mm_outCol);
 
     //apply per-pixel non-linearity:
     func::_eval(curr->X(ID), curr->Y(ID), OutX*OutY*Kn_C);

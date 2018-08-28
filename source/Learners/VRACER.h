@@ -29,7 +29,6 @@ class VRACER : public Learner_offPolicy
   // tgtFrac_param: target fraction of off-pol samples
   // alpha: weight of value-update relative to policy update. 1 means equal
   const Real alpha=1;
-  Real CmaxRet = 1 + CmaxPol;
 
   // indices identifying number and starting position of the different output // groups from the network, that are read by separate functions
   // such as state value, policy mean, policy std, adv approximator

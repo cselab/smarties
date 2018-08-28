@@ -48,7 +48,7 @@ class LSTMLayer: public Layer
     bOutputs.push_back(bOutput);
     bInputs.push_back(bInput);
   }
-  virtual void biasInitialValues(const vector<nnReal> init) {}
+  virtual void biasInitialValues(const vector<Real> init) {}
 
   ~LSTMLayer() { _dispose_object(cell); }
 

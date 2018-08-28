@@ -112,7 +112,7 @@ struct ActionInfo
 {
   Uint dim;      //number of actions per turn
   Uint maxLabel; //number of actions options for discretized act spaces
-
+  Uint policyVecDim;
   // whether action have a lower && upper bounded (bool)
   // if true scaled action = tanh ( unscaled action )
   vector<bool> bounded;

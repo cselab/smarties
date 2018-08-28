@@ -29,7 +29,7 @@ std::string printableTuple(std::vector<double> s,double r,std::vector<double> a)
   return o.str();
 }
 
-int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps)
+int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const unsigned numSteps)
 {
   //std::ostringstream o;
   //o << argc << ":";
@@ -48,8 +48,8 @@ int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, co
   std::vector<double> state(nS);
   std::vector<double> action(nA);
   double* vec = (double*) malloc((nS+1)*sizeof(double));
-
-  while(true)
+  unsigned steps = 0;
+  while(steps<numSteps)
   {
     int status = 1;
 
@@ -69,7 +69,10 @@ int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, co
       double reward = vec[nS];
 
       rlcom->sendState(0, status, state, reward);
-      if(status != 2) action = rlcom->recvAction();
+      if(status != 2) {
+        action = rlcom->recvAction();
+        steps++;
+      }
 
       //printf("Rank %d (%d) comm %s\n",
       //  rank, wrank, printableTuple(state, reward, action).c_str());
@@ -77,7 +80,6 @@ int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, co
       status = 0;
     }
   }
-
   free(vec);
   return 0;
 }

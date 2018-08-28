@@ -94,21 +94,24 @@ void Communicator::sendState(const int iAgent, const envInfo status,
     }
   #endif
 
-  for (int j=0; j<nActions; j++) {
-    stored_actions[iAgent][j] = data_action[j];
-    assert(not std::isnan(data_action[j]) && not std::isinf(data_action[j]));
-  }
-
-  if(fabs(data_action[0]-_AGENT_KILLSIGNAL)<2.2e-16) abort();
+  if(std::fabs(data_action[0]-AGENT_KILLSIGNAL)<2.2e-16) abort();
 
   if (status >= TERM_COMM) {
     seq_id++;
     msg_id = 0;
+    learner_step_id = (unsigned) * data_action;
+    stored_actions[iAgent][0] = AGENT_TERMSIGNAL;
+  } else {
+    for (int j=0; j<nActions; j++) {
+      stored_actions[iAgent][j] = data_action[j];
+      assert(not std::isnan(data_action[j]) && not std::isinf(data_action[j]));
+    }
   }
 }
 
 std::vector<double> Communicator::recvAction(const int iAgent)
 {
+  assert( std::fabs(stored_actions[iAgent][0]-AGENT_TERMSIGNAL) > 2.2e-16 );
   return stored_actions[iAgent];
 }
 

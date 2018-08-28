@@ -194,8 +194,11 @@ void Learner_offPolicy::applyGradient()
 
 void Learner_offPolicy::initializeLearner()
 {
-  if ( not readyForTrain() || nStep>0 ) die("undefined behavior");
-
+  if ( not readyForTrain() ) die("undefined behavior");
+  if ( nStep > 0 ) {
+    warn("Skipping initialization for restartd learner.");
+    return;
+  }
   // shift counters after initial data is gathered
   nData_b4Startup = data->readNConcluded();
   nData_last = 0;
@@ -207,4 +210,67 @@ void Learner_offPolicy::initializeLearner()
     cout<<"Initial reward std "<<1/data->invstd_reward<<endl;
 
   Learner::initializeLearner();
+}
+
+void Learner_offPolicy::save()
+{
+  Learner::save();
+  static constexpr Real freqSave = 1000*PRFL_DMPFRQ;
+  const Uint freqBackup = std::ceil(settings.saveFreq / freqSave)*freqSave;
+  const bool bBackup = nStep % freqBackup == 0;
+  if(not bBackup) return;
+
+  ostringstream ss; ss << std::setw(9) << std::setfill('0') << nStep;
+  FILE* f = fopen((learner_name+ss.str()+"_learner.raw").c_str(), "wb");
+  Uint val;
+  val = data->Set.size(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->nSequences.load(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->nTransitions.load(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->nSeenSequences.load(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->nSeenTransitions.load(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->nCmplTransitions.load(); fwrite(&val, sizeof(Uint), 1, f);
+  val = data->iOldestSaved.load(); fwrite(&val, sizeof(Uint), 1, f);
+  fwrite(&nData_b4Startup, sizeof(Uint), 1, f);
+  fwrite(&nData_last, sizeof(Real), 1, f);
+  fwrite(&nStep_last, sizeof(Real), 1, f);
+  fwrite(&nStep, sizeof(Uint), 1, f);
+  fwrite(&beta, sizeof(Real), 1, f);
+  fwrite(&CmaxRet, sizeof(Real), 1, f);
+
+  for(Uint i = 0; i < data->Set.size(); i++)
+    data->Set[i]->save(f, sInfo.dimUsed, aInfo.dim, aInfo.policyVecDim);
+}
+
+void Learner_offPolicy::restart()
+{
+  Learner::restart();
+  if(settings.restart == "none") return;
+  const string fname = learner_name+"learner.raw";
+  FILE* f = fopen(fname.c_str(), "rb");
+  if(f == NULL) {
+    _warn("Did not find learner state file %s\n", fname.c_str()); return;
+  }
+  Uint val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->Set.resize(val, nullptr);
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->nSequences = val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->nTransitions = val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->nSeenSequences = val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->nSeenTransitions = val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->nCmplTransitions = val;
+  if(fread(&val,sizeof(Uint),1,f) != 1) die(""); data->iOldestSaved = val;
+  if(fread(&nData_b4Startup, sizeof(Uint), 1, f) != 1) die("");
+  if(fread(&nData_last,      sizeof(Real), 1, f) != 1) die("");
+  if(fread(&nStep_last,      sizeof(Real), 1, f) != 1) die("");
+  if(fread(&nStep,           sizeof(Uint), 1, f) != 1) die("");
+  if(fread(&beta,            sizeof(Real), 1, f) != 1) die("");
+  if(fread(&CmaxRet,         sizeof(Real), 1, f) != 1) die("");
+  if(input->opt not_eq nullptr) input->opt->nStep = nStep;
+  for(auto & net : F) net->opt->nStep = nStep;
+
+  for(Uint i = 0; i < data->Set.size(); i++) {
+    assert(data->Set[i] == nullptr);
+    data->Set[i] = new Sequence();
+    if( data->Set[i]->restart(f, sInfo.dimUsed, aInfo.dim, aInfo.policyVecDim) )
+      _die("Unable to find sequence %u\n", i);
+  }
 }

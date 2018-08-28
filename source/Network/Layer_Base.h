@@ -28,9 +28,10 @@ class BaseLayer: public Layer
     bOutputs.push_back(bOutput);
     bInputs.push_back(bInput);
   }
-  void biasInitialValues(const vector<nnReal> init) override {
+  void biasInitialValues(const vector<Real> init) override {
     if(init.size() != size) _die("size of init:%lu.", init.size());
-    initVals = init;
+    initVals.resize(size, 0);
+    std::copy(initVals.begin(), initVals.end(), initVals.begin());
   }
   ~BaseLayer() {
     _dispose_object(func);

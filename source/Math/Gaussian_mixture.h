@@ -62,25 +62,35 @@ public:
 private:
   inline array<Real,nExperts> extract_unnorm() const {
     array<Real, nExperts> ret;
-    if(nExperts == 1) {ret[0] = 1; return ret;}
-    for(Uint i=0;i<nExperts;i++) ret[i]=unbPosMap_func(netOutputs[iExperts+i]);
+    if(nExperts == 1)
+      ret[0] = 1;
+    else
+      for(Uint i=0;i<nExperts;i++)
+        ret[i]=unbPosMap_func(netOutputs[iExperts+i]);
     return ret;
   }
   inline Real compute_norm() const {
     Real ret = 0;
-    if(nExperts == 1) {return 1;}
-    for (Uint j=0; j<nExperts; j++) {
-      ret += unnorm[j];
-      assert(unnorm[j]>=0);
+    if(nExperts == 1) {
+      return 1;
+    } else {
+      for (Uint j=0; j<nExperts; j++) {
+        ret += unnorm[j];
+        assert(unnorm[j]>=0);
+      }
+      return ret + std::numeric_limits<Real>::epsilon();
     }
-    return ret + std::numeric_limits<Real>::epsilon();
   }
   inline array<Real,nExperts> extract_experts() const  {
     array<Real, nExperts> ret;
-    if(nExperts == 1) {ret[0] = 1; return ret;}
-    assert(normalization>0);
-    for(Uint i=0;i<nExperts;i++) ret[i] = unnorm[i]/normalization;
-    return ret;
+    if(nExperts == 1) {
+      ret[0] = 1;
+      return ret;
+    } else {
+      assert(normalization>0);
+      for(Uint i=0;i<nExperts;i++) ret[i] = unnorm[i]/normalization;
+      return ret;
+    }
   }
   inline array<Rvec,nExperts> extract_mean() const
   {

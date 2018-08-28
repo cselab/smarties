@@ -19,7 +19,7 @@ fi
 MYNAME=`whoami`
 BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
 mkdir -p ${BASEPATH}${RUNFOLDER}
-ulimit -c unlimited
+#ulimit -c unlimited
 #lfs setstripe -c 1 ${BASEPATH}${RUNFOLDER}
 NMASTERS=1
 NTASKPERNODE=1
@@ -61,6 +61,9 @@ if [ ! -f settings.sh ] ; then
     exit 1
 fi
 source settings.sh
+if [ -x appSettings.sh ]; then
+source appSettings.sh
+fi
 SETTINGS+=" --nThreads ${NTHREADS}"
 SETTINGS+=" --nMasters ${NMASTERS}"
 SETTINGS+=" --ppn ${NTASKPERNODE}"
@@ -91,7 +94,7 @@ export CRAY_CUDA_MPS=1
 export OMP_PROC_BIND=CLOSE
 export OMP_PLACES=cores
 
-srun --ntasks ${NPROCESS} --cpu_bind=none --ntasks-per-node=${NTASKPERNODE} --cpus-per-task=${NTHREADS} --threads-per-core=1 ./rl ${SETTINGS}
+srun --ntasks ${NPROCESS} --ntasks-per-node=${NTASKPERNODE} --cpus-per-task=${NTHREADS} --threads-per-core=1 ./rl ${SETTINGS}
 EOF
 
 chmod 755 daint_sbatch

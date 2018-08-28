@@ -17,13 +17,14 @@ using namespace std;
 class Learner
 {
 protected:
-  const MPI_Comm mastersComm;
-  Environment * const env;
-  const bool bSampleSequences, bTrain;
-  const Uint totNumSteps, policyVecDim, batchSize, nAgents, nThreads, nWorkers;
-  const Real gamma, learnR, ReFtol, explNoise, epsAnneal, CmaxPol;
-  const int learn_rank, learn_size;
   Settings & settings;
+  Environment * const env;
+  const MPI_Comm mastersComm = settings.mastersComm;
+
+  const bool bSampleSequences=settings.bSampleSequences, bTrain=settings.bTrain;
+  const Uint totNumSteps, policyVecDim, nAgents, batchSize, nThreads, nWorkers;
+  const Real CmaxPol, ReFtol, learnR, gamma, explNoise, epsAnneal;
+  const int learn_rank=settings.learner_rank, learn_size=settings.learner_size;
   unsigned long nStep = 0;
   Uint nAddedGradients = 0;
   mutable Uint nSkipped = 0;
@@ -31,9 +32,9 @@ protected:
   mutable bool updateComplete = false;
   mutable bool updateToApply = false;
 
-  const ActionInfo& aInfo;
-  const StateInfo&  sInfo;
-  std::vector<std::mt19937>& generators;
+  const ActionInfo& aInfo = env->aI;
+  const StateInfo&  sInfo = env->sI;
+  std::vector<std::mt19937>& generators = settings.generators;
   MemoryBuffer* data;
   Encapsulator* input;
   TrainData* trainInfo = nullptr;
@@ -77,6 +78,7 @@ public:
 
   inline void setLearnerName(const string lName, const Uint id) {
     learner_name = lName;
+    data->learnID = id;
     learnID = id;
   }
 
@@ -126,5 +128,6 @@ public:
   virtual void applyGradient();
   virtual void initializeLearner();
   bool predefinedNetwork(Builder& input_net, const Uint privateNum = 1);
-  void restart();
+  virtual void save();
+  virtual void restart();
 };

@@ -49,16 +49,17 @@ public:
     buffCnter = 0;
   }
 
-  void writeData(const int rank, const Rvec mu) const
+  void writeData(const int rank, const Rvec mu, const Uint globalTstep) const
   {
     // possible race conditions, avoided by the fact that each worker
     // (and therefore agent) can only be handled by one thread at the time
     // atomic op is to make sure that counter gets flushed to all threads
-    const Uint writesize = 3 +sInfo.dim +aInfo.dim +mu.size();
+    const Uint writesize = 4 +sInfo.dim +aInfo.dim +mu.size();
     if(OUTBUFFSIZE<writesize) die("Edit compile-time OUTBUFFSIZE variable.");
     assert( buffCnter % writesize == 0 );
     if(buffCnter+writesize > OUTBUFFSIZE) writeBuffer(rank);
     Uint ind = buffCnter;
+    buf[ind++] = globalTstep + 0.1;
     buf[ind++] = Status + 0.1;
     buf[ind++] = transitionID + 0.1;
 

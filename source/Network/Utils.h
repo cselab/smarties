@@ -8,20 +8,9 @@
 #pragma once
 
 #include <cstring>
-#define VEC_WIDTH 32
-#if 1
-  using nnReal = Real;
-  #define MPI_NNVALUE_TYPE MPI_VALUE_TYPE
-  //#define MPI_NNVALUE_TYPE MPI_DOUBLE
-  #define EXP_CUT 8 //prevent under/over flow with exponentials
-  //#define EXP_CUT 4 //prevent under/over flow with exponentials
-#else
-  #define MPI_NNVALUE_TYPE MPI_FLOAT
-  typedef float nnReal;
-  #define EXP_CUT 4 //prevent under/over flow with exponentials
-#endif
-#define ARY_WIDTH (VEC_WIDTH/sizeof(nnReal))
 
+#define VEC_WIDTH 32
+#define ARY_WIDTH (VEC_WIDTH/sizeof(nnReal))
 static const int simdWidth = VEC_WIDTH/sizeof(nnReal);
 static const nnReal nnEPS = std::numeric_limits<float>::epsilon();
 

@@ -59,22 +59,25 @@ struct Activation
     for(auto& p : errvals) if(p not_eq nullptr) free(p);
   }
 
-  inline void setInput(const vector<nnReal> inp) const {
+  template<typename T>
+  inline void setInput(const vector<T> inp) const {
     assert(nInputs == inp.size());
     for(Uint j=0; j<nInputs; j++)
       assert(!std::isnan(inp[j]) && !std::isinf(inp[j]));
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(input[i]) {
-      memcpy(outvals[i], &inp[k], sizes[i]*sizeof(nnReal));
+      std::copy(&inp[k], &inp[k]+sizes[i], outvals[i]);
+      //memcpy(outvals[i], &inp[k], sizes[i]*sizeof(nnReal));
       k += sizes[i];
     }
     assert(k == nInputs);
   }
-  inline vector<nnReal> getInput() const {
-    vector<nnReal> ret(nInputs);
+  inline vector<Real> getInput() const {
+    vector<Real> ret(nInputs);
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(input[i]) {
-      memcpy(&ret[k], outvals[i], sizes[i]*sizeof(nnReal));
+      std::copy(outvals[i], outvals[i]+sizes[i], &ret[k]);
+      //memcpy(&ret[k], outvals[i], sizes[i]*sizeof(nnReal));
       k += sizes[i];
     }
     assert(k == nInputs);
@@ -101,27 +104,31 @@ struct Activation
     for(Uint i=0; i<sizes[ID]; i++) delta[i] *= norm;
   }
 
-  inline vector<nnReal> getInputGradient(const Uint ID) const {
+  inline vector<Real> getInputGradient(const Uint ID) const {
     assert(written == true);
-    vector<nnReal> ret(sizes[ID]);
-    memcpy(&ret[0], errvals[ID], sizes[ID]*sizeof(nnReal));
+    vector<Real> ret(sizes[ID]);
+    std::copy(errvals[ID], errvals[ID]+sizes[ID], &ret[0]);
+    //memcpy(&ret[0], errvals[ID], sizes[ID]*sizeof(nnReal));
     return ret;
   }
 
-  inline void setOutputDelta(const vector<nnReal> delta) const {
+  template<typename T>
+  inline void setOutputDelta(const vector<T> delta) const {
     assert(nOutputs == delta.size()); //alternative not supported
     for(Uint j=0; j<nOutputs; j++)
       assert(!std::isnan(delta[j]) && !std::isinf(delta[j]));
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(output[i]) {
-      memcpy(errvals[i], &delta[k], sizes[i]*sizeof(nnReal));
+      std::copy(&delta[k], &delta[k]+sizes[i], errvals[i]);
+      //memcpy(errvals[i], &delta[k], sizes[i]*sizeof(nnReal));
       k += sizes[i];
     }
     assert(k == nOutputs);
     written = true;
   }
 
-  inline void addOutputDelta(const vector<nnReal> delta) const {
+  template<typename T>
+  inline void addOutputDelta(const vector<T> delta) const {
     assert(nOutputs == delta.size()); //alternative not supported
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(output[i])
@@ -135,19 +142,21 @@ struct Activation
     vector<nnReal> ret(nOutputs);
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(output[i]) {
-      memcpy(&ret[k], errvals[i], sizes[i]*sizeof(nnReal));
+      std::copy(errvals[i], errvals[i]+sizes[i], &ret[k]);
+      //memcpy(&ret[k], errvals[i], sizes[i]*sizeof(nnReal));
       k += sizes[i];
     }
     assert(k == nOutputs);
     return ret;
   }
 
-  inline vector<nnReal> getOutput() const {
+  inline vector<Real> getOutput() const {
     assert(written == true);
-    vector<nnReal> ret(nOutputs);
+    vector<Real> ret(nOutputs);
     Uint k=0;
     for(Uint i=0; i<nLayers; i++) if(output[i]) {
-      memcpy(&ret[k], outvals[i], sizes[i]*sizeof(nnReal));
+      std::copy(outvals[i], outvals[i]+sizes[i], &ret[k]);
+      //memcpy(&ret[k], outvals[i], sizes[i]*sizeof(nnReal));
       k += sizes[i];
     }
     for(Uint j=0; j<nOutputs; j++)
@@ -182,7 +191,8 @@ struct Activation
       assert(outvals[i] not_eq nullptr);
       assert(_M->outvals[i] not_eq nullptr);
       assert(sizes[i] == _M->sizes[i]);
-      memcpy(outvals[i], _M->outvals[i], sizes[i]*sizeof(nnReal));
+      std::copy(_M->outvals[i], _M->outvals[i]+sizes[i], outvals[i]);
+      //memcpy(outvals[i], _M->outvals[i], sizes[i]*sizeof(nnReal));
     }
   }
 
@@ -191,7 +201,8 @@ struct Activation
       assert(outvals[i] not_eq nullptr);
       assert(_M->outvals[i] not_eq nullptr);
       assert(sizes[i] == _M->sizes[i]);
-      memcpy(_M->outvals[i], outvals[i], sizes[i]*sizeof(nnReal));
+      std::copy(outvals[i], outvals[i]+sizes[i], _M->outvals[i]);
+      //memcpy(_M->outvals[i], outvals[i], sizes[i]*sizeof(nnReal));
     }
   }
 
