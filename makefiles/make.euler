@@ -1,12 +1,3 @@
 CC=mpic++
 LD=mpic++
-#LIBS += -lmpi -lmpicxx -lmpich -mavx
 LIBS+= -lopenblas
-ifeq "$(app)" "cubism"
-
-LIBAPP = -L../../CubismUP_3D/makefiles/ -L. -lsim_rl
-LIBAPP+= -lpthread -lm -lz -fopenmp -lstdc++ -ldl
-LIBAPP+= -lhdf5 -lfftw3 -lfftw3_threads -lfftw3_mpi -lgsl -lgslcblas
-LIBAPP+= -L/cluster/home/novatig/hdf5-1.10.1/gcc_6.3.0_openmpi_2.1/lib
-
-endif

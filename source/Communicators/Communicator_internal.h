@@ -53,7 +53,8 @@ public:
   void redirect_stdout_finalize();
   void createGo_rundir();
   //called by smarties
-  Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn);
+  Communicator_internal(const MPI_Comm scom, const int socket,
+    const bool spawn, mt19937* const _g);
   ~Communicator_internal();
 };
 

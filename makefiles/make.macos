@@ -1,7 +1,5 @@
-#CC=g++
 CC=mpic++
 LD=mpic++
-#LIBS += -lmpi -lmpicxx -lmpich
 
 LIBS += -L/usr/local/opt/openblas/lib/ -lopenblas
 CPPFLAGS += -I/usr/local/opt/openblas/include/

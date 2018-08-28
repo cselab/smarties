@@ -1,4 +1,3 @@
-CC ?= mpic++
 .DEFAULT_GOAL := app
 
 SMARTIESDIR = ../../source/Communicators/
@@ -15,4 +14,4 @@ clean:
 	rm -f app.so
 
 %.o: %.cpp
-	$(CC) $(CPPFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) -c $< -o $@

@@ -20,7 +20,7 @@ static inline vector<string> split(const string &s, const char delim) {
 
 extern int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
 
-Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn) : Communicator(socket, spawn) {
+Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn, mt19937* const _g) : Communicator(socket, spawn, _g) {
   comm_learn_pool = scom;
   update_rank_size();
 }
@@ -97,8 +97,8 @@ void Communicator_internal::answerTerminateReq(const double answer) {
 
 void Communicator_internal::ext_app_run() {
   assert(workerGroup>=0 && rank_inside_app>=0 &&comm_inside_app!=MPI_COMM_NULL);
-  vector<string> argsFiles = split(paramfile, ';');
-  vector<string> stepNmbrs = split(nStepPerFile, ';');
+  vector<string> argsFiles = split(paramfile, ',');
+  vector<string> stepNmbrs = split(nStepPerFile, ',');
   if(argsFiles.size() not_eq stepNmbrs.size())
     die("error reading settings: nStepPappSett and appSettings");
   if(argsFiles.size() == 0) {
@@ -162,14 +162,11 @@ vector<char*> Communicator_internal::readRunArgLst(const string _paramfile)
     if(token[0]=='\'') {
       token.erase(0, 1); // remove apostrophe ( should have been read as \' )
       std::string continuation;
-      while(1) {
+      while(token.back() not_eq '\'') { // if match apostrophe, we are done
         if(!(iss >> continuation)) die("missing matching apostrophe");
         token += " " + continuation; // add next line to argv entry
-        if(continuation.back() == '\'') { // if match apostrophe, we are done
-          token.erase(token.end()-1, token.end()); // remove trailing apostrophe
-          break;
-        }
       }
+      token.erase(token.end()-1, token.end()); // remove trailing apostrophe
     }
     char *arg = new char[token.size() + 1];
     copy(token.begin(), token.end(), arg);  // write into char array

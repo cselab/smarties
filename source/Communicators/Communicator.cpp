@@ -13,7 +13,9 @@
 #include <iostream>
 
 //APPLICATION SIDE CONSTRUCTOR
-Communicator::Communicator(const int socket, const int state_components, const int action_components, const int number_of_agents) : gen(std::mt19937(socket))
+Communicator::Communicator(const int socket, const int state_components,
+  const int action_components, const int number_of_agents) :
+gen_ptr( new std::mt19937(socket) ), m_genOwner(true)
 {
   if(socket<0) {
     printf("FATAL: Communicator created with socket < 0.\n");
@@ -355,13 +357,14 @@ Communicator::~Communicator()
     if (spawner) close(Socket);
     else   close(ServerSocket);
   } //if with forked process paradigm
-
+  if(m_genOwner) delete gen_ptr;
   if(data_state not_eq nullptr)  _dealloc(data_state);
   if(data_action not_eq nullptr) _dealloc(data_action);
 }
 
 // ONLY FOR CHILD CLASS
-Communicator::Communicator(const int socket, const bool spawn) : gen(std::mt19937(socket))
+Communicator::Communicator(const int socket, const bool spawn,
+  std::mt19937* const _g) : gen_ptr(_g), m_genOwner(false)
 {
   if(socket<0) {
     printf("FATAL: Communicator created with socket < 0.\n");

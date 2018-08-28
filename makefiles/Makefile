@@ -3,7 +3,11 @@ username ?= $(shell whoami)
 UNAME_S := $(shell uname -s)
 config ?= prod
 extra ?=
+ifeq ($(INTEL_LICENSE_FILE),)
 compiler ?= gnu
+else
+compiler ?= intel
+endif
 
 CPPFLAGS=-D__Smarties_
 LIBS=
@@ -75,7 +79,7 @@ CPPFLAGS+= -DINTERNALAPP # app is linked directly to smarties
 
 lib: Communicator.o
 	make -C ../apps/$(app)/ clean
-	make -C ../apps/$(app)/ CC=$(CC)
+	make -C ../apps/$(app)/ CC=$(CC) CXX=$(CC) compiler=$(compiler) config=$(config)
 else
 # app is compiled independently and uses communication through sockets
 # this is just for testing:
