@@ -213,3 +213,18 @@ inline vector<Uint> count_indices(const vector<Uint> outs)
   for(Uint i=1; i<outs.size(); i++) ret[i] = ret[i-1] + outs[i-1];
   return ret;
 }
+
+#include <cpuid.h>
+#define CPUID(INFO, LEAF, SUBLEAF) __cpuid_count(LEAF, SUBLEAF, INFO[0], INFO[1], INFO[2], INFO[3])
+#define GETCPU(CPU) do {                               \
+        uint32_t CPUInfo[4];                           \
+        CPUID(CPUInfo, 1, 0);                          \
+        /* CPUInfo[1] is EBX, bits 24-31 are APIC ID */\
+        if ( (CPUInfo[3] & (1 << 9)) == 0) {           \
+          CPU = -1;  /* no APIC on chip */             \
+        }                                              \
+        else {                                         \
+          CPU = (unsigned)CPUInfo[1] >> 24;            \
+        }                                              \
+        if (CPU < 0) CPU = 0;                          \
+      } while(0)
