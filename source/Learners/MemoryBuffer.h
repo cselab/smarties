@@ -25,9 +25,12 @@ public:
   const ActionInfo& aI = env->aI;
   const vector<Agent*>& _agents = env->agents;
   std::vector<std::mt19937>& generators;
+  
   vector<memReal> invstd = sI.inUseInvStd();
   vector<memReal> mean = sI.inUseMean();
   vector<memReal> std = sI.inUseStd();
+  Real invstd_reward = 1;
+
   const Real gamma;
   const int learn_rank, learn_size;
   bool needs_pass = true;
@@ -38,9 +41,9 @@ public:
     float maxPriorityImpW = 1;
     void updateImportanceWeights();
   #endif
-  //bool bRecurrent;
+
   Uint nPruned = 0, minInd = 0, learnID = 0;
-  Real invstd_reward = 1, nOffPol = 0, avgDKL = 0;
+  Real nOffPol = 0, avgDKL = 0;
 
   vector<Sequence*> Set, inProgress;
   mutable std::mutex dataset_mutex;

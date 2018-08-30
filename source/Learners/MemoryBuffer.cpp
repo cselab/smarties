@@ -293,7 +293,7 @@ void MemoryBuffer::prune(const FORGET ALGO, const Fval CmaxRho)
   // but if N > Ntarget even if we remove the trajectory
   // done to avoid bugs if a sequence is longer than maxTotObsNum
   // negligible effect if hyperparameters are chosen wisely
-  //if(Set[old_ptr]->ID + (int)Set.size() < Set[del_ptr]->ID) del_ptr = old_ptr;
+  if(Set[old_ptr]->ID + (int)Set.size() < Set[del_ptr]->ID) del_ptr = old_ptr;
   if(nTransitions.load()-Set[del_ptr]->ndata() > maxTotObsNum) {
     std::swap(Set[del_ptr], Set.back());
     popBackSequence();
@@ -489,18 +489,18 @@ void MemoryBuffer::getHeaders(ostringstream& buff)
 void MemoryBuffer::save(const string base, const Uint nStep, const bool bBackup)
 {
   FILE * wFile = fopen((base+"scaling.raw").c_str(), "wb");
-  fwrite(   mean.data(), sizeof(Real),   mean.size(), wFile);
-  fwrite( invstd.data(), sizeof(Real), invstd.size(), wFile);
-  fwrite(    std.data(), sizeof(Real),    std.size(), wFile);
+  fwrite(   mean.data(), sizeof(memReal),   mean.size(), wFile);
+  fwrite( invstd.data(), sizeof(memReal), invstd.size(), wFile);
+  fwrite(    std.data(), sizeof(memReal),    std.size(), wFile);
   fwrite(&invstd_reward, sizeof(Real),             1, wFile);
   fflush(wFile); fclose(wFile);
 
   if(bBackup) {
     ostringstream S; S<<std::setw(9)<<std::setfill('0')<<nStep;
     wFile = fopen((base+"scaling_"+S.str()+".raw").c_str(), "wb");
-    fwrite(   mean.data(), sizeof(Real),   mean.size(), wFile);
-    fwrite( invstd.data(), sizeof(Real), invstd.size(), wFile);
-    fwrite(    std.data(), sizeof(Real),    std.size(), wFile);
+    fwrite(   mean.data(), sizeof(memReal),   mean.size(), wFile);
+    fwrite( invstd.data(), sizeof(memReal), invstd.size(), wFile);
+    fwrite(    std.data(), sizeof(memReal),    std.size(), wFile);
     fwrite(&invstd_reward, sizeof(Real),             1, wFile);
     fflush(wFile); fclose(wFile);
   }
@@ -518,9 +518,9 @@ void MemoryBuffer::restart(const string base)
       fflush(0);
     }
 
-    size_t size1 = fread(   mean.data(), sizeof(Real),   mean.size(), wFile);
-    size_t size2 = fread( invstd.data(), sizeof(Real), invstd.size(), wFile);
-    size_t size3 = fread(    std.data(), sizeof(Real),    std.size(), wFile);
+    size_t size1 = fread(   mean.data(), sizeof(memReal),   mean.size(), wFile);
+    size_t size2 = fread( invstd.data(), sizeof(memReal), invstd.size(), wFile);
+    size_t size3 = fread(    std.data(), sizeof(memReal),    std.size(), wFile);
     size_t size4 = fread(&invstd_reward, sizeof(Real),             1, wFile);
     fclose(wFile);
     if(size1!=mean.size()|| size2!=invstd.size()|| size3!=std.size()|| size4!=1)
