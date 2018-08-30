@@ -27,9 +27,9 @@ PATH=    sys.argv[1]
 sizes = np.fromfile(PATH+'/problem_size.log', sep=' ')
 NS, NA, NP = int(sizes[0]), int(sizes[1]), int(sizes[2])
 NL=(NA*NA+NA)//2
-NREW=3+NS+NA
-NCOL=3+NS+NA+NP
-print('States begin at col 2, actions at col '+str(2+NS)+', rewards is col '+str(2+NS+NA)+', policy at col '+str(3+NS+NA)+' end at '+str(NCOL)+'.')
+IREW=3+NS+NA
+NCOL=4+NS+NA+NP
+print('States begin at col 3, actions at col '+str(3+NS)+', rewards is col '+str(IREW)+', policy at col '+str(1+IREW)+' end at '+str(NCOL)+'.')
 ICOL = int( input("Column to print? ") )
 #COLMAX = 1e7
 #COLMAX = 8e6
@@ -57,11 +57,10 @@ DATA = np.fromfile(FILE, dtype=np.float32)
 NROW = DATA.size // NCOL
 DATA = DATA.reshape(NROW, NCOL)
 
-terminals = np.argwhere(DATA[:,0]>=2.)
-initials  = np.argwhere(abs(DATA[:,0]-1.1)<0.1)
-print(np.mean(DATA[terminals,NREW-1]))
-print(np.std(DATA[:,NREW-1]), np.mean(DATA[:,NREW-1]))
-print(NROW, NCOL,ICOL,len(terminals))
+terminals = np.argwhere(DATA[:,1]>=2.)
+initials  = np.argwhere(abs(DATA[:,1]-1.1)<0.1)
+print("Plot column %d out of %d. Log contains %d time steps from %d episodes." \
+      % (ICOL, NCOL, NROW, len(terminals) ) )
 inds = np.arange(0,NROW)
 ST = np.zeros(len(terminals))
 
@@ -70,7 +69,7 @@ for ind in range(IND0, len(terminals), SKIP):
   init =  initials[ind]; init = init[0]
   if COLMAX>0 and term>COLMAX: break;
   span = range(init+1, term, 1)
-  print(init,term)
+  print("Plotting episode starting from step %d to step %d." % (init,term) )
   if XAXIS>=0:
     xes, xtrm, xini = DATA[span,XAXIS], DATA[term,XAXIS], DATA[init,XAXIS]
   else:
@@ -84,8 +83,6 @@ for ind in range(IND0, len(terminals), SKIP):
 
   #plt.plot(inds, DATA[:,ICOL])
   ST[ind] = DATA[term, ICOL]
-  #if ICOL >= NREW: plottrm = term-1
-  #else: plottrm = term
 
   if ind==IND0:
     plt.plot(xini, DATA[init, ICOL], 'go', label='terminal x')
