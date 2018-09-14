@@ -161,8 +161,8 @@ private:
     } else {
       lock_guard<mutex> lock(mpi_mutex);
       MPI_Isend(outBufs[i-1],outSize, MPI_BYTE, i,0,workersComm,&tmp);
-      MPI_Request_free(&tmp); //Not my problem
     }
+    MPI_Request_free(&tmp); //Not my problem
   }
 
   inline void recvBuffer(const int i)
