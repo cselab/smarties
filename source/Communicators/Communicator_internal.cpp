@@ -18,9 +18,11 @@ static inline vector<string> split(const string &s, const char delim) {
   return tokens;
 }
 
-extern int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
+int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
 
-Communicator_internal::Communicator_internal(const MPI_Comm scom, const int socket, const bool spawn, mt19937* const _g) : Communicator(socket, spawn, _g) {
+Communicator_internal::Communicator_internal(MPI_Comm scom, int sid, bool spawn,
+  Settings&sett) : Communicator(sid, spawn, sett.generators[0],
+  sett.bTrain, sett.totNumSteps) {
   comm_learn_pool = scom;
   update_rank_size();
 }
@@ -121,19 +123,18 @@ void Communicator_internal::ext_app_run() {
 
     // app only needs lower level functionalities:
     // ie. send state, recv action, specify state/action spaces properties...
-    Communicator* commptr = static_cast<Communicator*>(this);
+    Communicator* const commptr = static_cast<Communicator*>(this);
     Uint settingsInd = 0;
     for(size_t i=0; i<argsFiles.size(); i++)
       if(learner_step_id >= stepPrefix[i]) settingsInd = i;
     Uint numStepTSet = stepPrefix[settingsInd+1] - learner_step_id;
     numStepTSet = numStepTSet / (size_learn_pool-1);
     vector<char*> args = readRunArgLst(argsFiles[settingsInd]);
-    //for(size_t i=0; i<args.size(); i++) cout<<args[i]<<endl;
-    //cout<<endl; fflush(0);
 
     redirect_stdout_init();
     app_main(commptr, comm_inside_app, args.size()-1, args.data(), numStepTSet);
     redirect_stdout_finalize();
+
     for(size_t i = 0; i < args.size()-1; i++) delete[] args[i];
     chdir(initd);  // go up one level
   }

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Communicator.h"
+#include "../Settings.h"
 
 class Communicator_internal: public Communicator
 {
@@ -53,8 +54,7 @@ public:
   void redirect_stdout_finalize();
   void createGo_rundir();
   //called by smarties
-  Communicator_internal(const MPI_Comm scom, const int socket,
-    const bool spawn, mt19937* const _g);
+  Communicator_internal(MPI_Comm scom, int sock, bool spawn, Settings& sett);
   ~Communicator_internal();
 };
 

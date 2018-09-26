@@ -15,15 +15,15 @@ g(&_settings.generators[0]), settings(_settings), gamma(_settings.gamma) {}
 void Environment::setDims()
 {
   comm_ptr->getStateActionShape();
-  assert(comm_ptr->nAgents>0);
-  assert(comm_ptr->nStates>0);
-  assert(comm_ptr->nActions>0);
-  assert(comm_ptr->discrete_actions>=0);
+  assert(comm_ptr->getDimS()>0);
+  assert(comm_ptr->getDimA()>0);
+  assert(comm_ptr->getNagents()>0);
+  assert(comm_ptr->nDiscreteAct()>=0);
 
-  sI.dim = comm_ptr->nStates;
-  aI.dim = comm_ptr->nActions;
-  nAgentsPerRank = comm_ptr->nAgents;
-  aI.discrete = comm_ptr->discrete_actions;
+  sI.dim = comm_ptr->getDimS();
+  aI.dim = comm_ptr->getDimA();
+  nAgentsPerRank = comm_ptr->getNagents();
+  aI.discrete = comm_ptr->nDiscreteAct();
 
   aI.values.resize(aI.dim);
   aI.bounded.resize(aI.dim, 0);
@@ -33,9 +33,9 @@ void Environment::setDims()
 
   if(!settings.world_rank) printf("State dimensionality : %d.",sI.dim);
   for (unsigned i=0; i<sI.dim; i++) {
-    const bool inuse = comm_ptr->obs_inuse[i] > 0.5;
-    const double upper = comm_ptr->obs_bounds[i*2+0];
-    const double lower = comm_ptr->obs_bounds[i*2+1];
+    const bool inuse = comm_ptr->isStateObserved()[i] > 0.5;
+    const double upper = comm_ptr->stateBounds()[i*2+0];
+    const double lower = comm_ptr->stateBounds()[i*2+1];
     sI.inUse[i] = inuse;
     sI.mean[i]  = 0.5*(upper+lower);
     sI.scale[i] = 0.5*std::fabs(upper-lower);
@@ -51,14 +51,14 @@ void Environment::setDims()
 
   int k = 0;
   for (Uint i=0; i<aI.dim; i++) {
-    aI.bounded[i]   = comm_ptr->action_options[i*2 +1] > 0.5;
-    const int nvals = comm_ptr->action_options[i*2 +0];
+    aI.bounded[i]   = comm_ptr->actionOption()[i*2 +1] > 0.5;
+    const int nvals = comm_ptr->actionOption()[i*2 +0];
     // if act space is continuous, only receive high and low val for each action
     assert(aI.discrete || nvals == 2);
     assert(nvals > 1);
     aI.values[i].resize(nvals);
     for(int j=0; j<nvals; j++)
-      aI.values[i][j] = comm_ptr->action_bounds[k++];
+      aI.values[i][j] = comm_ptr->actionBounds()[k++];
 
     const Real amax = aI.getActMaxVal(i), amin = aI.getActMinVal(i);
     if(!settings.world_rank)
@@ -67,7 +67,7 @@ void Environment::setDims()
   if(!settings.world_rank) printf("\n");
 
   commonSetup(); //required
-  assert(sI.dim == (Uint) comm_ptr->nStates);
+  assert(sI.dim == (Uint) comm_ptr->getDimS());
 }
 
 Communicator_internal Environment::create_communicator(
@@ -75,7 +75,7 @@ Communicator_internal Environment::create_communicator(
   const int socket, const bool bSpawn)
 {
   assert(socket>0);
-  Communicator_internal comm(workersComm,socket,bSpawn,&settings.generators[0]);
+  Communicator_internal comm(workersComm, socket, bSpawn, settings);
   comm.set_exec_path(settings.launchfile);
   comm_ptr = &comm;
 

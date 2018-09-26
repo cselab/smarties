@@ -14,22 +14,22 @@ ifeq "$(config)" "debug"
 CPPFLAGS+= -g -O0
 endif
 ifeq "$(config)" "segf"
-CPPFLAGS+= -g -O0 -ffast-math
+CPPFLAGS+= -g -O0 #-ffast-math
 CPPFLAGS+= -fsanitize=address
 LIBS += -fsanitize=address
 endif
 ifeq "$(config)" "nan"
-CPPFLAGS+= -g -O0 -ffast-math
+CPPFLAGS+= -g -O0 #-ffast-math
 CPPFLAGS+= -fsanitize=undefined
 LIBS += -fsanitize=undefined
 endif
 ifeq "$(config)" "prod"
-CPPFLAGS += -DNDEBUG -O3 -ffast-math
+CPPFLAGS += -DNDEBUG -O3 #-ffast-math
 endif
 
-CPPFLAGS+= -fstrict-aliasing -march=native -mtune=native
+#CPPFLAGS+= -fstrict-aliasing -march=native -mtune=native
 #CPPFLAGS+= -ftree-vectorize #-ftree-vectorizer-verbose=2 #-DNDEBUG
-CPPFLAGS+= -fmerge-all-constants #-fassociative-math
+#CPPFLAGS+= -fmerge-all-constants #-fassociative-math
 #CPPFLAGS+= -funsafe-loop-optimizations
 #CPPFLAGS+= -fprofile-use
-CPPFLAGS+= -falign-functions=32 #-DBOOST_UBLAS_NDEBUG
+#CPPFLAGS+= -falign-functions=32 #-DBOOST_UBLAS_NDEBUG

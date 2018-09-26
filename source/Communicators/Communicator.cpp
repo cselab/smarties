@@ -13,19 +13,18 @@
 #include <iostream>
 
 //APPLICATION SIDE CONSTRUCTOR
-Communicator::Communicator(const int socket, const int state_components,
-  const int action_components, const int number_of_agents) :
-gen_ptr( new std::mt19937(socket) ), m_genOwner(true)
+Communicator::Communicator(int socket, int state_comp, int action_comp,
+  int number_of_agents) : gen(socket), bTrain(true), nEpisodes(-1)
 {
   if(socket<0) {
     printf("FATAL: Communicator created with socket < 0.\n");
     abort();
   }
-  if(state_components<=0) {
+  if(state_comp<=0) {
     printf("FATAL: Cannot set negative state space dimensionality.\n");
     abort();
   }
-  if(action_components<=0) {
+  if(action_comp<=0) {
     printf("FATAL: Cannot set negative number of action degrees of freedom.\n");
     abort();
   }
@@ -33,16 +32,16 @@ gen_ptr( new std::mt19937(socket) ), m_genOwner(true)
     printf("FATAL: Cannot set negative number of agents.\n");
     abort();
   }
-  assert(state_components>0 && action_components>0 && number_of_agents>0);
+  assert(state_comp>0 && action_comp>0 && number_of_agents>0);
   nAgents = number_of_agents;
-  update_state_action_dims(state_components, action_components);
+  update_state_action_dims(state_comp, action_comp);
   spawner = socket==0; // if app gets socket prefix 0, then it spawns smarties
   socket_id = socket;
   called_by_app = true;
   launch();
 }
 
-#ifdef MPI_INCLUDED //MPI APPLICATION SIDE CONSTRUCTOR
+#ifdef MPI_VERSION //MPI APPLICATION SIDE CONSTRUCTOR
   Communicator::Communicator(const int socket, const int state_components,
   const int action_components, const MPI_Comm app, const int number_of_agents)
   : Communicator(socket, state_components, action_components, number_of_agents)
@@ -72,7 +71,7 @@ void Communicator::sendState(const int iAgent, const envInfo status,
     data_state[nStates+2] = reward;
     assert(not std::isnan(reward) && not std::isinf(reward));
 
-    #ifdef MPI_INCLUDED
+    #ifdef MPI_VERSION
       if (rank_learn_pool>0) workerSend_MPI();
       else
     #endif
@@ -80,7 +79,7 @@ void Communicator::sendState(const int iAgent, const envInfo status,
   }
 
   // Now prepare next action for the same agent:
-  #ifdef MPI_INCLUDED
+  #ifdef MPI_VERSION
     if(rank_inside_app <= 0)
     {
       if (rank_learn_pool>0) workerRecv_MPI();
@@ -88,7 +87,7 @@ void Communicator::sendState(const int iAgent, const envInfo status,
   #endif
         comm_sock(Socket, false, data_action, size_action);
 
-  #ifdef MPI_INCLUDED // app rank 0 sends to other ranks
+  #ifdef MPI_VERSION // app rank 0 sends to other ranks
       for (int i=1; i<size_inside_app; ++i)
         MPI_Send(data_action, size_action, MPI_BYTE, i, 42, comm_inside_app);
     } else {
@@ -195,7 +194,7 @@ void Communicator::sendStateActionShape()
   if(workerGroup > 0) return;
 
   double sizes[4] = {nStates+.1, nActions+.1, discrete_actions+.1, nAgents+.1};
-  #ifdef MPI_INCLUDED
+  #ifdef MPI_VERSION
     if (rank_learn_pool>0) {
       MPI_Ssend(sizes, 4*8, MPI_BYTE, 0,3, comm_learn_pool);
       MPI_Ssend(obs_inuse.data(), nStates*1*8, MPI_BYTE, 0, 3, comm_learn_pool);
@@ -357,14 +356,13 @@ Communicator::~Communicator()
     if (spawner) close(Socket);
     else   close(ServerSocket);
   } //if with forked process paradigm
-  if(m_genOwner) delete gen_ptr;
   if(data_state not_eq nullptr)  _dealloc(data_state);
   if(data_action not_eq nullptr) _dealloc(data_action);
 }
 
 // ONLY FOR CHILD CLASS
-Communicator::Communicator(const int socket, const bool spawn,
-  std::mt19937* const _g) : gen_ptr(_g), m_genOwner(false)
+Communicator::Communicator(int socket, bool spawn, std::mt19937& G, int _bTr,
+  int nEps) : gen(G()), bTrain(_bTr), nEpisodes(nEps)
 {
   if(socket<0) {
     printf("FATAL: Communicator created with socket < 0.\n");
@@ -378,7 +376,7 @@ void Communicator::print()
 {
   std::ostringstream fname;
   int wrank = socket_id;
-  #ifdef MPI_INCLUDED
+  #ifdef MPI_VERSION
     MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
   #endif
   fname<<"comm_"<<std::setw(3)<<std::setfill('0')<<wrank<<".log";
@@ -391,4 +389,80 @@ void Communicator::print()
   o <<" size_a:"<<size_inside_app<< " rank_a:"<< rank_inside_app<<"\n";
   //o <<"Socket comm: prefix:"<<socket_id<<" PATH:"<<std::string(SOCK_PATH)<<"\n";
   o.close();
+}
+
+void Communicator::update_rank_size()
+{
+  #ifdef MPI_VERSION
+  if (comm_inside_app != MPI_COMM_NULL) {
+    MPI_Comm_rank(comm_inside_app, &rank_inside_app);
+    MPI_Comm_size(comm_inside_app, &size_inside_app);
+  }
+  if (comm_learn_pool != MPI_COMM_NULL) {
+    MPI_Comm_rank(comm_learn_pool, &rank_learn_pool);
+    MPI_Comm_size(comm_learn_pool, &size_learn_pool);
+  }
+  #endif
+}
+
+void Communicator::workerSend_MPI() {
+  //if(send_request != MPI_REQUEST_NULL) MPI_Wait(&send_request, MPI_STATUS_IGNORE);
+  //if(recv_request != MPI_REQUEST_NULL) workerRecv_MPI(iAgent);
+
+  assert(comm_learn_pool != MPI_COMM_NULL);
+  MPI_Request dummyreq;
+  MPI_Isend(data_state, size_state, MPI_BYTE, 0, 1, comm_learn_pool, &dummyreq);
+  MPI_Request_free(&dummyreq); //Not my problem? send_request
+  MPI_Irecv(data_action, size_action, MPI_BYTE, 0, 0, comm_learn_pool, &recv_request);
+}
+void Communicator::workerRecv_MPI() {
+  //auto start = std::chrono::high_resolution_clock::now();
+  assert(comm_learn_pool != MPI_COMM_NULL);
+  assert(recv_request != MPI_REQUEST_NULL);
+  //if(recv_request != MPI_REQUEST_NULL) {
+    while(true) {
+      int completed=0;
+      MPI_Test(&recv_request, &completed, MPI_STATUS_IGNORE);
+      if (completed) break;
+      usleep(1);
+    }
+  //  memcpy(&stored_actions[iAgent], data_action, size_action);
+  //}
+  assert(recv_request == MPI_REQUEST_NULL);
+  //auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  //cout << chrono::duration_cast<chrono::microseconds>(elapsed).count() <<endl;
+}
+
+std::mt19937& Communicator::getPRNG() {
+  return gen;
+}
+bool Communicator::isTraining() {
+  return bTrain;
+}
+int Communicator::desiredNepisodes() {
+  return nEpisodes;
+}
+int Communicator::getDimS() {
+  return nStates;
+}
+int Communicator::getDimA() {
+  return nActions;
+}
+int Communicator::getNagents() {
+  return nAgents;
+}
+int Communicator::nDiscreteAct() {
+  return discrete_actions;
+}
+std::vector<double>& Communicator::stateBounds() {
+  return obs_bounds;
+}
+std::vector<double>& Communicator::isStateObserved() {
+  return obs_inuse;
+}
+std::vector<double>& Communicator::actionOption() {
+  return action_options;
+}
+std::vector<double>& Communicator::actionBounds() {
+  return action_bounds;
 }

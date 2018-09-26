@@ -9,7 +9,7 @@ else
 compiler ?= intel
 endif
 
-CPPFLAGS=-D__Smarties_
+CPPFLAGS=-DSMARTIES
 LIBS=
 
 ifeq ($(UNAME_S),Darwin)
@@ -55,11 +55,11 @@ include make.gcc.flags
 endif
 
 DIRS = $(sort $(dir $(wildcard ../source/*/)))
-OBJ_FILES = ArgParser.o main.o ObjectFactory.o Communicator.o RACER.o \
+OBJ_FILES= ArgParser.o main.o ObjectFactory.o Sequences.o Scheduler.o \
 		PPO.o ACER.o VRACER.o AtariEnvironment.o Approximator.o Network.o \
 		Learner_onPolicy.o MemoryBuffer.o Learner_offPolicy.o Optimizer.o \
 		Environment.o DQN.o RETPG.o Math_tests.o Communicator_internal.o \
-		Learner.o NAF.o DPG.o Scheduler.o Sequences.o
+		Learner.o NAF.o DPG.o RACER.o Communicator.o
 
 CPP_FILES = $(notdir $(OBJ_FILES:.o=.cpp))
 
@@ -71,21 +71,26 @@ endif
 
 ############### Compile application as static library if needed ###############
 ifneq "$(app)" "ext_app_test"
+
 # let's check if app requires some flag / lib
 ifneq ("$(wildcard ../apps/$(app)/make.flags)","")
 include ../apps/$(app)/make.flags
 endif
 CPPFLAGS+= -DINTERNALAPP # app is linked directly to smarties
 
-lib: Communicator.o
+lib:
 	make -C ../apps/$(app)/ clean
 	make -C ../apps/$(app)/ CC=$(CC) CXX=$(CC) compiler=$(compiler) config=$(config)
+
 else
+
 # app is compiled independently and uses communication through sockets
 # this is just for testing:
-lib: ext_app_test.o Communicator.o
+lib: ext_app_test.o
 	ar rs libsimulation.a $^
+
 endif
+
 LIBS+= -L. -lsimulation
 
 rl: $(OBJ_FILES) lib

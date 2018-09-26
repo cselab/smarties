@@ -16,7 +16,7 @@
 
 #include <random>
 std::string printableTuple(std::vector<double> s,double r,std::vector<double> a);
-int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps);
+int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const unsigned numSteps);
 
 std::string printableTuple(std::vector<double> s,double r,std::vector<double> a)
 {
@@ -35,8 +35,8 @@ int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, co
   //o << argc << ":";
   //for (int i=0; i<argc; ++i) o << " [" << argv[i] << "]";
   //printf("%s\n",o.str().c_str()); fflush(0);
-  const int nS = rlcom->getStateDim();
-  const int nA = rlcom->getActionDim();
+  const int nS = rlcom->getDimS();
+  const int nA = rlcom->getDimA();
   int rank, size, wrank;
   std::random_device rd;
   std::mt19937 gen(rd());

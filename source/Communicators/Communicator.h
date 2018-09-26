@@ -10,12 +10,6 @@
 
 #include <sstream>
 #include <sys/un.h>
-#ifdef __RL_MPI_CLIENT
-#include <mpi.h>
-#endif
-#ifdef __Smarties_
-#include "../Settings.h"
-#endif
 
 #include <vector>
 #include <cstring>
@@ -30,18 +24,15 @@
 #define AGENT_KILLSIGNAL -256
 #define AGENT_TERMSIGNAL  256
 
-#ifdef OPEN_MPI
-#define MPI_INCLUDED
+#if defined(SMARTIES) || defined(SMARTIES_APP)
+#include <mpi.h>
 #endif
 
 #include "Communicator_utils.h"
 
 class Communicator
 {
- public:
-  #ifdef MPI_INCLUDED
-    MPI_Comm comm_inside_app = MPI_COMM_NULL, comm_learn_pool = MPI_COMM_NULL;
-  #endif
+ protected:
   // only for MPI-based *applications* eg. flow solvers:
   int rank_inside_app = -1, rank_learn_pool = -1;
   // comm to talk to master:
@@ -50,8 +41,6 @@ class Communicator
   int workerGroup = -1;
   // should be named nState/ActionComponents
   int nStates = -1, nActions = -1;
-  int getStateDim()  {return nStates;}
-  int getActionDim() {return nActions;}
 
   // byte size of the messages
   int size_state = -1, size_action = -1;
@@ -71,12 +60,25 @@ class Communicator
   //internal counters
   unsigned long seq_id = 0, msg_id = 0, iter = 0;
   unsigned learner_step_id = 0;
-  std::mt19937 * const gen_ptr;
-  std::mt19937& gen = *gen_ptr;
-  const bool m_genOwner;
+  std::mt19937 gen;
 
+  const bool bTrain;
+  const int nEpisodes;
   bool sentStateActionShape = false;
   std::vector<double> obs_bounds, obs_inuse, action_options, action_bounds;
+
+ public:
+  std::mt19937& getPRNG();
+  bool isTraining();
+  int desiredNepisodes();
+  int getDimS();
+  int getDimA();
+  int getNagents();
+  int nDiscreteAct();
+  std::vector<double>& stateBounds();
+  std::vector<double>& isStateObserved();
+  std::vector<double>& actionOption();
+  std::vector<double>& actionBounds();
 
   void update_state_action_dims(const int sdim, const int adim);
 
@@ -124,12 +126,7 @@ class Communicator
   void launch();
 
   Communicator(const int socket, const int state_components, const int action_components, const int number_of_agents = 1);
-  Communicator(const int socket, const bool spawn, std::mt19937* const _g);
-
-  #ifdef MPI_INCLUDED
-  Communicator(const int socket, const int state_components, const int action_components, const MPI_Comm app, const int number_of_agents);
-  #endif
-
+  Communicator(int socket, bool spawn, std::mt19937& G, int _bTr, int nEps);
   virtual ~Communicator();
 
  protected:
@@ -144,19 +141,7 @@ class Communicator
 
   void print();
 
-  void update_rank_size()
-  {
-    #ifdef MPI_INCLUDED
-    if (comm_inside_app != MPI_COMM_NULL) {
-      MPI_Comm_rank(comm_inside_app, &rank_inside_app);
-      MPI_Comm_size(comm_inside_app, &size_inside_app);
-    }
-    if (comm_learn_pool != MPI_COMM_NULL) {
-      MPI_Comm_rank(comm_learn_pool, &rank_learn_pool);
-      MPI_Comm_size(comm_learn_pool, &size_learn_pool);
-    }
-    #endif
-  }
+  void update_rank_size();
 
   virtual void launch_forked();
   void setupClient();
@@ -165,37 +150,18 @@ class Communicator
   void sendStateActionShape();
 
 
-  #ifdef MPI_INCLUDED
+ #ifdef MPI_VERSION
     MPI_Request send_request = MPI_REQUEST_NULL;
     MPI_Request recv_request = MPI_REQUEST_NULL;
 
-    void workerRecv_MPI() {
-      //auto start = std::chrono::high_resolution_clock::now();
-      assert(comm_learn_pool != MPI_COMM_NULL);
-      assert(recv_request != MPI_REQUEST_NULL);
-      //if(recv_request != MPI_REQUEST_NULL) {
-        while(true) {
-          int completed=0;
-          MPI_Test(&recv_request, &completed, MPI_STATUS_IGNORE);
-          if (completed) break;
-          usleep(1);
-        }
-      //  memcpy(&stored_actions[iAgent], data_action, size_action);
-      //}
-      assert(recv_request == MPI_REQUEST_NULL);
-      //auto elapsed = std::chrono::high_resolution_clock::now() - start;
-      //cout << chrono::duration_cast<chrono::microseconds>(elapsed).count() <<endl;
-    }
+    void workerRecv_MPI();
+    void workerSend_MPI();
 
-    void workerSend_MPI() {
-      //if(send_request != MPI_REQUEST_NULL) MPI_Wait(&send_request, MPI_STATUS_IGNORE);
-      //if(recv_request != MPI_REQUEST_NULL) workerRecv_MPI(iAgent);
+    MPI_Comm comm_inside_app = MPI_COMM_NULL, comm_learn_pool = MPI_COMM_NULL;
 
-      assert(comm_learn_pool != MPI_COMM_NULL);
-      MPI_Request dummyreq;
-      MPI_Isend(data_state, size_state, MPI_BYTE, 0, 1, comm_learn_pool, &dummyreq);
-      MPI_Request_free(&dummyreq); //Not my problem? send_request
-      MPI_Irecv(data_action, size_action, MPI_BYTE, 0, 0, comm_learn_pool, &recv_request);
-    }
-  #endif
+ public:
+
+    Communicator(const int socket, const int state_comp, const int action_comp,
+      const MPI_Comm app, const int number_of_agents);
+ #endif
 };

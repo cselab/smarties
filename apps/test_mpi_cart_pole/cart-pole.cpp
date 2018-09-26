@@ -173,8 +173,8 @@ int app_main(
 
   //OPTIONAL: hide state variables.
   // e.g. show cosine/sine but not angle
-  //vector<bool> b_observable = {true, true, true, false, true, true};
-  vector<bool> b_observable = {true, false, false, false, true, true};
+  vector<bool> b_observable = {true, true, true, false, true, true};
+  //vector<bool> b_observable = {true, false, false, false, true, true};
   comm->set_state_observable(b_observable);
 
   //OPTIONAL: set space bounds
@@ -188,7 +188,7 @@ int app_main(
   while(true) //train loop
   {
     //reset environment:
-    env.reset(comm->gen); //comm contains rng with different seed on each rank
+    env.reset(comm->getPRNG()); //comm contains rng with different seed on each rank
 
 
     comm->sendInitState(env.getState()); //send initial state
