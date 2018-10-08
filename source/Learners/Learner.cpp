@@ -145,6 +145,7 @@ void Learner::restart()
 
   for(auto & net : F) net->save("restarted_"+learner_name, false);
   input->save("restarted_"+learner_name, false);
+  data->save("restarted_"+learner_name, 0, false);
 }
 
 void Learner::save()

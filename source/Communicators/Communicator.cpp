@@ -405,6 +405,7 @@ void Communicator::update_rank_size()
   #endif
 }
 
+#ifdef MPI_VERSION
 void Communicator::workerSend_MPI() {
   //if(send_request != MPI_REQUEST_NULL) MPI_Wait(&send_request, MPI_STATUS_IGNORE);
   //if(recv_request != MPI_REQUEST_NULL) workerRecv_MPI(iAgent);
@@ -432,6 +433,7 @@ void Communicator::workerRecv_MPI() {
   //auto elapsed = std::chrono::high_resolution_clock::now() - start;
   //cout << chrono::duration_cast<chrono::microseconds>(elapsed).count() <<endl;
 }
+#endif
 
 std::mt19937& Communicator::getPRNG() {
   return gen;
