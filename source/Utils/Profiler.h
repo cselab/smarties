@@ -7,238 +7,217 @@
 //
 
 #pragma once
+/*
+ *  timer.h
+ *  smarties
+ *
+ *  Created by Dmitry Alexeev on 15.2.16.
+ *  Copyright 2016 ETH Zurich. All rights reserved.
+ *
+ */
 
-#include <assert.h>
-#include <vector>
-#include <map>
+#pragma once
+
+#include <chrono>
 #include <string>
-#include <stdio.h>
-#include <stack>
-#include <sys/time.h>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+#include <unordered_map>
+#include <algorithm>
+#include <vector>
 
-using namespace std;
-
-#include <sys/time.h>
-
-const bool bVerboseProfiling = false;
-
-class ProfileAgent
+class Timer
 {
-  //  typedef tbb::tick_count ClockTime;
-  typedef timeval ClockTime;
+ private:
+  std::chrono::time_point<std::chrono::high_resolution_clock> _start, _end;
 
-  enum ProfileAgentState{ ProfileAgentState_Created, ProfileAgentState_Started, ProfileAgentState_Stopped};
+  std::chrono::time_point<std::chrono::high_resolution_clock> none =
+  std::chrono::time_point<std::chrono::high_resolution_clock>::min();
 
-  ClockTime m_tStart, m_tEnd;
-  ProfileAgentState m_state;
-  long double m_dAccumulatedTime;
-  int m_nMeasurements;
-  int m_nMoney;
+ public:
 
-  static inline void _getTime(ClockTime& time)
-  {
-    //time = tick_count::now();
-    gettimeofday(&time, NULL);
+  inline Timer() {
+    _start = none;
+    _end   = none;
   }
 
-  static inline double _getElapsedTime(const ClockTime&tS, const ClockTime&tE)
-  {
-    return (tE.tv_sec - tS.tv_sec) + 1e-6 * (tE.tv_usec - tS.tv_usec);
-    //return (tE - tS).seconds();
+  inline void start() {
+    _start = std::chrono::high_resolution_clock::now();
+    _end   = none;
   }
 
-  void _reset()
-  {
-    m_tStart = ClockTime();
-    m_tEnd = ClockTime();
-    m_dAccumulatedTime = 0;
-    m_nMeasurements = 0;
-    m_nMoney = 0;
-    m_state = ProfileAgentState_Created;
+  inline void stop() {
+    _end = std::chrono::high_resolution_clock::now();
   }
 
-public:
+  inline int64_t elapsed() {
+    if (_end == none) _end = std::chrono::high_resolution_clock::now();
 
-  ProfileAgent():m_tStart(), m_tEnd(), m_state(ProfileAgentState_Created),
-  m_dAccumulatedTime(0), m_nMeasurements(0), m_nMoney(0) {}
-
-  void start()
-  {
-    assert(m_state == ProfileAgentState_Created || m_state == ProfileAgentState_Stopped);
-
-    if (bVerboseProfiling) {printf("start\n");}
-
-    _getTime(m_tStart);
-
-    m_state = ProfileAgentState_Started;
+    return std::chrono::duration <long int, std::nano>(_end - _start).count();
   }
 
-  void stop(int nMoney=0)
-  {
-    assert(m_state == ProfileAgentState_Started);
+  inline int64_t elapsedAndReset() {
+    if (_end == none) _end = std::chrono::high_resolution_clock::now();
 
-    if (bVerboseProfiling) {printf("stop\n");}
+    int64_t t = std::chrono::duration <int64_t, std::nano>(_end - _start).count();
 
-    _getTime(m_tEnd);
-    m_dAccumulatedTime += _getElapsedTime(m_tStart, m_tEnd);
-    m_nMeasurements++;
-    m_nMoney += nMoney;
-    m_state = ProfileAgentState_Stopped;
+    _start = _end;
+    _end = none;
+    return t;
   }
-
-  friend class Profiler;
 };
 
-struct ProfileSummaryItem
+struct Timings
 {
-  string sName;
-  double dTime;
-  double dAverageTime;
-  int nMoney;
-  int nSamples;
+  bool started;
+  int iterations;
+  int64_t total;
+  Timer timer;
 
-  ProfileSummaryItem(string sName_, double dTime_, int nMoney_, int nSamples_):
-    sName(sName_),dTime(dTime_),dAverageTime(dTime_/nSamples_),nMoney(nMoney_),nSamples(nSamples_){}
+  Timings() : started(false), iterations(0), total(0), timer() {};
 };
-
 
 class Profiler
 {
-protected:
+ public:
+  enum Unit {s, ms, us};
 
-  map<string, ProfileAgent*> m_mapAgents;
-  stack<string> m_mapStoppedAgents;
+ private:
+  std::unordered_map<std::string, Timings>  timings;
 
-public:
-  inline void push_start(const string& sAgentName)
+  std::string ongoing;
+  int numStarted;
+
+  std::string __printStatAndReset(Unit unit, std::string prefix)
   {
-    //if (m_mapStoppedAgents.size() > 0)
-    //  getAgent(m_mapStoppedAgents.top()).stop();
+    double total = 0;
+    unsigned longest = 0;
+    std::ostringstream out;
 
-    m_mapStoppedAgents.push(sAgentName);
-    getAgent(sAgentName).start();
-  }
-
-  inline void stop_start(const string& sAgentName)
-  {
-    stop_all();
-    push_start(sAgentName);
-  }
-  inline void check_start(const string& sAgentName)
-  {
-    if(m_mapStoppedAgents.size() > 0)
+    for (auto &tm : timings)
     {
-      stop_all();
-      push_start(sAgentName);
-    }
-  }
+      if (tm.second.started)
+      {
+        tm.second.started = false;
+        tm.second.total += tm.second.timer.elapsed();
+      }
 
-  inline void pop_stop()
-  {
-    if(m_mapStoppedAgents.size() > 0)
+      total += (double)tm.second.total;
+      if (longest < tm.first.length())
+        longest = tm.first.length();
+    }
+
+    double factor = 1.0;
+    std::string suffix;
+    switch (unit)
     {
-      const string& sCurrentAgentName = m_mapStoppedAgents.top();
-      getAgent(sCurrentAgentName).stop();
-      m_mapStoppedAgents.pop();
-    }
-    //if (m_mapStoppedAgents.size() == 0) return;
-    //getAgent(m_mapStoppedAgents.top()).start();
-  }
+      case Unit::s :
+        factor = 1.0e-9;
+        suffix = "s";
+        break;
 
-  inline void stop_all()
-  {
-    while(m_mapStoppedAgents.size() > 0)
+      case Unit::ms :
+        factor = 1.0e-6;
+        suffix = "ms";
+        break;
+
+      case Unit::us :
+        factor = 1.0e-3;
+        suffix = "us";
+        break;
+    }
+    longest = std::max(longest, (unsigned)6);
+
+    out << prefix << "Total time: " << std::fixed << std::setprecision(1) << total*factor << " " << suffix << std::endl;
+    out << prefix << std::left << "[" << std::setw(longest) << "Kernel" << "]    " << std::setw(20)
+    << "Time, "+suffix << std::setw(20) << "Executions" << std::setw(20) << "Percentage" << std::endl;
+
+    std::vector<std::pair<std::string, Timings>> v(timings.begin(), timings.end());
+    std::sort(v.begin(), v.end(), [] (auto& a, auto& b) { return a.second.total > b.second.total; });
+
+    for (auto &tm : v)
     {
-      const string& sCurrentAgentName = m_mapStoppedAgents.top();
-      getAgent(sCurrentAgentName).stop();
-      m_mapStoppedAgents.pop();
-    }
-    //if (m_mapStoppedAgents.size() == 0) return;
-    //getAgent(m_mapStoppedAgents.top()).start();
-  }
-
-  void clear()
-  {
-    for(auto &item : m_mapAgents) {
-      if(item.second not_eq nullptr)
-        delete item.second;
-      item.second = nullptr;
+      if(tm.second.total <= 1e-2 * total) continue;
+      out << prefix << "[" << std::setw(longest) << tm.first << "]    "
+      << std::fixed << std::setprecision(3) << std::setw(20) << tm.second.total * factor / tm.second.iterations
+      <<  "x" << std::setw(19) << tm.second.iterations
+      << std::fixed << std::setprecision(1) << std::setw(20) << tm.second.total / total * 100.0 << std::endl;
     }
 
-    m_mapAgents.clear();
+    timings.clear();
+
+    return out.str();
   }
 
-  Profiler(): m_mapAgents(){}
+ public:
+  inline Profiler() : ongoing(""), numStarted(0) {};
 
-  ~Profiler()
+  inline void start(std::string name)
   {
-    clear();
+    if (ongoing.length() == 0)
+    {
+      ongoing = name;
+      auto& tm = timings[name];
+      tm.started = true;
+      tm.timer.start();
+    }
   }
 
-  void printSummary(FILE *outFile=NULL)
+  inline void stop()
   {
-    stop_all();
-    vector<ProfileSummaryItem> v = createSummary();
+      if (timings.find(ongoing) != timings.end())
+      {
+        Timings &tm = timings[ongoing];
+        if (tm.started)
+        {
+          tm.started = false;
+          tm.total += tm.timer.elapsedAndReset();
+          tm.iterations++;
+        }
+      }
+      ongoing = "";
+  }
 
-    double dTotalTime = 0;
-    double dTotalTime2 = 0;
-    for(const auto &item : v) dTotalTime += item.dTime;
+  inline void stop_start(std::string name)
+  {
+    stop();
+    start(name);
+  }
 
-    for(const auto &item : v) dTotalTime2 += item.dTime - item.nSamples*1.30e-6;
+  inline double elapsed(std::string name, Unit unit = Unit::ms)
+  {
+    double factor = 1.0;
+    switch (unit)
+    {
+      case Unit::s :
+        factor = 1.0e-9;
+        break;
 
-    for(const auto &item : v) {
-      const double avgTime = item.dAverageTime;
-      const double frac1 = 100*item.dTime/dTotalTime;
-      const double frac2 = 100*(item.dTime- item.nSamples*1.3e-6)/dTotalTime2;
-      if(frac1 < 1 && frac2 < 1) continue;
-      printf("[%15s]: \t%02.0f-%02.0f%%\t%03.3e (%03.3e) s\t%03.3f (%03.3f) s\t(%d samples)\n",
-        item.sName.data(), frac1, frac2, avgTime, avgTime-1.30e-6, item.dTime,
-        item.dTime- item.nSamples*1.30e-6, item.nSamples);
-      if(outFile)fprintf(outFile,"[%15s]: \t%02.2f%%\t%03.3f s\t(%d samples)\n",
-          item.sName.data(), 100*item.dTime/dTotalTime, avgTime, item.nSamples);
+      case Unit::ms :
+        factor = 1.0e-6;
+        break;
+
+      case Unit::us :
+        factor = 1.0e-3;
+        break;
     }
 
-    printf("[Total time]: \t%f\n", dTotalTime);
-    if (outFile) fprintf(outFile,"[Total time]: \t%f\n", dTotalTime);
-    if (outFile) fflush(outFile);
-    if (outFile) fclose(outFile);
+    if (timings.find(name) != timings.end())
+    {
+      Timings &tm = timings[name];
+      return (factor * (double)tm.total) / tm.iterations;
+    }
+    return 0;
   }
 
-  vector<ProfileSummaryItem> createSummary(bool bSkipIrrelevantEntries=true) const
+  std::string printStatAndReset(Unit unit = Unit::ms)
   {
-    vector<ProfileSummaryItem> result;
-    result.reserve(m_mapAgents.size());
-
-    for(const auto &item : m_mapAgents) {
-      const ProfileAgent& agent = *item.second;
-      if (!bSkipIrrelevantEntries || agent.m_dAccumulatedTime>1e-3)
-        result.push_back(ProfileSummaryItem(item.first, agent.m_dAccumulatedTime, agent.m_nMoney, agent.m_nMeasurements));
-    }
-    return result;
+    return __printStatAndReset(unit, "");
   }
 
   void reset()
   {
-    stop_all();
-    for(const auto &item : m_mapAgents) item.second->_reset();
+    timings.clear(); ongoing = ""; numStarted = 0;
   }
-
-  ProfileAgent& getAgent(const string& sName)
-  {
-    if (bVerboseProfiling) {printf("%s ", sName.data());}
-
-    map<string, ProfileAgent*>::const_iterator it = m_mapAgents.find(sName);
-
-    const bool bFound = it != m_mapAgents.end();
-
-    if (bFound) return *it->second;
-
-    ProfileAgent * const agent = new ProfileAgent();
-
-    m_mapAgents[sName] = agent;
-
-    return *agent;
-  }
-
-  friend class ProfileAgent;
 };

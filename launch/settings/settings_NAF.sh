@@ -27,6 +27,7 @@ SETTINGS+=" --obsPerStep 1"
 SETTINGS+=" --minTotObsNum 262144"
 #Maximum size of the replay memory
 SETTINGS+=" --maxTotObsNum 524288"
+#SETTINGS+=" --maxTotObsNum 262144"
 #Number of gradient steps before training ends
 SETTINGS+=" --totNumSteps 5000000"
 
@@ -34,8 +35,8 @@ SETTINGS+=" --explNoise 0.2"
 SETTINGS+=" --bSampleSequences 0"
 
 SETTINGS+=" --penalTol 0.1"
-#SETTINGS+=" --clipImpWeight 2"
-SETTINGS+=" --clipImpWeight 0"
+SETTINGS+=" --clipImpWeight 4"
+#SETTINGS+=" --clipImpWeight 0"
 
 #lag of target network.
 #- if >1 (ie 1000) then weights are copied every dqnT grad descent steps

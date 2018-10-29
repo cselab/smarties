@@ -71,7 +71,7 @@ public:
     return ret;
   }
 
-  inline void finalize_grad(const Rvec&grad, Rvec&netGrad) const
+  inline void finalize_grad(const Rvec grad, Rvec&netGrad) const
   {
     assert(netGrad.size()>=start_mean+nA && grad.size() == 2*nA);
     for (Uint j=0; j<nA; j++) netGrad[start_mean+j] = grad[j];

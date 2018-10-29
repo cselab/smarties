@@ -1,4 +1,4 @@
-CPPFLAGS+= -std=c++11 -qopenmp
+CPPFLAGS+= -std=c++14 -qopenmp
 LIBS+= -qopenmp
 
 CPPFLAGS+= -Wall -Warray-bounds -Wchar-subscripts -Wcomment -Wenum-compare

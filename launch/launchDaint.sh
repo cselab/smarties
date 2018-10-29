@@ -17,9 +17,10 @@ if [ $# -lt 4 ] ; then
 fi
 
 MYNAME=`whoami`
-BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
+#BASEPATH="/scratch/snx3000/${MYNAME}/smarties/"
+BASEPATH="/scratch/snx1600/${MYNAME}/smarties/"
 mkdir -p ${BASEPATH}${RUNFOLDER}
-#ulimit -c unlimited
+
 #lfs setstripe -c 1 ${BASEPATH}${RUNFOLDER}
 NMASTERS=1
 NTASKPERNODE=1
@@ -66,7 +67,6 @@ source appSettings.sh
 fi
 SETTINGS+=" --nThreads ${NTHREADS}"
 SETTINGS+=" --nMasters ${NMASTERS}"
-SETTINGS+=" --ppn ${NTASKPERNODE}"
 echo $SETTINGS > settings.txt
 echo ${SETTINGS}
 

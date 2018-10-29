@@ -8,122 +8,165 @@
 
 #pragma once
 
-#include "MemoryBuffer.h"
-#include "Approximator.h"
+#include "../ReplayMemory/MemoryBuffer.h"
+#include "../ReplayMemory/Collector.h"
+#include "../ReplayMemory/MemoryProcessing.h"
+#include "../Network/Approximator.h"
 
 #include <list>
-using namespace std;
 
 class Learner
 {
-protected:
+ protected:
   Settings & settings;
   Environment * const env;
+
+ public:
   const MPI_Comm mastersComm = settings.mastersComm;
 
-  const bool bSampleSequences=settings.bSampleSequences, bTrain=settings.bTrain;
-  const Uint totNumSteps, policyVecDim, nAgents, batchSize, nThreads, nWorkers;
-  const Real CmaxPol, ReFtol, learnR, gamma, explNoise, epsAnneal;
-  const int learn_rank=settings.learner_rank, learn_size=settings.learner_size;
-  unsigned long nStep = 0;
-  Uint nData_b4Startup = 0;
-  Uint nAddedGradients = 0;
-  mutable Uint nSkipped = 0;
+  const bool bSampleSequences = settings.bSampleSequences;
+  const Uint nObsPerTraining = settings.minTotObsNum_loc;
+  const bool bTrain = settings.bTrain;
 
-  mutable bool updateComplete = false;
-  mutable bool updateToApply = false;
+  const Uint policyVecDim = env->aI.policyVecDim;
+  const Uint nAgents = settings.nAgents;
+  const Uint nThreads = settings.nThreads;
 
-  const ActionInfo& aInfo = env->aI;
+  const int learn_rank = settings.learner_rank;
+  const int learn_size = settings.learner_size;
+
+  // hyper-parameters:
+  const Uint batchSize = settings.batchSize_loc;
+  const Uint totNumSteps = settings.totNumSteps;
+  const Uint ESpopSize = settings.ESpopSize;
+
+  const Real learnR = settings.learnrate;
+  const Real gamma = settings.gamma;
+  const Real CmaxPol = settings.clipImpWeight;
+  const Real ReFtol = settings.penalTol;
+  const Real explNoise = settings.explNoise;
+  const Real epsAnneal = settings.epsAnneal;
+
   const StateInfo&  sInfo = env->sI;
+  const ActionInfo& aInfo = env->aI;
+  const ActionInfo* const aI = &aInfo;
+
+ protected:
+  long nData_b4Startup = 0;
+  mutable int percData = -5;
+  std::atomic<long> _nStep{0};
+  std::atomic<bool> bUpdateNdata{false};
+  std::atomic<bool> bReady4Init {false};
+
+  bool updateComplete = false;
+  bool updateToApply = false;
+
   std::vector<std::mt19937>& generators = settings.generators;
-  MemoryBuffer* data;
-  Encapsulator* input;
+
+  MemoryBuffer* const data = new MemoryBuffer(settings, env);
+  Encapsulator * const input = new Encapsulator("input", settings, data);
+  MemoryProcessing* const data_proc = new MemoryProcessing(settings, data);
+  Collector* data_get;
+
   TrainData* trainInfo = nullptr;
-  vector<Approximator*> F;
+  std::vector<Approximator*> F;
   mutable std::mutex buffer_mutex;
 
   virtual void processStats();
+  void createSharedEncoder(const Uint privateNum = 1);
+  bool predefinedNetwork(Builder& input_net, const Uint privateNum = 1);
 
-  inline bool canSkip() const
-  {
-    Uint _nSkipped;
-    #pragma omp atomic read
-      _nSkipped = nSkipped;
-    // If skipping too many samples return w/o sample to avoid code hanging.
-    // If true smth is wrong. Approximator will print to screen a warning.
-    return _nSkipped < 2*batchSize;
-  }
-
-  inline void resample(const Uint thrID) const // TODO resample sequence
-  {
-    #pragma omp atomic
-    nSkipped++;
-
-    Uint sequence, transition;
-    data->sampleTransition(sequence, transition, thrID);
-    data->Set[sequence]->setSampled(transition);
-    return Train(sequence, transition, thrID);
-  }
-
-public:
+ public:
   Profiler* profiler = nullptr;
-  string learner_name;
+  std::string learner_name;
   Uint learnID;
+  Uint tPrint = 1000;
 
   Learner(Environment*const env, Settings & settings);
 
   virtual ~Learner() {
-    _dispose_object(profiler);
+    _dispose_object(data_proc);
+    _dispose_object(data_get);
+    _dispose_object(input);
     _dispose_object(data);
   }
 
-  inline void setLearnerName(const string lName, const Uint id) {
+  inline void setLearnerName(const std::string lName, const Uint id) {
     learner_name = lName;
     data->learnID = id;
     learnID = id;
   }
 
-  inline unsigned iter() const {
-    return nStep;
-  }
   inline unsigned tStepsTrain() const {
-    return data->readNSeen() - nData_b4Startup;
+    return data->readNSeen_loc() - nData_b4Startup;
   }
   inline unsigned nSeqsEval() const {
-    return data->readNSeenSeq();
+    return data->readNSeenSeq_loc();
   }
-  inline unsigned nData() const {
-    return data->readNData();
+  inline long int nStep() const {
+    return _nStep.load();
   }
   inline Real annealingFactor() const {
     //number that goes from 1 to 0 with optimizer's steps
     assert(epsAnneal>1.);
-    if(nStep*epsAnneal >= 1 || !bTrain) return 0;
-    else return 1 - nStep*epsAnneal;
+    const auto mynstep = nStep();
+    if(mynstep*epsAnneal >= 1 || !bTrain) return 0;
+    else return 1 - mynstep*epsAnneal;
   }
 
   virtual void select(Agent& agent) = 0;
-  virtual void TrainBySequences(const Uint seq, const Uint thrID) const = 0;
-  virtual void Train(const Uint seq, const Uint samp, const Uint thrID) const=0;
 
   virtual void getMetrics(ostringstream& buff) const;
   virtual void getHeaders(ostringstream& buff) const;
-  //mass-handing of unfinished sequences from master
-  void clearFailedSim(const int agentOne, const int agentEnd);
-  void pushBackEndedSim(const int agentOne, const int agentEnd);
-  bool workerHasUnfinishedSeqs(const int worker) const;
 
   //main training loop functions:
   virtual void spawnTrainTasks_par() = 0;
   virtual void spawnTrainTasks_seq() = 0;
   virtual bool bNeedSequentialTrain() = 0;
 
-  virtual bool lockQueue() const = 0;
+  void globalDataCounterUpdate(const long globSeenObs, const long globSeenSeq)
+  {
+    data->setNSeen(globSeenObs);
+    data->setNSeenSeq(globSeenSeq);
+    if( bReady4Init and not blockDataAcquisition() )
+      _die("? %ld %ld %ld %ld", data->readNSeen_loc(), nData_b4Startup,
+           _nStep.load(), data->readNSeen());
+    bReady4Init = true;
+    bUpdateNdata = true;
+  }
+  virtual void globalGradCounterUpdate();
+
+  bool unblockGradStep() const {
+    return bUpdateNdata.load();
+  }
+  bool blockGradStep() const {
+    return not bUpdateNdata.load();
+  }
+
+  virtual bool blockDataAcquisition() const = 0;
+
+  inline bool isReady4Init() const {
+    if(bTrain == false) return true;
+    return bReady4Init.load();
+  }
+  inline bool checkReady4Init() const {
+    if( bReady4Init.load() ) return false;
+    const bool ready = data->readNData() >= nObsPerTraining;
+    if(not ready && learn_rank==0) {
+      std::lock_guard<std::mutex> lock(buffer_mutex);
+      const int currPerc = data->readNData() * 100. / (Real) nObsPerTraining;
+      if(currPerc > percData+5) {
+       percData = currPerc;
+       printf("\rCollected %d%% of data required to begin training. ",percData);
+       fflush(0); //otherwise no show on some platforms
+      }
+    }
+    return ready;
+  }
 
   virtual void prepareGradient();
   virtual void applyGradient();
   virtual void initializeLearner();
-  bool predefinedNetwork(Builder& input_net, const Uint privateNum = 1);
   virtual void save();
   virtual void restart();
 };

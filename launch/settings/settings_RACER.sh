@@ -25,7 +25,7 @@ SETTINGS+=" --explNoise 0.447214"
 #Number of time steps per gradient step
 SETTINGS+=" --obsPerStep 1"
 #Number of samples before starting gradient steps
-SETTINGS+=" --minTotObsNum 262144"
+SETTINGS+=" --minTotObsNum 524288"
 #Maximum size of the replay memory
 SETTINGS+=" --maxTotObsNum 524288"
 #Number of gradient steps before training ends

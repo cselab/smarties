@@ -13,12 +13,18 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+
 FILE=    sys.argv[1]
 
-W  = np.fromfile(FILE+"weights.raw", dtype=np.float64)
-M1 = np.fromfile(FILE +"1stMom.raw", dtype=np.float64)
-M2 = np.fromfile(FILE +"2ndMom.raw", dtype=np.float64)
-TGT= np.fromfile(FILE +"tgt_weights.raw", dtype=np.float64)
+if len(sys.argv) > 2:
+  if(sys.argv[2] == '64'): ftype = np.float64
+  else: ftype = np.float32
+else: ftype = np.float64
+
+W    = np.fromfile(FILE +"weights.raw",     dtype=ftype)
+M1   = np.fromfile(FILE +"1stMom.raw",      dtype=ftype)
+M2   = np.fromfile(FILE +"2ndMom.raw",      dtype=ftype)
+TGT  = np.fromfile(FILE +"tgt_weights.raw", dtype=ftype)
 INDS = np.where(M2>1e-16)
 #INDS = np.arange(64768,73984)
 #INDS = np.reshape(INDS, [128,72])
@@ -53,8 +59,8 @@ plt.semilogy(abs(M1)/(1e-7 + np.sqrt(M2)) + 1e-6,'g.')
 plt.title('Abs Grad')
 
 plt.subplot(235)
-if len(sys.argv) > 2: LAMBDA=float(sys.argv[2])
-else: LAMBDA = 2.2e-16
+#LAMBDA = 2.2e-16
+LAMBDA = 1.2e-7
 plt.semilogy( abs(W)*LAMBDA/(1e-7 + np.sqrt(M2)),'k.')
 plt.title('Penal. grad')
 

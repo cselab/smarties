@@ -7,27 +7,32 @@ The main files that will be maintained are `launch.sh`, `launch_(gym/dmcs/atari)
 * the path or name of the folder in the `apps` folder containing the files defining your application.
 * the path to the settings file.  
 
-Then it accepts the following optional arguments:  
-* (optional, default 1) the number of worker ranks per learner rank. If the environment application does not require multiple ranks itself (ie. does not require MPI), it means number of environment instances per learner.  
-    - Must be at least 1. If the environment requires multiple ranks itself (ie. MPI app) then the number of workers must be a multiple of the number of ranks required by each instance of the application (smarties reads this from the settings file).  
-    - More than one worker rank per learner might be useful if the simulations are particularly slow.  
-* (optional, default the number of physical cores read from lscpu) the number of omp-threads (>=1) over which the grad update compute is distributed (therefore your mpi distribution must support thread safety). This does not control the number of threads (if any) used by app.
-* (optional, default 1) the number of learner ranks. Unless the network is very large this should not need to change.
-* (optional, default 1) the number of nodes to use. This setting affects the `ppn` option given to `mpirun`.
+* An example of running a `C++` based app is `./launch.sh RUNDIR test_cpp_cart_pole settings/settings_VRACER.sh` . To see an example of how to set up a `C++` app see the folder `../apps/`. The setting file `settings/settings_RACER.sh` details the baseline solver of `smarties`.
 
-* `launch_gym.sh` behaves much the same way, but instead of providing a path to an application provide the name of the OpenAI Gym environment (e.g. `CartPole-v1`)
+* An example of launching an OpenAI gym mujoco-based app is `./launch_openai.sh RUNDIR Walker2d-v2 settings/settings_VRACER.sh`. The second argument, instead of providing a path to an application, is the name of the OpenAI Gym environment (e.g. `CartPole-v1`)
 
-These two scripts set up the launch environment and directory, and then call `run.sh`.
+* An example of launching an OpenAI gym Atari-based app is `./launch_openai.sh RUNDIR Pong settings/settings_VRACER.sh` (the version specifier `NoFrameskip-v4` will be added internally). Note that we apply the same frame preprocessing as in the OpenAI `baselines` repository and the base CNN architecture is the same as in the DQN paper. The network layers specified in the `settings` file (ie. fully connected, GRU, LSTM) will be added on top of those convolutional layers.
 
 * `launchDaint.sh` .. it works on CSCS piz Daint. Main changes are that run folder is in `/scratch/snx3000/${MYNAME}/smarties/`, the number of threads is hardcoded to 12, and `run.sh` is not used.
-
-* An example of running a `C++` based app is `./launch.sh RUNDIR test_cpp_cart_pole settings/settings_RACER.sh` . To see an example of how to set up a `C++` app see the folder `../apps/`. The setting file `settings/settings_RACER.sh` details the baseline solver of `smarties`.
-
-* An example of launching an OpenAI gym based app is `./launch_openai.sh RUNDIR Walker2d-v2 settings/settings_RACER.sh` .
 
 * `settings/settings_VRACER.sh` details the simplified V-Racer architecture. Can speed up learning. Easier to explain.
 
 * The best strategy to speed up learning for  _easy problems_ is to change `--gamma 0.99`, `--maxTotObsNum 262144`
+
+The scripts accept additional optional arguments. These arguments are all related to scalability: they define ways to use additional computational resources if either advancing the RL algorithm or advancing the simulation of the environment are computationally expensive. For scalability we use MPI. The computational resouces are split equally among independent processes (a.k.a. ranks). We might want to create multiple ranks if we have access to multiple computational nodes or if we want to equally split the computational resources of a single computer among different tasks. The optional arguments (read after the `settings` file) specify how to distribute those resources:
+* (optional, default 1) `nWorkers`: the total number of environmetn processes. If the environment application does not require multiple ranks itself (ie. does not require MPI), it means number of environment instances per learner. Many off-policy algorithms require a certain number of env. time steps per gradient steps, these are uniformly distributed among worker ranks (ie. worker ranks may alternate in advancing their simulation). 
+    - Must be at least 1. If the environment requires multiple ranks itself (ie. MPI app) then the number of workers must be a multiple of the number of ranks required by each instance of the application (smarties reads this from the settings file).  
+    - More than one worker rank per learner might be useful if the simulations are particularly slow.  
+* (optional, default 1) `nMasters`: the number of learner ranks. If the network, the batchsize, or the CMA population size are large it might be beneficial to add more learner ranks. The memory buffer and the batch size will be spread among all learners. Once an experience is stored by a learner rank it will never be moved again.
+* (optional, default `= nMasters`) `nRanks`: the total number of ranks, this will get technical. `smarties` communicates with environments either through MPI or through Sockets.
+    - If the environment application does not require MPI itself (most cases), the master ranks can spawn each the number `nWorkers` / `nMasters` of simulations (through repeated calling of `fork()`). These simulations will be exectued on the same cores used by the learner ranks, they will communicate with the learners through Sockets, and `nRanks` can be set to be equal to `nMasters`. This case is most beneficial if the computational expense of advancing the simulation is negligible compared to the cost of training the network (ie. worker processes will wait the network update most of the time).
+    - Alternatively, if `nRanks` is set to `nWorkers` + `nMasters`, dedicated cores will be allocated to advancing the environment (by creating worker MPI ranks). One example of this case is internally linked applications. Internally linked applications are compiled as static libraries and define a main function `int app_main(Communicator*const rlcom, MPI_Comm mpicom, int argc, char**argv, const Uint numSteps)`. Through these arguments, internally linked application receive 1) a `Communicator` to send states / recv actions from `smarties`, 2) An MPI communicator containing a subset of worker ranks if advancing the environment requires multiple MPI ranks itself. 3) Runtime arguments read from file specified by the user in the `apps` folder. 
+* (optional, default the number of physical cores read from lscpu) omp-threads (>=1) over which the grad update compute is distributed (therefore your mpi distribution must support thread safety). This does not control the number of threads (if any) used by app.
+
+
+These two scripts set up the launch environment and directory, and then call `run.sh`.
+
+
 
 # outputs
 

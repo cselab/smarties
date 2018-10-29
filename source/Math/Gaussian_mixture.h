@@ -7,7 +7,8 @@
 //
 
 #pragma once
-#include "Gaussian_policy.h"
+#include "Utils.h"
+
 template<Uint nExperts>
 struct Gaussian_mixture
 {
@@ -62,8 +63,7 @@ public:
 private:
   inline array<Real,nExperts> extract_unnorm() const {
     array<Real, nExperts> ret;
-    if(nExperts == 1)
-      ret[0] = 1;
+    if(nExperts == 1) ret[0] = 1;
     else
       for(Uint i=0;i<nExperts;i++)
         ret[i]=unbPosMap_func(netOutputs[iExperts+i]);
@@ -71,9 +71,8 @@ private:
   }
   inline Real compute_norm() const {
     Real ret = 0;
-    if(nExperts == 1) {
-      return 1;
-    } else {
+    if(nExperts == 1) return 1;
+    else {
       for (Uint j=0; j<nExperts; j++) {
         ret += unnorm[j];
         assert(unnorm[j]>=0);
@@ -83,14 +82,12 @@ private:
   }
   inline array<Real,nExperts> extract_experts() const  {
     array<Real, nExperts> ret;
-    if(nExperts == 1) {
-      ret[0] = 1;
-      return ret;
-    } else {
+    if(nExperts == 1) ret[0] = 1;
+    else {
       assert(normalization>0);
       for(Uint i=0;i<nExperts;i++) ret[i] = unnorm[i]/normalization;
-      return ret;
     }
+    return ret;
   }
   inline array<Rvec,nExperts> extract_mean() const
   {
@@ -173,23 +170,14 @@ public:
     for(Uint e=0; e<nExperts*(1 + aI->dim); e++)
       initBias.push_back(0);
   }
-  static void setInitial_Stdev(const ActionInfo* const aI, Rvec& initBias, const Real explNoise)
+  static void setInitial_Stdev(const ActionInfo* const aI, Rvec&B, const Real S)
   {
     for(Uint e=0; e<nExperts*aI->dim; e++)
     #ifdef EXTRACT_COVAR
-      initBias.push_back(noiseMap_inverse(explNoise*explNoise));
+      B.push_back(noiseMap_inverse(S*S));
     #else
-      initBias.push_back(noiseMap_inverse(explNoise));
+      B.push_back(noiseMap_inverse(S));
     #endif
-  }
-
-  template <typename T>
-  inline string print(const array<T,nExperts> vals)
-  {
-    std::ostringstream o;
-    for (Uint i=0; i<nExperts-1; i++) o << vals[i] << " ";
-    o << vals[nExperts-1];
-    return o.str();
   }
 
   inline void prepare(const Rvec& unscal_act, const Rvec& beta)
@@ -206,17 +194,22 @@ public:
     sampPBehavior = evalBehavior(sampAct, beta);
     sampImpWeight = sampPonPolicy / sampPBehavior;
     sampKLdiv = kl_divergence(beta);
-    if(sampPonPolicy<0){printf("observed %g\n",(Real)sampPonPolicy);fflush(0);}
   }
 private:
+
   inline long double evalBehavior(const Rvec& act, const Rvec& beta) const {
     long double p = 0;
     const Uint NA = act.size();
     for(Uint j=0; j<nExperts; j++) {
       long double pi = 1;
       for(Uint i=0; i<NA; i++) {
-        const Real stdi  = beta[i +j*NA +nExperts*(1+NA)]; //then stdevs
-        pi *= oneDnormal(act[i], beta[i +j*NA +nExperts], 1/(stdi*stdi));
+        const Real stdi = beta[i +j*NA +nExperts*(1+NA)]; //then stdevs
+        const Real mean = beta[i +j*NA +nExperts];
+        if(std::fabs(mean-act[i]) > NORMDIST_MAX*stdi) {
+          cout << "guilty act: "<<vprint(act)<<" "<<vprint(beta)<<endl;
+          die("");
+        }
+        pi *= oneDnormal(act[i], mean, 1/(stdi*stdi));
       }
       p += pi * beta[j]; //beta[j] contains expert
     }
@@ -354,7 +347,7 @@ public:
     return r;
   }
 
-  inline void finalize_grad(const Rvec&grad, Rvec&netGradient) const
+  inline void finalize_grad(const Rvec grad, Rvec&netGradient) const
   {
     assert(grad.size() == nP);
     for(Uint j=0; j<nExperts; j++) {
@@ -397,8 +390,8 @@ public:
     for(Uint j=0; j<nExperts; j++) {
       ret[j] = experts[j];
       for (Uint i=0; i<nA; i++) {
-        ret[i+j*nA +nExperts]        =  means[j][i];
-        ret[i+j*nA +nExperts*(nA+1)] = stdevs[j][i];
+        ret[i +j*nA +nExperts]        =  means[j][i];
+        ret[i +j*nA +nExperts*(nA+1)] = stdevs[j][i];
       }
     }
     return ret;
@@ -448,5 +441,24 @@ public:
       }
     }
     fout.close();
+  }
+private:
+
+  template <typename T>
+  inline string print(const array<T,nExperts> vals) const
+  {
+    std::ostringstream o;
+    for (Uint i=0; i<nExperts-1; i++) o << vals[i] << " ";
+    o << vals[nExperts-1];
+    return o.str();
+  }
+  template <typename T>
+  inline string vprint(const vector<T> vals) const
+  {
+    std::ostringstream o;
+    if(!vals.size()) return o.str();
+    for (Uint i=0; i<vals.size()-1; i++) o << vals[i] << " ";
+    o << vals[vals.size()-1];
+    return o.str();
   }
 };

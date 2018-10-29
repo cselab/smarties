@@ -6,30 +6,28 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 #pragma once
-#include "Learner_onPolicy.h"
-#include "../Math/Lognormal_policy.h"
-#include "../Math/Gaussian_policy.h"
-#include "../Math/Discrete_advantage.h"
+#include "Learner.h"
+
+class Discrete_policy;
+class Gaussian_policy;
 
 #define PPO_learnDKLt
 
 template<typename Policy_t, typename Action_t>
-class PPO : public Learner_onPolicy
+class PPO : public Learner
 {
  protected:
   const Uint nA = Policy_t::compute_nA(&aInfo);
-  mutable vector<long double> valPenal, cntPenal;
-  const Real lambda;
-  const vector<Uint> pol_outputs;
-  const vector<Uint> pol_indices = count_indices(pol_outputs);
-  mutable std::atomic<Real> DKL_target;
+  mutable LDvec valPenal = LDvec(nThreads+1,0);
+  mutable LDvec cntPenal = LDvec(nThreads+1,0);
+  const Real lambda = settings.lambda;
+  const std::vector<Uint> pol_outputs;
+  const std::vector<Uint> pol_indices = count_indices(pol_outputs);
+  const Uint nHorizon = settings.maxTotObsNum;
+  const Uint nEpochs = settings.batchSize/settings.obsPerStep;
 
-  inline Policy_t prepare_policy(const Rvec& out,
-    const Tuple*const t = nullptr) const {
-    Policy_t pol(pol_indices, &aInfo, out);
-    if(t not_eq nullptr) pol.prepare(t->a, t->mu);
-    return pol;
-  }
+  mutable Uint cntBatch = 0, cntEpoch = 0, cntKept = 0;
+  mutable std::atomic<Real> DKL_target{ settings.klDivConstraint };
 
   inline void updateDKL_target(const bool farPolSample, const Real DivKL) const
   {
@@ -44,16 +42,13 @@ class PPO : public Learner_onPolicy
     #endif
   }
 
-  void TrainBySequences(const Uint seq, const Uint thrID) const override;
-  void Train(const Uint seq,const Uint samp,const Uint thrID) const override;
+  void Train(const Uint seq, const Uint samp,
+    const Uint wID, const Uint bID, const Uint thrID) const;
 
   static vector<Uint> count_pol_outputs(const ActionInfo*const aI);
   static vector<Uint> count_pol_starts(const ActionInfo*const aI);
 
- public:
-  PPO(Environment*const _env, Settings& _set);
-
-  void select(Agent& agent) override;
+  void updatePPO(Sequence*const seq) const;
 
   static inline Real annealDiscount(const Real targ, const Real orig,
     const Real t, const Real T=1e5) {
@@ -63,9 +58,18 @@ class PPO : public Learner_onPolicy
     return t<T ? 1 -(1-orig)*(1-targ)/(1-targ +(t/T)*(targ-orig)) : targ;
   }
 
-  void updatePPO(Sequence*const seq) const;
+ public:
+
+  PPO(Environment*const _env, Settings& _set);
+
+  void select(Agent& agent) override;
 
   void prepareGradient() override;
   void initializeLearner() override;
+  bool blockDataAcquisition() const override;
+  void spawnTrainTasks_seq() override;
+  void spawnTrainTasks_par() override;
+  bool bNeedSequentialTrain() override;
+
   static Uint getnDimPolicy(const ActionInfo*const aI);
 };

@@ -7,12 +7,7 @@
 //
 
 #pragma once
-#if 0
-#include "Gaussian_mixture_trunc.h"
-#else
 #include "Gaussian_mixture.h"
-#endif
-
 
 template<Uint nExperts>
 struct Mixture_advantage

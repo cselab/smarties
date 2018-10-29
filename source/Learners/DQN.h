@@ -12,8 +12,10 @@
 
 class DQN : public Learner_offPolicy
 {
-  void TrainBySequences(const Uint seq, const Uint thrID) const override;
-  void Train(const Uint seq, const Uint samp, const Uint thrID) const override;
+  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
+    const Uint thrID) const override;
+  void Train(const Uint seq, const Uint t, const Uint wID,
+    const Uint bID, const Uint thrID) const override;
 
 public:
   DQN(Environment*const env, Settings & settings);

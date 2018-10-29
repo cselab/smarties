@@ -15,27 +15,34 @@
 class Master
 {
 private:
-  const MPI_Comm workersComm;
+  const Settings& settings;
+  Communicator_internal* const comm;
   const vector<Learner*> learners;
-  Environment* const env;
+  const Environment* const env;
+
+
   const ActionInfo& aI = env->aI;
   const StateInfo&  sI = env->sI;
   const vector<Agent*>& agents = env->agents;
-  const int nPerRank = env->nAgentsPerRank, bTrain, nWorkers, nThreads;
-  const int learn_rank, learn_size;
-  const Uint totNumSteps, bAsync;
-  const Uint outSize = env->aI.dim * sizeof(double);
-  const Uint inSize = (3 + env->sI.dim) * sizeof(double);
-  const vector<double*> inpBufs = alloc_bufs(inSize, nWorkers);
-  const vector<double*> outBufs = alloc_bufs(outSize,nWorkers);
+  const int nPerRank = env->nAgentsPerRank;
+  const int bTrain = settings.bTrain;
+  const int nWorkers_own = settings.nWorkers_own;
+  const int nThreads = settings.nThreads;
+  const int learn_rank = settings.learner_rank;
+  const int learn_size = settings.learner_size;
+  const Uint totNumSteps = settings.totNumSteps;
+
   Uint iterNum = 0; // no need to restart this one
 
   bool bNeedSequentialTasks = false;
-  mutable vector<MPI_Request> requests = vector<MPI_Request>(nWorkers, MPI_REQUEST_NULL);
   Profiler* profiler     = nullptr;
-  mutable mutex mpi_mutex;
-  mutable mutex dump_mutex;
-  mutable vector<ostringstream> rewardsBuffer = vector<ostringstream>(nPerRank);
+
+  mutable std::mutex dump_mutex;
+  mutable std::vector<std::ostringstream> rewardsBuffer =
+                                      std::vector<std::ostringstream>(nPerRank);
+
+  std::atomic<Uint> bExit {0};
+  std::vector<std::thread> worker_replies;
 
   inline Uint getMinSeqId() const {
     Uint lowest = learners[0]->nSeqsEval();
@@ -60,7 +67,7 @@ private:
 
   inline Learner* pickLearner(const Uint agentId, const Uint recvId)
   {
-    assert(agentId<agents.size() && recvId<(Uint)nPerRank);
+    assert(recvId < (Uint)nPerRank);
     if(learners.size()>1) assert(learners.size() == (Uint)nPerRank);
 
     assert( learners.size() == 1 || recvId < learners.size() );
@@ -85,129 +92,47 @@ private:
     // However, no learner can stop others from getting data (vector of algos)
     bool locked = true;
     for(const auto& L : learners)
-      locked = locked && L->lockQueue(); // if any wants to unlock...
+      locked = locked && L->blockDataAcquisition(); // if any wants to unlock...
 
     return locked;
   }
 
-  vector<std::thread> asyncReplyWorkers()
+  inline bool learnersUnlockQueue() const
   {
-    vector<std::thread> worker_replies;
-    worker_replies.reserve(nWorkers);
-    for(int i=1; i<=nWorkers; i++)
-      worker_replies.push_back(std::thread([&, i]() { processWorker(i); }));
-    return worker_replies;
+    bool unlocked = true;
+    for(const auto& L : learners)
+      unlocked = unlocked && L->unblockGradStep(); // if any wants to unlock...
+    return unlocked;
   }
 
-  void flushRewardBuffer()
+  inline bool learnersInitialized() const
   {
-    for(int i=0; i<nPerRank; i++)
-    {
-      ostringstream& agentBuf = rewardsBuffer[i];
-      streampos pos = agentBuf.tellp(); // store current location
-      agentBuf.seekp(0, ios_base::end); // go to end
-      bool empty = agentBuf.tellp()==0; // check size == 0 ?
-      agentBuf.seekp(pos);              // restore location
-      if(empty) continue;               // else update rewards log
-      char path[256];
-      sprintf(path, "agent_%02d_rank%02d_cumulative_rewards.dat", i,learn_rank);
-      ofstream outf(path, ios::app);
-      outf << agentBuf.str();
-      agentBuf.str(std::string());      // empty buffer
-      outf.flush();
-      outf.close();
-    }
+    bool unlocked = true;
+    for(const auto& L : learners)
+      unlocked = unlocked && L->isReady4Init(); // if any wants to unlock...
+    return unlocked;
   }
 
-  inline void dumpCumulativeReward(const int agent, const int worker,
-    const unsigned giter, const unsigned tstep) const
-  {
-    if (giter == 0 && bTrain) return;
+  void flushRewardBuffer();
 
-    const int ID = (worker-1) * nPerRank + agent;
-    lock_guard<mutex> lock(dump_mutex);
-    rewardsBuffer[agent]<<giter<<" "<<tstep<<" "<<worker<<" "
-      <<agents[ID]->transitionID<<" "<<agents[ID]->cumulative_rewards<<endl;
-    rewardsBuffer[agent].flush();
-  }
+  void dumpCumulativeReward(const int agent, const int worker,
+    const unsigned giter, const unsigned tstep) const;
 
-  static inline vector<double*> alloc_bufs(const int size, const int num)
-  {
-    vector<double*> ret(num, nullptr);
-    for(int i=0; i<num; i++) ret[i] = _alloc(size);
-    return ret;
-  }
-  static inline vector<atomic<Uint>*> alloc_counts(const int num)
-  {
-    vector<atomic<Uint>*> ret(num, nullptr);
-    for(int i=0; i<num; i++) ret[i] = new atomic<Uint>{0};
-    return ret;
-  }
-
-  void processWorker(const int worker);
-  void processAgent(const int worker, const MPI_Status mpistatus);
-
-  inline void sendBuffer(const int i, const int agent)
-  {
-    assert(i>0 && i <= (int) outBufs.size());
-    if(agents[agent]->Status < TERM_COMM) agents[agent]->copyAct(outBufs[i-1]);
-    else intToDoublePtr( getMinStepId(), outBufs[i-1] );
-
-    debugS("Sent action to worker %d: [%s]", i,
-      print(Rvec(outBufs[i-1], outBufs[i-1]+aI.dim)).c_str());
-    MPI_Request tmp;
-    if(bAsync) { // MPI impl allows maximum thread safety
-      MPI_Isend(outBufs[i-1],outSize, MPI_BYTE, i,0,workersComm,&tmp);
-    } else {
-      lock_guard<mutex> lock(mpi_mutex);
-      MPI_Isend(outBufs[i-1],outSize, MPI_BYTE, i,0,workersComm,&tmp);
-    }
-    MPI_Request_free(&tmp); //Not my problem
-  }
-
-  inline void recvBuffer(const int i)
-  {
-    if(bAsync) { // MPI impl allows maximum thread safety
-      MPI_Irecv(inpBufs[i-1], inSize, MPI_BYTE, i,1,workersComm,&requests[i-1]);
-    } else {
-      lock_guard<mutex> lock(mpi_mutex);
-      MPI_Irecv(inpBufs[i-1], inSize, MPI_BYTE, i,1,workersComm,&requests[i-1]);
-    }
-  }
-
-  inline int testBuffer(const int i, MPI_Status& mpistatus)
-  {
-    int completed = 0;
-    if(bAsync) { // MPI impl allows maximum thread safety
-      MPI_Test(&requests[i-1], &completed, &mpistatus);
-    } else {
-      lock_guard<mutex> lock(mpi_mutex);
-      MPI_Test(&requests[i-1], &completed, &mpistatus);
-    }
-    return completed;
-  }
+  void processWorker(const std::vector<int> workers);
+  void processAgent(const int worker);
 
 public:
-  Master(MPI_Comm _c,const vector<Learner*>_l,Environment*const _e,Settings&_s);
+  Master(Communicator_internal* const _c, const vector<Learner*> _l,
+    Environment*const _e, Settings&_s);
   ~Master()
   {
+    bExit = 1;
+    for(size_t i=0; i<worker_replies.size(); i++) worker_replies[i].join();
     for(const auto& A : agents) A->writeBuffer(learn_rank);
     _dispose_object(env);
     _dispose_object(profiler);
-    for(int i=0; i<nWorkers; i++) _dealloc(inpBufs[i]);
-    for(int i=0; i<nWorkers; i++) _dealloc(outBufs[i]);
     for(const auto& L : learners) _dispose_object(L);
     flushRewardBuffer();
-  }
-
-  void sendTerminateReq()
-  {
-    //it's awfully ugly, i send -256 to kill the workers... but...
-    //what are the chances that learner sends action -256.(+/- eps) to clients?
-    for (int worker=1; worker<=nWorkers; worker++) {
-      outBufs[worker-1][0] = AGENT_KILLSIGNAL;
-      MPI_Ssend(outBufs[worker-1], outSize, MPI_BYTE, worker, 0, workersComm);
-    }
   }
 
   void run();

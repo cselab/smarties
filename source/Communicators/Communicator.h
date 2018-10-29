@@ -7,13 +7,10 @@
 //
 
 #pragma once
-
-#include <sstream>
-#include <sys/un.h>
-
 #include <vector>
 #include <cstring>
 #include <random>
+#include <sstream>
 
 #define envInfo  int
 #define CONT_COMM 0
@@ -37,7 +34,9 @@ class Communicator
   int rank_inside_app = -1, rank_learn_pool = -1;
   // comm to talk to master:
   int size_inside_app = -1, size_learn_pool = -1;
+
   // for MPI-based applications, to split simulations between groups of ranks
+  // each learner can have multiple mpi groups of workers
   int workerGroup = -1;
   // should be named nState/ActionComponents
   int nStates = -1, nActions = -1;
@@ -55,7 +54,7 @@ class Communicator
   int discrete_action_values = 0;
   // communication buffers:
   double *data_state = nullptr, *data_action = nullptr;
-  bool called_by_app = false, spawner = false;
+  bool called_by_app = false;
   std::vector<std::vector<double>> stored_actions;
   //internal counters
   unsigned long seq_id = 0, msg_id = 0, iter = 0;
@@ -123,11 +122,11 @@ class Communicator
   // receive action sent by smarties
   std::vector<double> recvAction(const int iAgent = 0);
 
-  void launch();
-
   Communicator(const int socket, const int state_components, const int action_components, const int number_of_agents = 1);
   Communicator(int socket, bool spawn, std::mt19937& G, int _bTr, int nEps);
   virtual ~Communicator();
+
+  virtual void launch();
 
  protected:
   //App output file descriptor
@@ -135,20 +134,13 @@ class Communicator
   fpos_t pos;
 
   //Communication over sockets
-  int socket_id, Socket, ServerSocket;
-  char SOCK_PATH[256];
-  struct sockaddr_un serverAddress, clientAddress;
+  int socket_id, Socket;
 
   void print();
 
   void update_rank_size();
 
-  virtual void launch_forked();
-  void setupClient();
-  void setupServer();
-
   void sendStateActionShape();
-
 
  #ifdef MPI_VERSION
     MPI_Request send_request = MPI_REQUEST_NULL;

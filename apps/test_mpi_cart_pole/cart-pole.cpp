@@ -190,7 +190,6 @@ int app_main(
     //reset environment:
     env.reset(comm->getPRNG()); //comm contains rng with different seed on each rank
 
-
     comm->sendInitState(env.getState()); //send initial state
 
     while (true) //simulation loop

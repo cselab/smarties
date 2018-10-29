@@ -43,7 +43,7 @@ Gradient. Algo specific."
 #define TYPEVAL_clipImpWeight Real
 #define TYPENUM_clipImpWeight REAL
 #define DEFAULT_clipImpWeight 4
-Real clipImpWeight = DEFAULT_clipImpWeight;
+  Real clipImpWeight = DEFAULT_clipImpWeight;
 
 #define CHARARG_targetDelay 'd'
 #define COMMENT_targetDelay "Copy delay for target network. If >1: every \
@@ -78,6 +78,13 @@ Default means oldest for ER and farpolfrac for ReFER"
 #define TYPENUM_gamma REAL
 #define DEFAULT_gamma 0.995
   Real gamma = DEFAULT_gamma;
+
+#define CHARARG_dataSamplingAlgo 'i'
+#define COMMENT_dataSamplingAlgo "Algorithm for sampling the Replay Buffer."
+#define TYPEVAL_dataSamplingAlgo string
+#define TYPENUM_dataSamplingAlgo STRING
+#define DEFAULT_dataSamplingAlgo "uniform"
+  string dataSamplingAlgo = DEFAULT_dataSamplingAlgo;
 
 #define CHARARG_klDivConstraint 'k'
 #define COMMENT_klDivConstraint "Constraint on max KL div, algo specific."
@@ -244,6 +251,13 @@ softSign, softPlus, ...)"
 #define DEFAULT_learnrate 1e-4
   Real learnrate = DEFAULT_learnrate;
 
+#define CHARARG_ESpopSize 'M'
+#define COMMENT_ESpopSize "Population size for ES algorithm."
+#define TYPEVAL_ESpopSize int
+#define TYPENUM_ESpopSize INT
+#define DEFAULT_ESpopSize 1
+  int ESpopSize = DEFAULT_ESpopSize;
+
 #define CHARARG_nnType 'N'
 #define COMMENT_nnType "Type of non-output layers read from settings. (RNN, \
 LSTM, everything else maps to FFNN). Conv2D layers need to be built in \
@@ -267,7 +281,7 @@ output layers with normal Xavier initialization."
 multiplied by learn rate: w -= eta * nnLambda * w . L1 decay option in Bund.h"
 #define TYPEVAL_nnLambda Real
 #define TYPENUM_nnLambda REAL
-#define DEFAULT_nnLambda numeric_limits<Real>::epsilon()
+#define DEFAULT_nnLambda std::numeric_limits<float>::epsilon()
   Real nnLambda = DEFAULT_nnLambda;
 
 #define CHARARG_nnBPTTseq 'T'
@@ -307,6 +321,14 @@ master rank."
 #define DEFAULT_nMasters 1
   int nMasters = DEFAULT_nMasters;
 
+
+#define CHARARG_nWorkers '%'
+#define COMMENT_nWorkers "Number of worker processes (not necessarily ranks)."
+#define TYPEVAL_nWorkers int
+#define TYPENUM_nWorkers INT
+#define DEFAULT_nWorkers 1
+  int nWorkers = DEFAULT_nWorkers;
+
 #define CHARARG_isServer '!'
 #define COMMENT_isServer "DEPRECATED: Whether smarties launches environment \
 app (=1) or is launched by it (=0) (then cannot train)."
@@ -314,13 +336,6 @@ app (=1) or is launched by it (=0) (then cannot train)."
 #define TYPENUM_isServer INT
 #define DEFAULT_isServer 1
   int isServer = DEFAULT_isServer;
-
-#define CHARARG_ppn '>'
-#define COMMENT_ppn "Number of processes per node."
-#define TYPEVAL_ppn int
-#define TYPENUM_ppn INT
-#define DEFAULT_ppn 1
-  int ppn = DEFAULT_ppn;
 
 #define CHARARG_sockPrefix '@'
 #define COMMENT_sockPrefix "Prefix for communication file over sockets."
@@ -437,38 +452,81 @@ string setupFolder = DEFAULT_setupFolder;
 ///////////////////////////////////////////////////////////////////////////////
 //SETTINGS THAT ARE NOT READ FROM FILE
 ///////////////////////////////////////////////////////////////////////////////
-  MPI_Comm mastersComm;
+  MPI_Comm workersComm = MPI_COMM_NULL; // for workers to talk to their master
+  MPI_Comm mastersComm = MPI_COMM_NULL; // for masters to talk among themselves
+
   int world_rank = 0;
   int world_size = 0;
   int workers_rank = 0;
   int workers_size = 0;
   int learner_rank = 0;
   int learner_size = 0;
+
   // number of workers (usually per master)
-  int nWorkers = 1;
+  int nWorkers_own = 1;
+  bool bSpawnApp = false;
+  int learGroupSize = -1;
+  int workerCommInd = -1;
   //number of agents that:
   // in case of worker: # of agents that are contained in an environment
   // in case of master: nWorkers * # are contained in an environment
   int nAgents = -1;
   // whether Recurrent network (figured out in main)
   bool bRecurrent = false;
-  // number of quantities defining the policy, depends on env and algorithm
-  int policyVecDim = -1;
-  //random number generators (one per thread)
-  //std::mt19937* gen;
+
   int threadSafety = -1;
-  std::vector<std::mt19937> generators;
+  bool bAsync;
+  mutable std::mutex mpi_mutex;
+
+  // rank-local data-acquisition goals
+  int batchSize_loc = -1;
+  Real obsPerStep_loc = -1;
+  int minTotObsNum_loc = -1;
+  int maxTotObsNum_loc = -1;
+
+  //random number generators (one per thread)
+  mutable std::vector<std::mt19937> generators;
 
   void check()
   {
     bRecurrent = nnType=="LSTM" || nnType=="RNN" || nnType == "MGU" || nnType == "GRU";
 
     if(bSampleSequences && maxTotSeqNum<batchSize)
-    die("Increase memory buffer size or decrease batchsize, or switch to sampling by transitions.");
+      die("Increase memory buffer size or decrease batchsize, or switch to sampling by transitions.");
+
     if(bTrain == false && restart == "none") {
      cout<<"Did not specify path for restart files, assumed current dir."<<endl;
      restart = ".";
     }
+
+    if(mastersComm == MPI_COMM_NULL) die(" ");
+
+    MPI_Comm_rank(mastersComm, &learner_rank);
+    MPI_Comm_size(mastersComm, &learner_size);
+    assert(workers_rank == 0);
+
+    const Real nL = learner_size;
+    // each learner computes a fraction of the batch:
+    if(batchSize > 1) {
+      batchSize = std::ceil(batchSize / nL) * nL;
+      batchSize_loc = batchSize / learner_size;
+    } else batchSize_loc = batchSize;
+
+    // each worker collects a fraction of the initial memory buffer:
+    if(minTotObsNum < 0) minTotObsNum = maxTotObsNum;
+    minTotObsNum = std::ceil(minTotObsNum / nL) * nL;
+    minTotObsNum_loc = minTotObsNum / learner_size;
+    // each learner processes a fraction of the entire dataset:
+    maxTotObsNum = std::ceil(maxTotObsNum / nL) * nL;
+    maxTotObsNum_loc = maxTotObsNum / learner_size;
+
+    obsPerStep_loc = nWorkers_own * obsPerStep / nWorkers;
+
+    if(batchSize_loc <= 0) die(" ");
+    if(obsPerStep_loc < 0) die(" ");
+    if(minTotObsNum_loc < 0) die(" ");
+    if(maxTotObsNum_loc <= 0) die(" ");
+
     if(appendedObs<0)  die("appendedObs<0");
     if(targetDelay<0)  die("targetDelay<0");
     if(splitLayers<0)  die("splitLayers<0");
@@ -490,6 +548,7 @@ string setupFolder = DEFAULT_setupFolder;
     if(nnl3<0)         die("nnl3<0");
     if(nnl4<0)         die("nnl4<0");
     if(nnl5<0)         die("nnl5<0");
+
     if(epsAnneal>0.0001 || epsAnneal<0) {
       warn("epsAnneal should be tiny. It will be set to 5e-7 for this run.");
       epsAnneal = 5e-7;
@@ -504,22 +563,24 @@ string setupFolder = DEFAULT_setupFolder;
       // LEARNER ARGS: MUST contain all 17 mentioned above (more if modified)
       READOPT(learner), READOPT(bTrain), READOPT(clipImpWeight),
       READOPT(targetDelay), READOPT(explNoise), READOPT(ERoldSeqFilter),
-      READOPT(gamma), READOPT(klDivConstraint), READOPT(lambda),
-      READOPT(minTotObsNum), READOPT(maxTotObsNum), READOPT(obsPerStep),
-      READOPT(penalTol), READOPT(epsAnneal), READOPT(bSampleSequences),
-      READOPT(bSharedPol), READOPT(totNumSteps),
+      READOPT(gamma), READOPT(dataSamplingAlgo), READOPT(klDivConstraint),
+      READOPT(lambda), READOPT(minTotObsNum), READOPT(maxTotObsNum),
+      READOPT(obsPerStep), READOPT(penalTol), READOPT(epsAnneal),
+      READOPT(bSampleSequences), READOPT(bSharedPol), READOPT(totNumSteps),
 
       // NETWORK ARGS: MUST contain all 15 mentioned above (more if modified)
       READOPT(nnl1), READOPT(nnl2), READOPT(nnl3), READOPT(nnl4),
       READOPT(nnl5), READOPT(nnl6), READOPT(batchSize), READOPT(appendedObs),
       READOPT(nnPdrop), READOPT(nnOutputFunc), READOPT(nnFunc),
-      READOPT(learnrate), READOPT(nnType), READOPT(outWeightsPrefac),
+      READOPT(learnrate), READOPT(ESpopSize), READOPT(nnType),
+      READOPT(outWeightsPrefac),
       READOPT(nnLambda), READOPT(splitLayers), READOPT(nnBPTTseq),
 
       // SMARTIES ARGS: MUST contain all 10 mentioned above (more if modified)
-      READOPT(nThreads), READOPT(nMasters), READOPT(isServer), READOPT(ppn),
-      READOPT(sockPrefix), READOPT(samplesFile), READOPT(restart),
-      READOPT(maxTotSeqNum), READOPT(randSeed), READOPT(saveFreq),
+      READOPT(nThreads), READOPT(nMasters), READOPT(nWorkers),
+      READOPT(isServer), READOPT(sockPrefix), READOPT(samplesFile),
+      READOPT(restart), READOPT(maxTotSeqNum),
+      READOPT(randSeed), READOPT(saveFreq),
 
       // ENVIRONMENT ARGS: MUST contain all 7 mentioned above (more if modified)
       READOPT(environment), READOPT(workersPerEnv), READOPT(rType),
@@ -538,12 +599,12 @@ string setupFolder = DEFAULT_setupFolder;
       MPI_Bcast(&randSeed, 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
     sockPrefix = randSeed + world_rank;
-
+    generators.resize(0);
     generators.reserve(omp_get_max_threads());
-    generators.push_back(mt19937(sockPrefix));
+    generators.push_back(std::mt19937(sockPrefix));
     for(int i=1; i<omp_get_max_threads(); i++) {
       const Uint seed = generators[0]();
-      generators.push_back(mt19937(seed));
+      generators.push_back(std::mt19937(seed));
     }
   }
 
@@ -554,12 +615,12 @@ string setupFolder = DEFAULT_setupFolder;
       generators.reserve(nThreads+nAgents);
       for(int i=currsize; i<nThreads+nAgents; i++) {
         const Uint seed = generators[0]();
-        generators.push_back(mt19937(seed));
+        generators.push_back(std::mt19937(seed));
       }
     }
   }
 
-  vector<int> readNetSettingsSize()
+  vector<int> readNetSettingsSize() const
   {
     vector<int> ret;
     //if(nnl1<1) die("Add at least one hidden layer.\n");

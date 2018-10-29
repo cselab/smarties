@@ -14,16 +14,28 @@
 class Communicator_internal: public Communicator
 {
  protected:
+  const Settings& S;
   char initd[512];
-  std::string execpath    = std::string();
-  std::string paramfile   = std::string();
-  std::string nStepPerFile= std::string();
-  std::string setupfolder = std::string();
+  std::string execpath    = S.launchfile;
+  std::string paramfile   = S.appSettings;
+  std::string nStepPerFile= S.nStepPappSett;
+  std::string setupfolder = S.setupFolder;
+  const int nOwnWorkers = S.nWorkers_own;
+  const int bAsync = S.bAsync;
+  const bool bSpawnApp = S.bSpawnApp;
 
-  void launch_forked() override;
+  std::vector<int> clientSockets = std::vector<int>(nOwnWorkers, 0);
+
+  std::mutex& mpi_mutex = S.mpi_mutex;
+  vector<double*> inpBufs;
+  vector<double*> outBufs;
+  std::vector<MPI_Request> requests =
+                        std::vector<MPI_Request>(nOwnWorkers, MPI_REQUEST_NULL);
+
 
 public:
   void getStateActionShape();
+  void launch() override;
 
   int recvStateFromApp();
   int sendActionToApp();
@@ -33,11 +45,6 @@ public:
 
   void answerTerminateReq(const double answer);
 
-  void set_params_file(const std::string fname) { paramfile = fname; }
-  void set_nstepp_file(const std::string fname) { nStepPerFile = fname; }
-
-  void set_exec_path(const std::string fname) { execpath = fname; }
-  void set_folder_path(const std::string fname) { setupfolder = fname; }
   void set_application_mpicom(const MPI_Comm acom, const int group)
   {
     comm_inside_app = acom;
@@ -49,27 +56,24 @@ public:
   void save() const;
 
   void ext_app_run();
-  vector<char*> readRunArgLst(const string _paramfile);
+  std::vector<char*> readRunArgLst(const string _paramfile);
   void redirect_stdout_init();
   void redirect_stdout_finalize();
   void createGo_rundir();
-  //called by smarties
-  Communicator_internal(MPI_Comm scom, int sock, bool spawn, Settings& sett);
-  ~Communicator_internal();
-};
 
-inline void unpackState(double* const data, int& agent, envInfo& info,
-    std::vector<double>& state, double& reward)
-{
-  assert(data not_eq nullptr);
-  agent = doublePtrToInt(data+0);
-  info  = doublePtrToInt(data+1);
-  for (unsigned j=0; j<state.size(); j++) {
-    state[j] = data[j+2];
-    assert(not std::isnan(state[j]));
-    assert(not std::isinf(state[j]));
-  }
-  reward = data[state.size()+2];
-  assert(not std::isnan(reward));
-  assert(not std::isinf(reward));
-}
+  void sendBuffer(const int i, const std::vector<double> V);
+
+  void recvBuffer(const int i);
+
+  int testBuffer(const int i);
+
+  void sendTerminateReq();
+
+  //called by smarties
+  Communicator_internal(Settings& sett);
+  ~Communicator_internal();
+
+  static vector<double*> alloc_bufs(const int size, const int num);
+  void unpackState(const int i, int& agent, envInfo& info,
+      std::vector<double>& state, double& reward);
+};

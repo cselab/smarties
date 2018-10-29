@@ -1,5 +1,5 @@
 
-CPPFLAGS+= -std=c++11 -fopenmp
+CPPFLAGS+= -std=c++14 -fopenmp
 LIBS+= -fopenmp
 
 CPPFLAGS+= -Wall -Wextra -Wfloat-equal -Wundef -Wcast-align -Wpedantic -Wno-cpp

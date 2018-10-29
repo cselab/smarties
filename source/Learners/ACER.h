@@ -8,37 +8,29 @@
 
 #pragma once
 #include "Learner_offPolicy.h"
-#include "../Math/Quadratic_advantage.h"
-#include "../Math/Discrete_advantage.h"
+class Aggregator;
+class Gaussian_policy;
 
 class ACER : public Learner_offPolicy
 {
  protected:
-  using Policy_t = Gaussian_policy;
-  using Action_t = Rvec;
-  const Uint nA = Policy_t::compute_nA(&aInfo);
+  const Uint nA = aInfo.dim;
   const Real acerTrickPow = 1. / std::sqrt(nA);
   //const Real acerTrickPow = 1. / nA;
   static constexpr Uint nAexpectation = 5;
   static constexpr Real facExpect = 1./nAexpectation;
-  static constexpr Real alpha = 1.0;
-  //const Real alpha = 0.1;
+
   Aggregator* relay = nullptr;
 
-  inline Policy_t prepare_policy(const Rvec& out,
-    const Tuple*const t = nullptr) const {
-    Policy_t pol({0, nA}, &aInfo, out);
-    if(t not_eq nullptr) pol.prepare(t->a, t->mu);
-    return pol;
-  }
+  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
+    const Uint thrID) const override;
 
-  void TrainBySequences(const Uint seq, const Uint thrID) const override;
+  void Train(const Uint seq, const Uint samp, const Uint wID,
+    const Uint bID, const Uint thrID) const override;
 
-  void Train(const Uint seq, const Uint obs, const Uint thrID) const override;
-
-  Rvec policyGradient(const Tuple*const _t, const Policy_t& POL,
-    const Policy_t& TGT, const Real ARET, const Real APol,
-    const Action_t& pol_samp) const;
+  Rvec policyGradient(const Tuple*const _t, const Gaussian_policy& POL,
+    const Gaussian_policy& TGT, const Real ARET, const Real APol,
+    const Rvec& pol_samp) const;
 
  public:
   void select(Agent& agent) override;

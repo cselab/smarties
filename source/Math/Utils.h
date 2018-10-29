@@ -11,24 +11,34 @@
 #include "../Network/Functions.h"
 
 #ifdef CHEAP_SOFTPLUS
-using mapFunc = SoftPlus;
-#else
-using mapFunc = ExpPlus;
-#endif
-
-inline Real unbPosMap_func(const Real val) {
-  return mapFunc::_eval(val);
-}
-inline Real unbPosMap_diff(const Real val) {
-  return mapFunc::_evalDiff(val);
-}
-inline Real unbPosMap_inverse(Real val) {
-  if(val<=0) {
-    warn("Tried to initialize invalid pos-def mapping. Unless not training this should not be happening. Revise setting explNoise.");
-    val = numeric_limits<float>::epsilon();
+  inline Real unbPosMap_func(const Real in) {
+    return  .5*(in + std::sqrt(1+in*in));
   }
-  return mapFunc::_inv(val);
-}
+  inline Real unbPosMap_diff(const Real in) {
+    return .5*(1 + in/std::sqrt(1+in*in));
+  }
+  inline Real unbPosMap_inverse(Real in) {
+    if(in<=0) {
+      warn("Tried to initialize invalid pos-def mapping. Unless not training this should not be happening. Revise setting explNoise.");
+      in = std::numeric_limits<float>::epsilon();
+    }
+    return (in*in - 0.25)/in;
+  }
+#else
+  inline Real unbPosMap_func(const Real in) {
+    return std::log(1+safeExp(in));
+  }
+  inline Real unbPosMap_diff(const Real in) {
+    return 1/(1+safeExp(-in));
+  }
+  inline Real unbPosMap_inverse(Real in) {
+    if(in<=0) {
+      warn("Tried to initialize invalid pos-def mapping. Unless not training this should not be happening. Revise setting explNoise.");
+      in = std::numeric_limits<float>::epsilon();
+    }
+    return std::log(safeExp(in)-1);
+  }
+#endif
 
 inline Real noiseMap_func(const Real val) {
   #ifdef UNBND_VAR

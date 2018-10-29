@@ -158,10 +158,12 @@ struct ActionInfo
   static Real _tanh(const Real inp)
   {
     if(inp>0) {
-      const Real e2x = std::exp(-std::min((Real) 16, 2*inp));
+      //const Real e2x = std::exp(-2*std::min( (Real)EXP_CUT, inp));
+      const Real e2x = std::exp(-2*inp);
       return (1-e2x)/(1+e2x);
     } else {
-      const Real e2x = std::exp( std::max((Real)-16, 2*inp));
+      //const Real e2x = std::exp( 2*std::max(-(Real)EXP_CUT, inp));
+      const Real e2x = std::exp( 2*inp);
       return (e2x-1)/(1+e2x);
     }
   }
@@ -169,7 +171,8 @@ struct ActionInfo
   static Real Dtanh(const Real inp)
   {
     const Real arg = inp < 0 ? -inp : inp; //symmetric
-    const Real e2x = std::exp(-std::min((Real)16, 2*arg));
+    //const Real e2x = std::exp(-2*std::min((Real)EXP_CUT, arg));
+    const Real e2x = std::exp(-2*arg);
     return 4*e2x/((1+e2x)*(1+e2x));
   }
 

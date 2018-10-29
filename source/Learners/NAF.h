@@ -8,7 +8,7 @@
 
 #pragma once
 #include "Learner_offPolicy.h"
-#include "../Math/Quadratic_advantage.h"
+#include "../Math/Utils.h"
 
 class NAF : public Learner_offPolicy
 {
@@ -17,19 +17,21 @@ class NAF : public Learner_offPolicy
   // - the starting indices along the output vector of each
   const vector<Uint> net_outputs = {1, compute_nL(aInfo.dim), aInfo.dim};
   const vector<Uint> net_indices = {0, 1, 1+compute_nL(aInfo.dim)};
+  #ifdef EXTRACT_COVAR
+    const Real stdParam = noiseMap_inverse(explNoise*explNoise);
+  #else
+    const Real stdParam = noiseMap_inverse(explNoise);
+  #endif
 
   const Uint nA = env->aI.dim;
   const Real OrUhDecay = CmaxPol<=0? .85 : 0;
   //const Real OrUhDecay = 0; // as in original
   vector<Rvec> OrUhState = vector<Rvec>( nAgents, Rvec(nA, 0) );
 
-  inline Quadratic_advantage prepare_advantage(const Rvec& out) const
-  {
-    return Quadratic_advantage(vector<Uint>{net_indices[1], net_indices[2]}, &aInfo, out);
-  }
-
-  void TrainBySequences(const Uint seq, const Uint thrID) const override;
-  void Train(const Uint seq, const Uint samp, const Uint thrID) const override;
+  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
+    const Uint thrID) const override;
+  void Train(const Uint seq, const Uint t, const Uint wID,
+    const Uint bID, const Uint thrID) const override;
 
 public:
   NAF(Environment*const env, Settings & settings);

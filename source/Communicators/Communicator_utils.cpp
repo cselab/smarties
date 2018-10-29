@@ -6,7 +6,8 @@
 //  Created by Guido Novati (novatig@ethz.ch) and Panagiotis Hadjidoukas.
 //
 
-#include <chrono>
+//#include <chrono>
+#include <sys/un.h>
 /*************************************************************************/
 /**************************   HELPER ROUTINES   **************************/
 /*************************************************************************/
@@ -163,13 +164,20 @@ int copy_from_dir(const std::string name)
   return 0;
 }
 
-void comm_sock(int fd, const bool bsend, double*const data, const int size)
+void sockRecv(int fd, double*const data, const int size)
 {
-  int bytes = bsend ? send_all(fd, data, size) : recv_all(fd, data, size);
-
+  int bytes = recv_all(fd, data, size);
   if (bytes <= 0) {
     printf("Lost contact with smarties, aborting..\n");
-    fflush(0);
-    abort();
+    fflush(0); abort();
+  }
+}
+
+void sockSend(int fd, double*const data, const int size)
+{
+  int bytes = send_all(fd, data, size);
+  if (bytes <= 0) {
+    printf("Lost contact with smarties, aborting..\n");
+    fflush(0); abort();
   }
 }

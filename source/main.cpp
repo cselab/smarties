@@ -12,191 +12,129 @@
 using namespace std;
 
 void runClient();
-void runWorker(Settings& settings, MPI_Comm workersComm);
-void runMaster(Settings& settings, MPI_Comm workersComm, MPI_Comm mastersComm);
+void runWorker(Settings& S);
+void runMaster(Settings& S);
 
-void runWorker(Settings& settings, MPI_Comm workersComm)
+void runWorker(Settings& S)
 {
-  MPI_Comm_rank(workersComm, &settings.workers_rank);
-  MPI_Comm_size(workersComm, &settings.workers_size);
-  if(settings.workers_rank==0) die("Worker is master?\n");
-  if(settings.workers_size<=1) die("Worker has no master?\n");
-  settings.nWorkers = 1;
-  ObjectFactory factory(settings);
+  assert(S.workers_rank and S.workers_size>0);
+  ObjectFactory factory(S);
   Environment* env = factory.createEnvironment();
-  Communicator_internal comm = env->create_communicator(workersComm, settings.sockPrefix, true);
-  int cpu_num; GETCPU(cpu_num); //sched_getcpu()
-  printf("Worker Rank %d is running on CPU %3d\n", settings.world_rank, cpu_num);
+  Communicator_internal comm = env->create_communicator();
 
-  Worker simulation(&comm, env, settings);
+  Worker simulation(&comm, env, S);
   simulation.run();
 }
 
-void runMaster(Settings& settings, MPI_Comm workersComm, MPI_Comm mastersComm)
+void runMaster(Settings& S)
 {
-  settings.mastersComm =  mastersComm;
-  MPI_Comm_rank(workersComm, &settings.workers_rank);
-  MPI_Comm_size(workersComm, &settings.workers_size);
-  MPI_Comm_rank(mastersComm, &settings.learner_rank);
-  MPI_Comm_size(mastersComm, &settings.learner_size);
-  settings.nWorkers = settings.workers_size-1; //minus master
-  assert(settings.nWorkers>=0 && settings.workers_rank == 0);
+  S.check();
 
   #ifdef INTERNALAPP //unblock creation of app comm if needed
+    if(S.bSpawnApp) die("Unsuppored, create dedicated workers");
     MPI_Comm tmp_com;
-    MPI_Comm_split(workersComm, MPI_UNDEFINED, 0, &tmp_com);
-    //no need to free this
+    MPI_Comm_split(S.workersComm, MPI_UNDEFINED, 0, &tmp_com);
   #endif
 
-  ObjectFactory factory(settings);
+  ObjectFactory factory(S);
   Environment*const env = factory.createEnvironment();
-  Communicator comm = env->create_communicator(workersComm, settings.sockPrefix, true);
+  Communicator_internal comm = env->create_communicator();
 
-  settings.finalizeSeeds(); // now i know nAgents, might need more generators
-  const Real nLearners = settings.learner_size;
-  // each learner computes a fraction of the batch:
-  settings.batchSize    = std::ceil(settings.batchSize    / nLearners);
-  // every grad step, each learner performs a fraction of the time steps:
-  settings.obsPerStep   = std::ceil(settings.obsPerStep   / nLearners);
-  // each learner contains a fraction of the memory buffer:
-  settings.minTotObsNum = std::ceil(settings.minTotObsNum / nLearners);
-  settings.maxTotObsNum = std::ceil(settings.maxTotObsNum / nLearners);
+  S.finalizeSeeds(); // now i know nAgents, might need more generators
 
-  const Uint nPols = settings.bSharedPol ? 1 : env->nAgentsPerRank;
+  const Uint nPols = S.bSharedPol ? 1 : env->nAgentsPerRank;
   vector<Learner*> learners(nPols, nullptr);
   for(Uint i = 0; i<nPols; i++) {
     stringstream ss; ss<<"agent_"<<std::setw(2)<<std::setfill('0')<<i;
-    cout << "Learner: " << ss.str() << endl;
-    learners[i] = createLearner(env, settings);
+    if(S.world_rank == 0) cout << "Learner: " << ss.str() << endl;
+    learners[i] = createLearner(env, S);
     learners[i]->setLearnerName(ss.str() +"_", i);
     learners[i]->restart();
   }
-  #pragma omp parallel
-  {
-    int cpu_num; GETCPU(cpu_num); //sched_getcpu()
-    printf("Master Rank %d Thread %3d  is running on CPU %3d\n",
-           settings.world_rank, omp_get_thread_num(), cpu_num);
-  }
 
-  fflush(0);
-  Master master(workersComm, learners, env, settings);
-  MPI_Barrier(mastersComm); // to avoid garbled output during run
-
-  #if 0
-  if (!settings.nWorkers && !learner->nData())
-  {
-    printf("No workers, just dumping the policy\n");
-    learner->dumpPolicy();
-    abort();
-  }
-  #endif
+  fflush(stdout); fflush(stderr); fflush(0);
+  MPI_Barrier(S.mastersComm); // to avoid garbled output during run
+  Master master(&comm, learners, env, S);
 
   master.run();
-  master.sendTerminateReq();
+  comm.sendTerminateReq();
 }
 
 int main (int argc, char** argv)
 {
-  Settings settings;
-  vector<ArgParser::OptionStruct> opts = settings.initializeOpts();
+  Settings S;
+  vector<ArgParser::OptionStruct> opts = S.initializeOpts();
 
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &settings.threadSafety);
-  if (settings.threadSafety < MPI_THREAD_SERIALIZED)
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &S.threadSafety);
+  MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+  if (S.threadSafety < MPI_THREAD_SERIALIZED)
     die("The MPI implementation does not have required thread support");
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &settings.world_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &settings.world_size);
+  S.bAsync = S.threadSafety>=MPI_THREAD_MULTIPLE;
+  MPI_Comm_rank(MPI_COMM_WORLD, &S.world_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &S.world_size);
+  if (! S.bAsync and S.world_rank == 0)
+    std::cout << "MPI implementation does not support MULTIPLE thread safety!"<<std::endl;
   omp_set_dynamic(0);
+  #pragma omp parallel
+  {
+    int cpu_num; GETCPU(cpu_num); //sched_getcpu()
+    char hostname[1024];
+    hostname[1023] = '\0';
+    gethostname(hostname, 1023);
+    //#ifndef NDEBUG
+      printf("Rank %d Thread %3d  is running on CPU %3d of hose %s\n",
+            S.world_rank, omp_get_thread_num(), cpu_num, hostname);
+    //#endif
+  }
 
   ArgParser::Parser parser(opts);
-  parser.parse(argc, argv, settings.world_rank == 0);
-  settings.check();
+  parser.parse(argc, argv, S.world_rank == 0);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if (not settings.isServer) {
-    die("You should not be running the client.sh scripts");
-    /*
-    if (settings.sockPrefix<0)
-      die("Not received a prefix for the socket\n");
-    settings.generators.push_back(mt19937(settings.sockPrefix));
-    printf("Launching smarties as client.\n");
-    if (settings.restart == "none")
-      die("smarties as client works only for evaluating policies.\n");
-    settings.bTrain = 0;
-    runClient();
-    MPI_Finalize();
-    return 0;
-    */
+  if(not S.isServer) die("client.sh scripts are no longer supported");
+
+  S.initRandomSeed();
+
+  if(S.nMasters == S.world_size)
+  {
+    S.bSpawnApp = S.nWorkers > S.world_rank;
+    S.mastersComm = MPI_COMM_WORLD;
+    S.workersComm = MPI_COMM_NULL;
+    S.workers_rank = 0;
+    S.workers_size = 1;
+    S.nWorkers_own =
+      S.nWorkers/S.world_size + ( (S.nWorkers%S.world_size) > S.world_rank );
+    runMaster(S);
+  }
+  else
+  {
+    if(S.world_size not_eq S.nMasters+S.nWorkers) die(" ");
+    const int learGroupSize = std::ceil( S.world_size / (Real) S.nMasters );
+    const bool bIsMaster = ( S.world_rank % learGroupSize ) == 0;
+    const int workerCommInd = S.world_rank / learGroupSize;
+    MPI_Comm_split(MPI_COMM_WORLD, bIsMaster,     S.world_rank, &S.mastersComm);
+    MPI_Comm_split(MPI_COMM_WORLD, workerCommInd, S.world_rank, &S.workersComm);
+    if(not bIsMaster) {
+      MPI_Comm_free(&S.mastersComm);
+      S.mastersComm = MPI_COMM_NULL;
+      S.bSpawnApp = 1;
+    }
+    printf("Process %d is a %s part of comm %d.\n",
+        S.world_rank, bIsMaster? "master" : "worker", workerCommInd);
+
+    MPI_Comm_rank(S.workersComm, &S.workers_rank);
+    MPI_Comm_size(S.workersComm, &S.workers_size);
+    S.nWorkers_own = bIsMaster? S.workers_size - 1 : 1;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (bIsMaster) {
+      runMaster(S);
+      MPI_Comm_free(&S.mastersComm);
+    }
+    else runWorker(S);
+    MPI_Comm_free(&S.workersComm);
   }
 
-  settings.initRandomSeed();
-
-  if(settings.world_size%settings.nMasters)
-    die("Number of masters not compatible with available ranks.");
-  const int workersPerMaster = settings.world_size/settings.nMasters - 1;
-
-  MPI_Comm workersComm; //this communicator allows workers to talk to their master
-  MPI_Comm mastersComm; //this communicator allows masters to talk among themselves
-
-  int bIsMaster, workerCommInd;
-  // two options: either multiple learners because they are the bottleneck
-  //              or multiple workers for single master because data is expensive
-  // in the second case, rank 0 will be master either away
-  // in first case our objective is to maximise the spread of master ranks
-  // and use processes on hyperthreaded cores to run the workers
-  // in a multi socket board usually the cpus are going to be sorted
-  // as (socket-core-thread): 0-0-0 0-1-0 0-2-0 ... 1-0-0 1-1-0 1-2-0 ...
-  //                          0-0-1 0-1-1 0-2-1 ... 1-0-1 1-1-1 1-2-1
-  // therefore if there are more than one master per node sorting changes
-  // this is al very brittle. relies on my MPI implementations sorting of ranks
-  if (settings.ppn > workersPerMaster+1) {
-    if(settings.ppn % (workersPerMaster+1)) die("Bad number of proc per node");
-    const int nMastersPerNode =  settings.ppn / (workersPerMaster+1);
-    const int nodeIndx = settings.world_rank / settings.ppn;
-    const int nodeRank = settings.world_rank % settings.ppn;
-    // will be 1 for the first nMastersPerNode ranks of each node:
-    bIsMaster = nodeRank / nMastersPerNode == 0;
-    // index will be shared by every nMastersPerNode ranks:
-    const int nodeMScomm = nodeRank % nMastersPerNode;
-    // split communicators residing on different nodes:
-    workerCommInd = nodeMScomm + nodeIndx * nMastersPerNode;
-  } else {
-    bIsMaster = settings.world_rank % (workersPerMaster+1) == 0;
-    workerCommInd = settings.world_rank / (workersPerMaster+1);
-  }
-
-  MPI_Comm_split(MPI_COMM_WORLD, bIsMaster, settings.world_rank, &mastersComm);
-  MPI_Comm_split(MPI_COMM_WORLD, workerCommInd, settings.world_rank,&workersComm);
-  if (!bIsMaster) MPI_Comm_free(&mastersComm);
-  printf("nRanks=%d, %d masters, %d workers per master. I'm %d: %s part of comm %d.\n",
-      settings.world_size,settings.nMasters,workersPerMaster,settings.world_rank,
-      bIsMaster?"master":"worker",workerCommInd);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (bIsMaster) runMaster(settings, workersComm, mastersComm);
-  else           runWorker(settings, workersComm);
-
-  if (bIsMaster) MPI_Comm_free(&mastersComm);
-  MPI_Comm_free(&workersComm);
   MPI_Finalize();
   return 0;
 }
-
-
-/*
-void runClient()
-{
-  settings.nWorkers = 1;
-  ObjectFactory factory(settings);
-  Environment* env = factory.createEnvironment();
-  Communicator comm = env->create_communicator(MPI_COMM_NULL, settings.sockPrefix, false);
-
-  Learner* learner = createLearner(MPI_COMM_WORLD, env, settings);
-  if (settings.restart != "none") {
-    learner->restart(settings.restart);
-    //comm.restart(settings.restart);
-  }
-  Client simulation(learner, &comm, env, settings);
-  simulation.run();
-}
-*/

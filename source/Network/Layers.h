@@ -15,7 +15,11 @@
 #ifndef __STDC_VERSION__ //it should never be defined with g++
 #define __STDC_VERSION__ 0
 #endif
+#ifdef USE_MKL
+#include "mkl_cblas.h"
+#else
 #include "cblas.h"
+#endif
 
 // Base class of all layer types. To insert a new layer type, overwrite all
 // virtual functions.
@@ -244,6 +248,56 @@ class JoinLayer: public Layer
     Real initializationFac) const override { }
 };
 
+
+class ResidualLayer: public Layer
+{
+ public:
+  ResidualLayer(Uint _ID, Uint _N): Layer(_ID,_N,false) { }
+
+  string printSpecs() const override {
+    std::ostringstream o;
+    o<<"("<<ID<<") Residual Connection of size:"<<size<<"\n";
+    return o.str();
+  }
+
+  void requiredParameters(vector<Uint>& nWeight,
+                          vector<Uint>& nBiases ) const override {
+    nWeight.push_back(0);
+    nBiases.push_back(0);
+  }
+  void requiredActivation(vector<Uint>& sizes,
+                          vector<Uint>& bOutputs,
+                          vector<Uint>& bInputs) const override {
+    sizes.push_back(size);
+    bOutputs.push_back(false);
+    bInputs.push_back(false);
+  }
+  void biasInitialValues(const vector<Real> init) override { }
+  void forward( const Activation*const prev,
+                const Activation*const curr,
+                const Parameters*const para) const override {
+    nnReal* const ret = curr->Y(ID);
+    std::memset( ret, 0, size * sizeof(nnReal) );
+    for (Uint i=1; i<=2; i++) {
+      const nnReal* const inputs = curr->Y(ID-i);
+      for (Uint j=0; j<size; j++) ret[j] += inputs[j];
+    }
+  }
+
+  void backward(  const Activation*const prev,
+                  const Activation*const curr,
+                  const Activation*const next,
+                  const Parameters*const grad,
+                  const Parameters*const para) const override {
+    const nnReal* const errors = curr->E(ID);
+    for (Uint i=1; i<=2; i++)
+      memcpy( curr->E(ID-i), errors, size * sizeof(nnReal) );
+  }
+
+  void initialize(mt19937* const gen, const Parameters*const para,
+    Real initializationFac) const override { }
+};
+
 class ParamLayer: public Layer
 {
   const Function * const func;
@@ -258,7 +312,7 @@ class ParamLayer: public Layer
     std::ostringstream o;
     o<<"("<<ID<<") "<<func->name()
      <<"Parameter Layer of size:"<<size<<". Initialized:"
-     <<print(initVals).c_str()<<"\n";
+     <<print(initVals, 3).c_str()<<"\n";
     return o.str();
   }
 
@@ -274,7 +328,7 @@ class ParamLayer: public Layer
   void biasInitialValues(const vector<Real> init) override {
     if(init.size() != size) _die("size of init:%lu.", init.size());
     initVals.resize(size, 0);
-    std::copy(initVals.begin(), initVals.end(), initVals.begin());
+    std::copy(init.begin(), init.end(), initVals.begin());
   }
   void forward( const Activation*const prev,
                 const Activation*const curr,
@@ -320,14 +374,9 @@ inline Activation* allocate_activation(const vector<Layer*>& layers) {
   return new Activation(sizes, output, input);
 }
 
-inline Parameters* allocate_parameters(const vector<Layer*>& layers) {
+inline Parameters* allocate_parameters(const vector<Layer*>&L, const Uint mpiSz)
+{
   vector<Uint> nWeight, nBiases;
-  for(const auto & l : layers) l->requiredParameters(nWeight, nBiases);
-  return new Parameters(nWeight, nBiases);
-}
-
-inline Memory* allocate_memory(const vector<Layer*>& layers) {
-  vector<Uint> sizes, output, input;
-  for(const auto & l : layers) l->requiredActivation(sizes, output, input);
-  return new Memory(sizes, output);
+  for(const auto & l : L) l->requiredParameters(nWeight, nBiases);
+  return new Parameters(nWeight, nBiases, mpiSz);
 }

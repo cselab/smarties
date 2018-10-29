@@ -46,6 +46,11 @@ ifeq "$(testdiff)" "on"
 CPPFLAGS+= -D__CHECK_DIFF
 endif
 
+precision ?= double
+ifeq "$(precision)" "single"
+CPPFLAGS+= -DSINGLE_PREC
+endif
+
 app ?= ext_app_test
 
 ifeq "$(compiler)" "intel"
@@ -55,11 +60,12 @@ include make.gcc.flags
 endif
 
 DIRS = $(sort $(dir $(wildcard ../source/*/)))
-OBJ_FILES= ArgParser.o main.o ObjectFactory.o Sequences.o Scheduler.o \
-		PPO.o ACER.o VRACER.o AtariEnvironment.o Approximator.o Network.o \
-		Learner_onPolicy.o MemoryBuffer.o Learner_offPolicy.o Optimizer.o \
-		Environment.o DQN.o RETPG.o Math_tests.o Communicator_internal.o \
-		Learner.o NAF.o DPG.o RACER.o Communicator.o
+OBJ_FILES = ArgParser.o main.o ObjectFactory.o Communicator.o Sequences.o \
+		AtariEnvironment.o Approximator.o Network.o Optimizer.o Environment.o \
+		CMA_Optimizer_MPI.o CMALearner.o MemoryBuffer.o Learner_offPolicy.o \
+		Math_tests.o Communicator_internal.o Learner.o  Scheduler.o Aggregator.o \
+		VRACER.o Encapsulator.o Collector.o MemoryProcessing.o MemorySharing.o \
+		StatsTracker.o Sampling.o PPO.o RACER.o RETPG.o DPG.o NAF.o DQN.o ACER.o
 
 CPP_FILES = $(notdir $(OBJ_FILES:.o=.cpp))
 
@@ -68,6 +74,8 @@ CPP_FILES = $(notdir $(OBJ_FILES:.o=.cpp))
 ifneq "$(MAKECMDGOALS)" "clean"
 -include $(notdir $(patsubst %.cpp,%.d,$(CPP_FILES)))
 endif
+
+LIBS+= -L. -lsimulation
 
 ############### Compile application as static library if needed ###############
 ifneq "$(app)" "ext_app_test"
@@ -90,8 +98,6 @@ lib: ext_app_test.o
 	ar rs libsimulation.a $^
 
 endif
-
-LIBS+= -L. -lsimulation
 
 rl: $(OBJ_FILES) lib
 	$(CC) $(OBJ_FILES) $(LIBS) -o $@

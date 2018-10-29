@@ -28,6 +28,16 @@ struct Discrete_policy
     assert(aI->maxLabel);
     return aI->maxLabel;
   }
+  static void setInitial_Stdev(const ActionInfo*const aI, Rvec&O, const Real S)
+  {
+    #ifdef EXTRACT_COVAR
+      for(Uint e=0; e<aI->dim; e++) O.push_back(noiseMap_inverse(S*S));
+    #else
+      for(Uint e=0; e<aI->dim; e++) O.push_back(noiseMap_inverse(S));
+    #endif
+  }
+
+  static void setInitial_noStdev(const ActionInfo* const aI, Rvec& initBias) { }
 
   Discrete_policy(const vector<Uint>& start, const ActionInfo*const aI,
     const Rvec& out) : aInfo(aI), start_prob(start[0]), nA(aI->maxLabel), netOutputs(out), unnorm(extract_unnorm()),
@@ -138,7 +148,7 @@ struct Discrete_policy
     return ret;
   }
 
-  inline void finalize_grad(const Rvec&grad, Rvec&netGradient) const
+  inline void finalize_grad(const Rvec grad, Rvec&netGradient) const
   {
     assert(netGradient.size()>=start_prob+nA && grad.size() == nA);
     for (Uint j=0; j<nA; j++)

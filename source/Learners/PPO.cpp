@@ -8,31 +8,36 @@
 
 #include "PPO.h"
 #include "../Network/Builder.h"
+#include "../Math/Gaussian_policy.h"
+#include "../Math/Discrete_policy.h"
 
 #define PPO_PENALKL
 #define PPO_CLIPPED
 #define PPO_simpleSigma
 
-template<typename Policy_t, typename Action_t>
-void PPO<Policy_t, Action_t>::TrainBySequences(const Uint seq, const Uint thrID) const
-{
-  die("not allowed");
+template<typename Policy_t>
+static inline Policy_t prepare_policy(const Rvec& O, const ActionInfo*const aI,
+  const vector<Uint>& pol_indices, const Tuple*const t = nullptr) {
+  Policy_t pol(pol_indices, aI, O);
+  if(t not_eq nullptr) pol.prepare(t->a, t->mu);
+  return pol;
 }
 
 template<typename Policy_t, typename Action_t>
-void PPO<Policy_t, Action_t>::Train(const Uint seq, const Uint samp, const Uint thrID) const
+void PPO<Policy_t, Action_t>::Train(const Uint seq, const Uint samp,
+  const Uint wID, const Uint bID, const Uint thrID) const
 {
   if(thrID==0)  profiler->stop_start("FWD");
-  Sequence* const traj = data->Set[seq];
+  Sequence* const traj = data->get(seq);
   const Real adv_est = traj->action_adv[samp], val_tgt = traj->Q_RET[samp];
   const Rvec MU = traj->tuples[samp]->mu;
 
-  F[0]->prepare_one(traj, samp, thrID);
-  const Rvec pol_cur = F[0]->forward(traj, samp, thrID);
+  F[0]->prepare_one(traj, samp, thrID, wID);
+  const Rvec pol_cur = F[0]->forward(samp, thrID);
 
   if(thrID==0)  profiler->stop_start("CMP");
 
-  const Policy_t pol = prepare_policy(pol_cur, traj->tuples[samp]);
+  const Policy_t pol = prepare_policy<Policy_t>(pol_cur, &aInfo, pol_indices, traj->tuples[samp]);
   const Real rho_cur = pol.sampImpWeight, DivKL = pol.sampKLdiv;
   const bool isFarPol = traj->isFarPolicyPPO(samp, rho_cur, CmaxPol);
 
@@ -47,8 +52,8 @@ void PPO<Policy_t, Action_t>::Train(const Uint seq, const Uint samp, const Uint 
     updateDKL_target(isFarPol, DivKL);
   #endif
 
-  F[1]->prepare_one(traj, samp, thrID);
-  const Rvec val_cur = F[1]->forward(traj, samp, thrID);
+  F[1]->prepare_one(traj, samp, thrID, wID);
+  const Rvec val_cur = F[1]->forward(samp, thrID);
 
   #ifdef PPO_PENALKL //*nonZero(gain)
     const Rvec policy_grad = pol.policy_grad(pol.sampAct, gain);
@@ -60,6 +65,7 @@ void PPO<Policy_t, Action_t>::Train(const Uint seq, const Uint samp, const Uint 
     const Rvec penal_grad = Rvec(policy_grad.size(), 0);
   #endif
 
+  assert(wID == 0);
   Rvec grad(F[0]->nOutputs(), 0);
   pol.finalize_grad(totalPolGrad, grad);
 
@@ -72,13 +78,13 @@ void PPO<Policy_t, Action_t>::Train(const Uint seq, const Uint samp, const Uint 
   trainInfo->log(val_cur[0], verr, policy_grad, penal_grad,
     { (Real)valPenal[0], DivKL, rho_cur }, thrID);
   #endif
-  traj->setMseDklImpw(samp, verr*verr, DivKL, rho_cur);
+  traj->setMseDklImpw(samp, verr*verr, DivKL, rho_cur, 1+CmaxPol, 1-CmaxPol);
 
   if(thrID==0)  profiler->stop_start("BCK");
   //if(!thrID) cout << "back pol" << endl;
-  F[0]->backward(grad, traj, samp, thrID);
+  F[0]->backward(grad, samp, thrID);
   //if(!thrID) cout << "back val" << endl; //*(!isFarPol)
-  F[1]->backward({verr*(!isFarPol)}, traj, samp, thrID);
+  F[1]->backward({verr*(!isFarPol)}, samp, thrID);
   F[0]->gradient(thrID);
   F[1]->gradient(thrID);
 }
@@ -110,8 +116,8 @@ void PPO<Policy_t, Action_t>::updatePPO(Sequence*const seq) const
   // If user selects gamma=.995 and lambda=0.97 as in Henderson2017
   // these will start at 0.99 and 0.95 (same as original) and be quickly
   // annealed upward in the first 1e5 steps.
-  const Fval rGamma  =  gamma>0.99? annealDiscount( gamma,.99,nStep) :  gamma;
-  const Fval rLambda = lambda>0.95? annealDiscount(lambda,.95,nStep) : lambda;
+  const Fval rGamma  =  gamma>.99? annealDiscount( gamma,.99,_nStep) :  gamma;
+  const Fval rLambda = lambda>.95? annealDiscount(lambda,.95,_nStep) : lambda;
   // reward of i=0 is 0, because before any action
   // adv(0) is also 0, V(0) = V(s_0)
   for (int i=N-2; i>=0; i--) { //update all rewards before current step
@@ -130,10 +136,13 @@ void PPO<Policy_t, Action_t>::updatePPO(Sequence*const seq) const
 template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::prepareGradient()
 {
-  debugL("update lagrangian penalization coefficient");
+  if(not updateComplete || updateToApply) die("undefined behavior");
   if(learn_rank > 0)
     die("This method does not support multiple learner ranks yet");
 
+  Learner::prepareGradient();
+
+  debugL("update lagrangian penalization coefficient");
   cntPenal[0] = 0;
   for(Uint i=1; i<=nThreads; i++) {
     cntPenal[0] += cntPenal[i]; cntPenal[i] = 0;
@@ -147,36 +156,72 @@ void PPO<Policy_t, Action_t>::prepareGradient()
   }
   if(valPenal[0] <= nnEPS) valPenal[0] = nnEPS;
 
-  Learner_onPolicy::prepareGradient();
+
+  const Uint currStep = nStep()+1; //base class will advance this with this func
+  debugL("shift counters of epochs over the stored data");
+  cntBatch += batchSize;
+  if(cntBatch >= nHorizon) {
+    const Real annlLR = annealRate(learnR, currStep, epsAnneal);
+    data_proc->updateRewardsStats(0.001, annlLR);
+    cntBatch = 0;
+    cntEpoch++;
+  }
+
+  if(cntEpoch >= nEpochs) {
+    debugL("finished epochs, compute state/rew stats, clear buffer to gather new onpol samples");
+    #if 0 // keep nearly on policy data
+      cntKept = data->clearOffPol(CmaxPol, 0.05);
+    #else
+      data->clearAll();
+      cntKept = 0;
+    #endif
+    //reset batch learning counters
+    cntEpoch = 0;
+    cntBatch = 0;
+  }
 }
 
 template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::initializeLearner()
 {
-  Learner_onPolicy::initializeLearner();
+  const Uint currStep = nStep();
+  if ( currStep > 0 ) {
+    warn("Skipping initialization for restartd learner.");
+    return;
+  }
+
+  profiler->stop_start("PRE");
+  debugL("Compute state/rewards stats from the replay memory");
+  data_proc->updateRewardsStats(1, 1, true);
+  if( learn_rank == 0 )
+    std::cout << "Initial reward std " <<1/data->scaledReward(1) << std::endl;
 
   // Rewards second moment is computed right before actual training begins
   // therefore we need to recompute (rescaled) GAE and MC cumulative rewards
   // This assumes V(s) is initialized small, so we just rescale by std(rew)
   debugL("Rescale GAE est. after gathering initial dataset");
   // placed here because on 1st step we just computed first rewards statistics
+
+  const Uint setSize = data->readNSeq();
+  const Fval invstdR = data->scaledReward(1);
   #pragma omp parallel for schedule(dynamic)
-  for(Uint i = 0; i < data->Set.size(); i++) {
-    assert(data->Set[i]->ndata()>=1);
-    assert(data->Set[i]->action_adv.size() == data->Set[i]->ndata());
-    assert(data->Set[i]->Q_RET.size()      == data->Set[i]->ndata());
-    assert(data->Set[i]->state_vals.size() == data->Set[i]->ndata()+1);
-    for (Uint j=data->Set[i]->ndata()-1; j>0; j--) {
-      data->Set[i]->action_adv[j] *= data->invstd_reward;
-      data->Set[i]->Q_RET[j] *= data->invstd_reward;
+  for(Uint i = 0; i < setSize; i++) {
+    assert(data->get(i)->ndata()>=1);
+    assert(data->get(i)->action_adv.size() == data->get(i)->ndata());
+    assert(data->get(i)->Q_RET.size()      == data->get(i)->ndata());
+    assert(data->get(i)->state_vals.size() == data->get(i)->ndata()+1);
+    for (Uint j=data->get(i)->ndata()-1; j>0; j--) {
+      data->get(i)->action_adv[j] *= invstdR;
+      data->get(i)->Q_RET[j] *= invstdR;
     }
   }
 
-  for(Uint i = 0; i < data->inProgress.size(); i++) {
-    if(data->inProgress[i]->tuples.size() <= 1) continue;
-    for (Uint j=data->inProgress[i]->ndata()-1; j>0; j--) {
-      data->inProgress[i]->action_adv[j] *= data->invstd_reward;
-      data->inProgress[i]->Q_RET[j] *= data->invstd_reward;
+  const Uint todoSize = data_get->nInProgress();
+  for(Uint i = 0; i < todoSize; i++) {
+    if(data_get->get(i)->tuples.size() <= 1) continue;
+    for (Uint j=data_get->get(i)->ndata()-1; j>0; j--) {
+      data_get->get(i)->action_adv[j] *= invstdR;
+      data_get->get(i)->Q_RET[j] *= invstdR;
     }
   }
 }
@@ -184,24 +229,24 @@ void PPO<Policy_t, Action_t>::initializeLearner()
 template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::select(Agent& agent)
 {
-  Sequence*const curr_seq = data->inProgress[agent.ID];
-  data->add_state(agent);
+  Sequence*const curr_seq = data_get->get(agent.ID);
+  data_get->add_state(agent);
   F[1]->prepare_agent(curr_seq, agent);
 
   if(agent.Status < TERM_COMM ) { //non terminal state
     //Compute policy and value on most recent element of the sequence:
     F[0]->prepare_agent(curr_seq, agent);
-    const Rvec pol = F[0]->forward_agent(curr_seq, agent);
-    const Rvec val = F[1]->forward_agent(curr_seq, agent);
+    const Rvec pol = F[0]->forward_agent(agent);
+    const Rvec val = F[1]->forward_agent(agent);
 
     curr_seq->state_vals.push_back(val[0]);
-    Policy_t policy = prepare_policy(pol);
+    Policy_t policy = prepare_policy<Policy_t>(pol, &aInfo, pol_indices);
     const Rvec MU = policy.getVector();
     auto act = policy.finalize(explNoise>0, &generators[nThreads+agent.ID], MU);
     agent.act(act);
-    data->add_action(agent, MU);
+    data_get->add_action(agent, MU);
   } else if( agent.Status == TRNC_COMM ) {
-    const Rvec val = F[1]->forward_agent(curr_seq, agent);
+    const Rvec val = F[1]->forward_agent( agent);
     curr_seq->state_vals.push_back(val[0]);
   } else
     curr_seq->state_vals.push_back(0); // Assign value of term state to 0
@@ -209,7 +254,7 @@ void PPO<Policy_t, Action_t>::select(Agent& agent)
   updatePPO(curr_seq);
 
   //advance counters of available data for training
-  if(agent.Status >= TERM_COMM) data->terminate_seq(agent);
+  if(agent.Status >= TERM_COMM) data_get->terminate_seq(agent);
 }
 
 template<>
@@ -246,56 +291,47 @@ Uint PPO<Gaussian_policy, Rvec>::getnDimPolicy(const ActionInfo*const aI)
   return 2*aI->dim;
 }
 
-template<> PPO<Gaussian_policy, Rvec>::PPO(
-  Environment*const _env, Settings & _set) : Learner_onPolicy(_env,_set),
-  valPenal(nThreads+1,0), cntPenal(nThreads+1,0), lambda(_set.lambda),
-  pol_outputs(count_pol_outputs(&_env->aI)), DKL_target(_set.klDivConstraint)
+template<> PPO<Gaussian_policy, Rvec>::PPO(Environment*const E, Settings&S) :
+Learner(E, S), pol_outputs(count_pol_outputs(&E->aI))
 {
+  data_get = new Collector(S, this, data);
   #ifdef PPO_learnDKLt
-    trainInfo = new TrainData("PPO", _set,1,"| beta |  DKL | avgW | DKLt ",4);
+   trainInfo = new TrainData("PPO", S, 1, "| beta |  DKL | avgW | DKLt ", 4);
   #else
-    trainInfo = new TrainData("PPO", _set,1,"| beta |  DKL | avgW ", 3);
+   trainInfo = new TrainData("PPO", S, 1, "| beta |  DKL | avgW ", 3);
   #endif
   valPenal[0] = 1;
 
   printf("Continuous-action PPO\n");
   #if 0 // shared input layers
-    if(input->net not_eq nullptr) {
-      delete input->opt; input->opt = nullptr;
-      delete input->net; input->net = nullptr;
-    }
-    Builder input_build(_set);
-    bool bInputNet = false;
-    input_build.addInput( input->nOutputs() );
-    bInputNet = bInputNet || env->predefinedNetwork(input_build);
-    bInputNet = bInputNet || predefinedNetwork(input_build);
-    if(bInputNet) {
-      Network* net = input_build.build(true);
-      input->initializeNetwork(net, input_build.opt);
-    }
+    createSharedEncoder();
   #endif
-  F.push_back(new Approximator("policy", _set, input, data));
+  F.push_back(new Approximator("policy", S, input, data));
   F[0]->blockInpGrad = true;
-  F.push_back(new Approximator("critic", _set, input, data));
+  F.push_back(new Approximator("critic", S, input, data));
 
-  Builder build_val = F[1]->buildFromSettings(_set, {1} );
+  Builder build_val = F[1]->buildFromSettings(S, {1} );
 
   #ifndef PPO_simpleSigma
     Rvec initBias;
     Gaussian_policy::setInitial_noStdev(&aInfo, initBias);
     Gaussian_policy::setInitial_Stdev(&aInfo, initBias, explNoise);
-    Builder build_pol = F[0]->buildFromSettings(_set, {2*aInfo.dim});
+    Builder build_pol = F[0]->buildFromSettings(S, {2*aInfo.dim});
     build.setLastLayersBias(initBias);
   #else  //stddev params
-    Builder build_pol = F[0]->buildFromSettings(_set,   {aInfo.dim});
-    const Real initParam = noiseMap_inverse(explNoise);
+    Builder build_pol = F[0]->buildFromSettings(S,   {aInfo.dim});
+    #ifdef EXTRACT_COVAR
+      Real initParam = noiseMap_inverse(explNoise*explNoise);
+    #else
+      Real initParam = noiseMap_inverse(explNoise);
+    #endif
     build_pol.addParamLayer(aInfo.dim, "Linear", initParam);
   #endif
   F[0]->initializeNetwork(build_pol);
 
-  _set.learnrate *= 3; // for shared input layers
+  S.learnrate *= 3; // for shared input layers
   F[1]->initializeNetwork(build_val);
-  _set.learnrate /= 3;
+  S.learnrate /= 3;
 
   {  // TEST FINITE DIFFERENCES:
     Rvec output(F[0]->nOutputs()), mu(getnDimPolicy(&aInfo));
@@ -304,30 +340,29 @@ template<> PPO<Gaussian_policy, Rvec>::PPO(
     for(Uint i=0;  i<mu.size(); i++) mu[i] = dist(generators[0]);
     for(Uint i=nA; i<mu.size(); i++) mu[i] = std::exp(mu[i]);
 
-    Gaussian_policy pol = prepare_policy(output);
+    Gaussian_policy pol = prepare_policy<Gaussian_policy>(output, &aInfo, pol_indices);
     Rvec act = pol.finalize(1, &generators[0], mu);
     pol.prepare(act, mu);
     pol.test(act, mu);
   }
 }
 
-template<> PPO<Discrete_policy, Uint>::PPO(
-  Environment*const _env, Settings & _set) : Learner_onPolicy(_env,_set),
-  valPenal(nThreads+1,0), cntPenal(nThreads+1,0), lambda(_set.lambda),
-  pol_outputs(count_pol_outputs(&_env->aI)), DKL_target(_set.klDivConstraint)
+template<> PPO<Discrete_policy, Uint>::PPO(Environment*const E, Settings&S) :
+Learner(E,S), pol_outputs(count_pol_outputs(&E->aI))
 {
+  data_get = new Collector(S, this, data);
   #ifdef PPO_learnDKLt
-    trainInfo = new TrainData("PPO", _set,1,"| beta |  DKL | avgW | DKLt ",4);
+    trainInfo = new TrainData("PPO", S, 1,"| beta |  DKL | avgW | DKLt ",4);
   #else
-    trainInfo = new TrainData("PPO", _set,1,"| beta |  DKL | avgW ", 3);
+    trainInfo = new TrainData("PPO", S, 1,"| beta |  DKL | avgW ", 3);
   #endif
   valPenal[0] = 1;
 
   printf("Discrete-action PPO\n");
-  F.push_back(new Approximator("policy", _set, input, data));
-  F.push_back(new Approximator("critic", _set, input, data));
-  Builder build_pol = F[0]->buildFromSettings(_set, aInfo.maxLabel);
-  Builder build_val = F[1]->buildFromSettings(_set, 1 );
+  F.push_back(new Approximator("policy", S, input, data));
+  F.push_back(new Approximator("critic", S, input, data));
+  Builder build_pol = F[0]->buildFromSettings(S, aInfo.maxLabel);
+  Builder build_val = F[1]->buildFromSettings(S, 1 );
 
   //build_pol.addParamLayer(1,"Exp",1); //add klDiv penalty coefficient layer
 
@@ -335,68 +370,41 @@ template<> PPO<Discrete_policy, Uint>::PPO(
   F[1]->initializeNetwork(build_val);
 }
 
-template class PPO<Discrete_policy, Uint>;
-template class PPO<Gaussian_policy, Rvec>;
-
-#if 0
-// Update network from sampled observation `obs', part of sequence `seq'
-void Train(const Uint seq, const Uint obs, const Uint thrID) const override
+template<typename Policy_t, typename Action_t>
+bool PPO<Policy_t, Action_t>::blockDataAcquisition() const
 {
-  const Sequence*const traj = data->Set[seq];          // fetch sampled sequence
-  const Real advantage_obs  = traj->action_adv[obs+1];// observed advantage
-  const Real value_obs      = traj->tuples[obs+1]->r; // observed state val
-  const Rvec mu     = traj->tuples[obs]->mu;  // policy used for sample
-  const Rvec action = traj->tuples[obs]->a;   // sample performed act
-
-  // compute current policy and state-value-estimate for sampled state
-  const Rvec out_policy = policyNet->forward(traj, samp, thrID);
-  const Rvec out_value  =  valueNet->forward(traj, samp, thrID);
-
-  //compute gradient of state-value est. and backpropagate value net
-  const Real Vst_est  = out_value[0];           // estimated state value
-  const Rvec  value_grad = {value_obs - Vst_est};
-   valueNet->backward(value_grad, samp, thrID);
-
-  //Create action & policy objects: generalize discrete, gaussian, lognorm pols
-  const Policy_t pol = prepare_policy(pol_cur);//current state policy
-  const Action_t act = pol.map_action(action); //map to pol space (eg. discrete)
-
-  // compute importance sample rho = pol( a_t | s_t ) / mu( a_t | s_t )
-  const Real actProbOnPolicy =       pol.evalLogProbability(act);
-  const Real actProbBehavior = Policy_t::evalLogProbability(act, mu);
-  const Real rho = std::exp(actProbOnPolicy-actProbBehavior);
-
-  //compute policy gradient and backpropagate pol net
-  const Real gain = rho * advantage_obs;
-  const Rvec  policy_grad = pol.policy_grad(act, gain);
-  policyNet->backward(policy_grad, samp, thrID);
+  if( not bReady4Init.load() ) return false;
+  return data->readNData() >= nHorizon + cntKept;
 }
 
-#endif
-//#ifdef INTEGRATEANDFIREMODEL
-//  inline Lognormal_policy prepare_policy(const Rvec& out) const
-//  {
-//    return Lognormal_policy(net_indices[0], net_indices[1], nA, out);
-//  }
-//#else
-/*
-settings.splitLayers = 9; // all!
-Builder build(settings);
+template<typename Policy_t, typename Action_t>
+bool PPO<Policy_t, Action_t>::bNeedSequentialTrain() {return true;}
 
-build.stackSimple(vector<Uint>{nInputs}, vector<Uint>{nA, 1});
-//add stddev layer
-build.addParamLayer(nA, "Linear", -2*std::log(explNoise));
-//add klDiv penalty coefficient layer
-build.addParamLayer(1, "Exp", 0);
+template<typename Policy_t, typename Action_t>
+void PPO<Policy_t, Action_t>::spawnTrainTasks_seq()
+{
+  if(updateComplete || updateToApply) die("undefined behavior");
+  if( data->readNData() < nHorizon ) die("undefined behavior");
 
-net = build.build();
+  debugL("sampling update from on-pol data");
+  profiler->stop_start("SAMP");
+  vector<Uint> samp_seq(batchSize, -1), samp_obs(batchSize, -1);
+  data->sample(samp_seq, samp_obs);
 
-//set initial value for klDiv penalty coefficient
-Uint penalparid = net->layers.back()->n1stBias; //(was last added layer)
-net->biases[penalparid] = std::log(1/settings.klDivConstraint);
+  #pragma omp parallel for collapse(2) schedule(static, 1) num_threads(nThreads)
+    for (Uint wID=0; wID<ESpopSize; wID++)
+      for (Uint bID=0; bID<batchSize; bID++) {
+        const Uint thrID = omp_get_thread_num();
+        Train(samp_seq[bID], samp_obs[bID], wID, bID, thrID);
+        input->gradient(thrID);
+      }
 
-finalize_network(build);
+  updateComplete = true;
+}
 
-printf("PPO: Built network with outputs: %s %s\n",
-  print(net_indices).c_str(),print(net_outputs).c_str());
-*/
+template<typename Policy_t, typename Action_t>
+void PPO<Policy_t, Action_t>::spawnTrainTasks_par() { }
+
+
+template class PPO<Discrete_policy, Uint>;
+template class PPO<Gaussian_policy, Rvec>;

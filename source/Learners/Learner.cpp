@@ -10,17 +10,10 @@
 #include "../Network/Builder.h"
 #include <chrono>
 
-Learner::Learner(Environment*const _env, Settings& _s): settings(_s), env(_env),
-totNumSteps(_s.totNumSteps), policyVecDim(_s.policyVecDim), nAgents(_s.nAgents),
-batchSize(_s.batchSize), nThreads(_s.nThreads), nWorkers(_s.nWorkers),
-CmaxPol(_s.clipImpWeight), ReFtol(_s.penalTol), learnR(_s.learnrate),
-gamma(_s.gamma), explNoise(_s.explNoise), epsAnneal(_s.epsAnneal)
+Learner::Learner(Environment*const E, Settings&S): settings(S), env(E)
 {
-  if(bSampleSequences) printf("Sampling sequences.\n");
-  data = new MemoryBuffer(env, _s);
-  input = new Encapsulator("input", _s, data);
-
-  Builder input_build(_s);
+  if(input->nOutputs() == 0) return;
+  Builder input_build(S);
   input_build.addInput( input->nOutputs() );
   bool builder_used = env->predefinedNetwork(input_build);
   if(builder_used) {
@@ -30,18 +23,9 @@ gamma(_s.gamma), explNoise(_s.explNoise), epsAnneal(_s.epsAnneal)
   }
 }
 
-void Learner::clearFailedSim(const int agentOne, const int agentEnd)
-{
-  data->clearFailedSim(agentOne, agentEnd);
-}
-
-void Learner::pushBackEndedSim(const int agentOne, const int agentEnd)
-{
-  data->pushBackEndedSim(agentOne, agentEnd);
-}
-
 void Learner::prepareGradient()
 {
+  const Uint currStep = nStep()+1;
   if(updateToApply) die("undefined behavior");
   if(not updateComplete)
   {
@@ -55,25 +39,22 @@ void Learner::prepareGradient()
 
   profiler->stop_start("ADDW");
   debugL("Gather gradient estimates from each thread and Learner MPI rank");
-  for(auto & net : F) net->prepareUpdate(batchSize);
-  input->prepareUpdate(batchSize);
+  for(auto & net : F) net->prepareUpdate();
+  input->prepareUpdate();
 
-  for(auto & net : F) net->updateGradStats(learner_name, nStep);
-
-  if(nSkipped >= batchSize)
-    warn("Too many skipped samples caused temporary pause in resampling. " \
-      "Change hyperp: probably the learn rate is too large for "  \
-      "the net's combination of size/activation/batchsize.");
-  nSkipped = 0;
+  for(auto & net : F) net->updateGradStats(learner_name, currStep-1);
 }
 
 void Learner::initializeLearner()
 {
   data->initialize();
+  bUpdateNdata = false;
 }
 
 void Learner::applyGradient()
 {
+  const Uint currStep = nStep()+1;
+
   if(updateComplete) die("undefined behavior");
   if(not updateToApply) {
     warn("applyGradient called while waiting for data");
@@ -81,15 +62,13 @@ void Learner::applyGradient()
   }
   updateToApply = false;
 
-  nStep++;
-  if(nStep%(1000*PRFL_DMPFRQ)==0 && learn_rank==0)
+  if(currStep%(tPrint*PRFL_DMPFRQ)==0 && learn_rank==0)
   {
-    profiler->printSummary();
-    profiler->reset();
+    cout << profiler->printStatAndReset() << endl;
     save();
   }
 
-  if(nStep%1000 ==0)
+  if(currStep%tPrint ==0)
   {
     profiler->stop_start("STAT");
     processStats();
@@ -99,34 +78,57 @@ void Learner::applyGradient()
   profiler->stop_start("GRAD");
   for(auto & net : F) net->applyUpdate();
   input->applyUpdate();
+
+  globalGradCounterUpdate();
+}
+
+void Learner::globalGradCounterUpdate() {
+  _nStep++;
+  bUpdateNdata = false;
 }
 
 void Learner::processStats()
 {
+  const Uint currStep = nStep()+1;
+
   ostringstream buf;
-  data->getMetrics(buf);
+  data_proc->getMetrics(buf);
+  getMetrics(buf);
   if(trainInfo not_eq nullptr) trainInfo->getMetrics(buf);
   input->getMetrics(buf);
   for(auto & net : F) net->getMetrics(buf);
 
-  if(learn_rank) return;
-
-  FILE* fout = fopen ((learner_name+"stats.txt").c_str(),"a");
+  #ifndef PRINT_ALL_RANKS
+    if(learn_rank) return;
+    FILE* fout = fopen ((learner_name+"stats.txt").c_str(),"a");
+  #else
+    FILE* fout = fopen (
+      (learner_name+std::to_string(learn_rank)+"stats.txt").c_str(), "a");
+  #endif
 
   ostringstream head;
-  if( nStep%(1000*PRFL_DMPFRQ)==0 || nStep==1000 ) {
-    data->getHeaders(head);
+  if( currStep%(tPrint*PRFL_DMPFRQ)==0 || currStep==tPrint ) {
+    data_proc->getHeaders(head);
+    getHeaders(head);
     if(trainInfo not_eq nullptr) trainInfo->getHeaders(head);
     input->getHeaders(head);
     for(auto & net : F) net->getHeaders(head);
 
-    printf("ID #/1e3 %s\n", head.str().c_str());
-    if(nStep==1000)
-      fprintf(fout, "ID #/1e3 %s\n", head.str().c_str());
+    #ifdef PRINT_ALL_RANKS
+      printf("ID  #/T   %s\n", head.str().c_str());
+    #else
+      printf("ID #/T   %s\n", head.str().c_str());
+    #endif
+    if(currStep==tPrint)
+      fprintf(fout, "ID #/T   %s\n", head.str().c_str());
   }
-
-  fprintf(fout, "%02d %05d%s\n", learnID, (int)nStep/1000, buf.str().c_str());
-  printf("%02d %05d%s\n", learnID, (int)nStep/1000, buf.str().c_str());
+  #ifdef PRINT_ALL_RANKS
+    printf("%01d-%01d %05u%s\n",
+      learn_rank, learnID, currStep/tPrint, buf.str().c_str());
+  #else
+    printf("%02d %05u%s\n", learnID, currStep/tPrint, buf.str().c_str());
+  #endif
+  fprintf(fout, "%02d %05u%s\n", learnID, currStep/tPrint, buf.str().c_str());
   fclose(fout);
   fflush(0);
 }
@@ -150,20 +152,13 @@ void Learner::restart()
 
 void Learner::save()
 {
-  static constexpr Real freqSave = 1000*PRFL_DMPFRQ;
+  const Uint currStep = nStep()+1;
+  const Real freqSave = tPrint * PRFL_DMPFRQ;
   const Uint freqBackup = std::ceil(settings.saveFreq / freqSave)*freqSave;
-  const bool bBackup = nStep % freqBackup == 0;
+  const bool bBackup = currStep % freqBackup == 0;
   for(auto & net : F) net->save(learner_name, bBackup);
   input->save(learner_name, bBackup);
-  data->save(learner_name, nStep, bBackup);
-}
-
-bool Learner::workerHasUnfinishedSeqs(const int worker) const
-{
-  const Uint nAgentsPerWorker = env->nAgentsPerRank;
-  for(Uint i=worker*nAgentsPerWorker; i<(worker+1)*nAgentsPerWorker; i++)
-    if(data->inProgress[i]->tuples.size()) return true;
-  return false;
+  data->save(learner_name, currStep, bBackup);
 }
 
 //TODO: generalize!!
@@ -191,6 +186,24 @@ bool Learner::predefinedNetwork(Builder& input_net, Uint privateNum)
   settings.nnl5 = sizeOrig.size() > 4? sizeOrig[4] : 0;
   settings.nnl6 = sizeOrig.size() > 5? sizeOrig[5] : 0;
   return ret;
+}
+
+void Learner::createSharedEncoder(const Uint privateNum)
+{
+  if(input->net not_eq nullptr) {
+    delete input->opt; input->opt = nullptr;
+    delete input->net; input->net = nullptr;
+  }
+  if(input->nOutputs() == 0) return;
+  Builder input_build(settings);
+  bool bInputNet = false;
+  input_build.addInput( input->nOutputs() );
+  bInputNet = bInputNet || env->predefinedNetwork(input_build);
+  bInputNet = bInputNet || predefinedNetwork(input_build, privateNum);
+  if(bInputNet) {
+    Network* net = input_build.build(true);
+    input->initializeNetwork(net, input_build.opt);
+  }
 }
 
 //bool Learner::predefinedNetwork(Builder & input_net)

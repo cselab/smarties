@@ -7,16 +7,11 @@
 //
 
 #pragma once
-#if 0
-#include "Gaussian_mixture_trunc.h"
-#else
 #include "Gaussian_mixture.h"
-#endif
 
 template<Uint nExperts>
 struct Mixture_advantage
 {
-public:
   const Uint start_matrix, nA, nL;
   const Rvec netOutputs;
   const array<Rvec, nExperts> L, matrix;

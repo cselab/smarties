@@ -96,29 +96,23 @@ struct Adam {
   }
 };
 
-void Optimizer::prepare_update(const int batchsize, const vector<Parameters*>* grads )
+void AdamOptimizer::prepare_update(const Rvec&L)
 {
-  totGrads = batchsize;
-  if(grads not_eq nullptr) //add up gradients across threads
-    gradSum->reduceThreadsGrad(*grads);
+  gradSum->reduceThreadsGrad(grads);
 
   if (learn_size > 1) { //add up gradients across master ranks
-    MPI_Iallreduce(MPI_IN_PLACE, gradSum->params, gradSum->nParams, MPI_NNVALUE_TYPE, MPI_SUM, mastersComm, &paramRequest);
-    MPI_Iallreduce(MPI_IN_PLACE, &totGrads, 1, MPI_UNSIGNED, MPI_SUM, mastersComm, &batchRequest);
+    MPI(Iallreduce, MPI_IN_PLACE, gradSum->params, gradSum->nParams, MPI_NNVALUE_TYPE, MPI_SUM, mastersComm, &paramRequest);
   }
   nStep++;
 }
 
-void Optimizer::apply_update()
+void AdamOptimizer::apply_update()
 {
   if(nStep == 0) die("nStep == 0");
   if(learn_size > 1) {
-    if(batchRequest == MPI_REQUEST_NULL)
-      die("I am in finalize without having started a reduction");
     if(paramRequest == MPI_REQUEST_NULL)
       die("I am in finalize without having started a reduction");
-    MPI_Wait(&paramRequest, MPI_STATUS_IGNORE);
-    MPI_Wait(&batchRequest, MPI_STATUS_IGNORE);
+    MPI(Wait, &paramRequest, MPI_STATUS_IGNORE);
   }
   #ifndef __EntropySGD
     using Algorithm = Adam;
@@ -128,31 +122,30 @@ void Optimizer::apply_update()
   //update is deterministic: can be handled independently by each node
   //communication overhead is probably greater than a parallelised sum
 
-  const Real factor = 1./totGrads;
+  const Real factor = 1./batchSize;
   nnReal* const paramAry = weights->params;
   assert(eta < 2e-3); //super upper bound for NN, srsly
   const nnReal _eta = bAnnealLearnRate? annealRate(eta,nStep,epsAnneal) : eta;
 
-  if(totGrads>0) {
-    #pragma omp parallel
-    {
-      const Uint thrID = static_cast<Uint>(omp_get_thread_num());
-      Saru gen(nStep, thrID, generators[thrID]()); //needs 3 seeds
-      Algorithm algo(_eta,beta_1,beta_2,beta_t_1,beta_t_2,lambda,factor,gen);
-      nnReal* const M1 = _1stMom->params;
-      nnReal* const M2 = _2ndMom->params;
-      #ifdef AMSGRAD
-        nnReal* const M3 = _2ndMax->params; // holds max of second moment
-      #else
-        nnReal* const M3 = _2ndMom->params; // unused
-      #endif
-      nnReal* const G  = gradSum->params;
+  #pragma omp parallel
+  {
+    const Uint thrID = static_cast<Uint>(omp_get_thread_num());
+    Saru gen(nStep, thrID, generators[thrID]()); //needs 3 seeds
+    Algorithm algo(_eta,beta_1,beta_2,beta_t_1,beta_t_2,lambda,factor,gen);
+    nnReal* const M1 = _1stMom->params;
+    nnReal* const M2 = _2ndMom->params;
+    #ifdef AMSGRAD
+      nnReal* const M3 = _2ndMax->params; // holds max of second moment
+    #else
+      nnReal* const M3 = _2ndMom->params; // unused
+    #endif
+    nnReal* const G  = gradSum->params;
 
-    #pragma omp for simd schedule(static) aligned(paramAry,M1,M2,M3,G:VEC_WIDTH)
-      for (Uint i=0; i<weights->nParams; i++)
-      paramAry[i] += algo.step(G[i], M1[i], M2[i], M3[i], paramAry[i]);
-    }
+  #pragma omp for simd schedule(static) aligned(paramAry,M1,M2,M3,G:VEC_WIDTH)
+    for (Uint i=0; i<weights->nParams; i++)
+    paramAry[i] += algo.step(G[i], M1[i], M2[i], M3[i], paramAry[i]);
   }
+
   gradSum->clear();
   // Needed by Adam optimization algorithm:
   beta_t_1 *= beta_1;
@@ -178,7 +171,7 @@ void Optimizer::apply_update()
   }
 }
 
-void Optimizer::save(const string fname, const bool backup)
+void AdamOptimizer::save(const string fname, const bool backup)
 {
   weights->save(fname+"_weights");
   if(tgt_weights not_eq nullptr) tgt_weights->save(fname+"_tgt_weights");
@@ -198,7 +191,7 @@ void Optimizer::save(const string fname, const bool backup)
     #endif
   }
 }
-int Optimizer::restart(const string fname)
+int AdamOptimizer::restart(const string fname)
 {
   int ret = 0;
   ret = weights->restart(fname+"_weights");
@@ -214,55 +207,16 @@ int Optimizer::restart(const string fname)
   return ret;
 }
 
-#if 0
-void save_recurrent_connections(const string fname)
-{
-  const Uint nNeurons(net->getnNeurons());
-  const Uint nAgents(net->getnAgents()), nStates(net->getnStates());
-  string nameBackup = fname + "_mems_tmp";
-  ofstream out(nameBackup.c_str());
-  if (!out.good())
-    _die("Unable to open save into file %s\n", nameBackup.c_str());
+Optimizer::Optimizer(const Settings&S, const Parameters*const W,
+  const Parameters*const WT, const vector<Parameters*>& samples) :
+mastersComm(MPIComDup(S.mastersComm)), learn_size(S.learner_size),
+pop_size(S.ESpopSize), nThreads(S.nThreads), weights(W), tgt_weights(WT),
+sampled_weights(samples), eta_init(S.learnrate), batchSize(S.batchSize),
+bAsync(S.bAsync), mpi_mutex(S.mpi_mutex), lambda(S.nnLambda),
+epsAnneal(S.epsAnneal), tgtUpdateAlpha(S.targetDelay) {}
 
-  for(Uint agentID=0; agentID<nAgents; agentID++) {
-    for (Uint j=0; j<nNeurons; j++)
-      out << net->mem[agentID]->outvals[j] << "\n";
-    for (Uint j=0; j<nStates;  j++)
-      out << net->mem[agentID]->ostates[j] << "\n";
-  }
-  out.flush();
-  out.close();
-  string command = "cp " + nameBackup + " " + fname + "_mems";
-  system(command.c_str());
-}
-
-bool restart_recurrent_connections(const string fname)
-{
-  const Uint nNeurons(net->getnNeurons());
-  const Uint nAgents(net->getnAgents()), nStates(net->getnStates());
-
-  string nameBackup = fname + "_mems";
-  ifstream in(nameBackup.c_str());
-  debugN("Reading from %s", nameBackup.c_str());
-  if (!in.good()) {
-    error("Couldnt open file %s \n", nameBackup.c_str());
-    return false;
-  }
-
-  nnReal tmp;
-  for(Uint agentID=0; agentID<nAgents; agentID++) {
-    for (Uint j=0; j<nNeurons; j++) {
-      in >> tmp;
-      if (std::isnan(tmp) || std::isinf(tmp)) tmp=0.;
-      net->mem[agentID]->outvals[j] = tmp;
-    }
-    for (Uint j=0; j<nStates; j++) {
-      in >> tmp;
-      if (std::isnan(tmp) || std::isinf(tmp)) tmp=0.;
-      net->mem[agentID]->ostates[j] = tmp;
-    }
-  }
-  in.close();
-  return true;
-}
-#endif
+AdamOptimizer::AdamOptimizer(const Settings&S, const Parameters*const W,
+  const Parameters*const WT, const vector<Parameters*>& samples,
+  const vector<Parameters*>&G, const Real B1, const Real B2) :
+  Optimizer(S,W,WT,samples), beta_1(B1), beta_2(B2), generators(S.generators),
+  grads(G) { }

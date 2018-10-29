@@ -15,17 +15,17 @@ class Communicator:
         #read from argv identifier for communication:
         sockid = sys.argv[1]
         server_address = "/tmp/smarties_sock"+str(sockid)
+        '''
         try: os.unlink(server_address)
-        except OSError:
-            if os.path.exists(server_address): raise
-
+        except OSError: if os.path.exists(server_address): raise
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server.bind(server_address)
         server.listen(1)
         self.conn, addr = server.accept()
         #time.sleep(1)
-        #conn = socket.socket( socket.AF_UNIX, socket.SOCK_STREAM )
-        #conn.connect( server_address )
+        '''
+        self.conn = socket.socket( socket.AF_UNIX, socket.SOCK_STREAM )
+        self.conn.connect( server_address )
 
     def set_action_scales(self, upper, lower, bounded=False):
         actVals = np.zeros([0],dtype=np.float64)

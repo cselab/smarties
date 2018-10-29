@@ -21,18 +21,17 @@ class Communicator_atari(Communicator):
 
     def base_reset(self):
         self.buffI = 1
-        self.buffer=np.zeros((3,)+self.env.observation_space.shape, dtype=np.uint8)
+        self.buffer = np.zeros((self.nPool,)+self.obsShape, dtype=np.uint8)
         self.buffer[0] = self.env.reset()
 
     def buffIND(self):
-        ret= self.buffI
-        self.buffI += 1
-        if self.buffI>2: self.buffI = 0
+        ret = self.buffI
+        self.buffI = ( self.buffI+1 ) % self.nPool
         return ret
 
     def base_step(self, act):
         total_reward, done = 0.0, None
-        for i in range(4):
+        for i in range(self.nSkip):
             self.buffer[self.buffIND()], reward, done, info = self.env.step(act)
             total_reward += reward
             if done: break
@@ -73,7 +72,7 @@ class Communicator_atari(Communicator):
         reward, done, info = self.life_step(action)
         obs = cv2.cvtColor(self.buffer.max(axis=0), cv2.COLOR_RGB2GRAY)
         obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
-        return obs[:, :, None].ravel(), np.sign(reward), done, info
+        return obs[:, :, None].ravel(), reward, done, info
 
     def env_reset(self):
         self.life_reset()
@@ -86,12 +85,15 @@ class Communicator_atari(Communicator):
         self.sent_stateaction_info = False
         self.number_of_agents = 1
         self.noop_max = 30
+        self.nSkip = 4
+        self.nPool = 3
+        self.buffI = 0
         self.lives = 0
         self.was_real_done = True
         print("openAI environment: ", sys.argv[2])
         env = gym.make(sys.argv[2]+'NoFrameskip-v4')
-        self.buffI = 0
-        self.buffer = np.zeros((3,)+env.observation_space.shape, dtype=np.uint8)
+        self.obsShape = env.observation_space.shape
+        self.buffer = np.zeros((self.nPool,)+self.obsShape, dtype=np.uint8)
         nAct, nObs = 1, 84 * 84
         actVals = np.zeros([0], dtype=np.float64)
         actOpts = np.zeros([0], dtype=np.float64)

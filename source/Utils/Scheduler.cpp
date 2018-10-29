@@ -13,11 +13,8 @@
 #include <algorithm>
 #include <chrono>
 
-Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
-  Settings&_s): workersComm(_c), learners(_l), env(_e), bTrain(_s.bTrain),
-  nWorkers(_s.nWorkers), nThreads(_s.nThreads), learn_rank(_s.learner_rank),
-  learn_size(_s.learner_size), totNumSteps(_s.totNumSteps),
-  bAsync(_s.threadSafety>=MPI_THREAD_MULTIPLE)
+Master::Master(Communicator_internal* const _c, const vector<Learner*> _l,
+  Environment*const _e, Settings&_s): settings(_s),comm(_c),learners(_l),env(_e)
 {
   profiler = new Profiler();
   for (Uint i=0; i<learners.size(); i++)  learners[i]->profiler = profiler;
@@ -25,39 +22,47 @@ Master::Master(MPI_Comm _c, const vector<Learner*> _l, Environment*const _e,
   for(const auto& L : learners) // Figure out if I have on-pol learners
     bNeedSequentialTasks = bNeedSequentialTasks || L->bNeedSequentialTrain();
 
-  if(nWorkers*nPerRank != static_cast<int>(agents.size()))
+  if(nWorkers_own*nPerRank != static_cast<int>(agents.size()))
     die("Mismatch in master's nWorkers nPerRank nAgents.");
   //the following Irecv will be sent after sending the action
-  for(int i=1; i<=nWorkers; i++) recvBuffer(i);
+  for(int i=1; i<=nWorkers_own; i++) comm->recvBuffer(i);
   profiler->stop_start("SLP");
+  worker_replies.reserve(nWorkers_own);
 }
 
 void Master::run()
 {
   { // gather initial data OR if not training evaluated restarted policy
-    vector<std::thread> worker_replies = asyncReplyWorkers();
-    assert(worker_replies.size() == (size_t) nWorkers);
-    for(int i=0; i<nWorkers; i++) worker_replies[i].join();
+    #pragma omp parallel num_threads(nThreads)
+    {
+      std::vector<int> shareWorkers;
+      const int thrID = omp_get_thread_num(), thrN = omp_get_num_threads();
+      for(int i=1; i<=nWorkers_own; i++)
+       if( thrID == (( ( (-i)%thrN ) +thrN ) %thrN) ) shareWorkers.push_back(i);
+
+      #pragma omp critical
+      if(shareWorkers.size()) worker_replies.push_back(
+        std::thread( [&, shareWorkers] () { processWorker(shareWorkers); }));
+    }
+    while ( ! learnersInitialized() ) usleep(5);
+  }
+  if( not bTrain ) {
+   for(size_t i=0; i<worker_replies.size(); i++) worker_replies[i].join();
+   worker_replies.clear();
+   return;
   }
 
-  if( not bTrain ) return;
-
   profiler->reset();
-  profiler->stop_start("SLP");
   for(const auto& L : learners) L->initializeLearner();
 
   while (true) // gradient step loop: one step per iteration
   {
-    //Spawn threads asynchronously handling requests from workers
-    vector<std::thread> worker_replies = asyncReplyWorkers();
-    assert(worker_replies.size() == (size_t) nWorkers);
-
     for(const auto& L : learners) L->spawnTrainTasks_par();
 
     if(bNeedSequentialTasks) {
       profiler->stop_start("SLP");
       // typically on-policy learning. Wait for all needed data:
-      for(int i=0; i<nWorkers; i++) worker_replies[i].join();
+      while ( ! learnersUnlockQueue() ) usleep(1);
       // and then perform on-policy update step(s):
       for(const auto& L : learners) L->spawnTrainTasks_seq();
     }
@@ -67,52 +72,60 @@ void Master::run()
     if(not bNeedSequentialTasks) {
       profiler->stop_start("SLP");
       //for off-policy learners this is last possibility to wait for needed data
-      for(int i=0; i<nWorkers; i++) worker_replies[i].join();
+      while ( ! learnersUnlockQueue() ) usleep(1);
     }
 
-    if(iterNum++ % 1000 == 0) flushRewardBuffer();
+    flushRewardBuffer();
 
     //This is the last possible time to finish the blocking mpi MPI_Allreduce
     // and finally perform the actual gradient step. Also, operations on memory
     // buffer that should be done after workers.join() are done here.
     for(const auto& L : learners) L->applyGradient();
 
-    if( getMinStepId() >= totNumSteps ) return;
+    if( getMinStepId() >= totNumSteps ) {
+      cout << "over!" << endl;
+      return;
+    }
   }
 }
 
-void Master::processWorker(const int worker)
+void Master::processWorker(const std::vector<int> workers)
 {
-  assert(worker>0 && worker <= (int) nWorkers);
   while(1)
   {
-    if(!bTrain && getMinSeqId() >= totNumSteps) break;
-    // Learners lock the workers queue if they have enough data to advance step
-    if( bTrain && learnersLockQueue()  ) break;
+    if( not bTrain && getMinSeqId() >= totNumSteps) break;
 
-    MPI_Status mpistatus;
-    int completed = testBuffer(worker, mpistatus);
+    for( const int worker : workers )
+    {
+      assert(worker>0 && worker <= (int) nWorkers_own);
+      int completed = comm->testBuffer(worker);
 
-    if(completed) {
-      assert(worker == mpistatus.MPI_SOURCE);
-      processAgent(worker, mpistatus);
-    } else usleep(1);
+      // Learners lock workers queue if they have enough data to advance step
+      while ( bTrain && completed && learnersLockQueue() ) {
+        usleep(1);
+        if( bExit.load() > 0 ) break;
+      }
+
+      if(completed) processAgent(worker);
+
+      usleep(1);
+    }
   }
 }
 
-void Master::processAgent(const int worker, const MPI_Status mpistatus)
+void Master::processAgent(const int worker)
 {
   //read from worker's buffer:
   vector<double> recv_state(sI.dim);
   int recv_agent  = -1; // id of agent inside environment
   int recv_status = -1; // initial/normal/termination/truncation of episode
   double reward   =  0;
-  unpackState(inpBufs[worker-1], recv_agent, recv_status, recv_state, reward);
+  comm->unpackState(worker-1, recv_agent, recv_status, recv_state, reward);
+  if (recv_status == FAIL_COMM) die("app crashed");
 
   const int agent = (worker-1) * nPerRank + recv_agent;
   Learner*const aAlgo = pickLearner(agent, recv_agent);
 
-  if (recv_status == FAIL_COMM) die("app crashed");
 
   agents[agent]->update(recv_status, recv_state, reward);
   //pick next action and ...do a bunch of other stuff with the data:
@@ -123,15 +136,19 @@ void Master::processAgent(const int worker, const MPI_Status mpistatus)
     agents[agent]->s._print().c_str(), agents[agent]->r,
     agents[agent]->a._print().c_str());
 
-  sendBuffer(worker, agent);
+  std::vector<double> actVec = agents[agent]->getAct();
+  if(agents[agent]->Status >= TERM_COMM) actVec[0] = getMinStepId();
+  debugS("Sent action to worker %d: [%s]", worker, print(actVec).c_str() );
+  comm->sendBuffer(worker, actVec);
 
   if ( recv_status >= TERM_COMM )
-    dumpCumulativeReward(recv_agent,worker,aAlgo->iter(),aAlgo->tStepsTrain());
+    dumpCumulativeReward(recv_agent,worker,aAlgo->nStep(),aAlgo->tStepsTrain());
 
-  recvBuffer(worker);
+  comm->recvBuffer(worker);
 }
 
-Worker::Worker(Communicator_internal*const _c, Environment*const _e, Settings& _s): comm(_c), env(_e), bTrain(_s.bTrain), status(_e->agents.size(),1) {}
+Worker::Worker(Communicator_internal*const _c,Environment*const _e,Settings&_s)
+: comm(_c), env(_e), bTrain(_s.bTrain), status(_e->agents.size(),1) {}
 
 void Worker::run() {
   while(true) {
@@ -149,6 +166,42 @@ void Worker::run() {
     //if (!bTrain) return;
     comm->launch();
   }
+}
+
+void Master::flushRewardBuffer()
+{
+  for(int i=0; i<nPerRank; i++)
+  {
+    const Learner*const aAlgo = pickLearner(i, i);
+    if( (iterNum % aAlgo->tPrint) not_eq 0 ) continue;
+
+    ostringstream& agentBuf = rewardsBuffer[i];
+    streampos pos = agentBuf.tellp(); // store current location
+    agentBuf.seekp(0, ios_base::end); // go to end
+    bool empty = agentBuf.tellp()==0; // check size == 0 ?
+    agentBuf.seekp(pos);              // restore location
+    if(empty) continue;               // else update rewards log
+    char path[256];
+    sprintf(path, "agent_%02d_rank%02d_cumulative_rewards.dat", i,learn_rank);
+    ofstream outf(path, ios::app);
+    outf << agentBuf.str();
+    agentBuf.str(std::string());      // empty buffer
+    outf.flush();
+    outf.close();
+  }
+  iterNum++;
+}
+
+void Master::dumpCumulativeReward(const int agent, const int worker,
+  const unsigned giter, const unsigned tstep) const
+{
+  if (giter == 0 && bTrain) return;
+
+  const int ID = (worker-1) * nPerRank + agent;
+  lock_guard<mutex> lock(dump_mutex);
+  rewardsBuffer[agent]<<giter<<" "<<tstep<<" "<<worker<<" "
+    <<agents[ID]->transitionID<<" "<<agents[ID]->cumulative_rewards<<endl;
+  rewardsBuffer[agent].flush();
 }
 
 /*

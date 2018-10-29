@@ -8,6 +8,7 @@
 
 #pragma once
 #include "Optimizer.h"
+#include "CMA_Optimizer_MPI.h"
 #include "Network.h"
 #include "Layer_Base.h"
 #include "Layer_Conv2D.h"
@@ -56,7 +57,7 @@ public:
       die("Missing input layer.");
     if(nNeurons <= 0)  die("Requested empty layer.");
     const Uint layInp = layers[ID-iLink]->nOutputs();
-
+    const bool bResLayer = (int) layers[ID-1]->nOutputs() == nNeurons;
     Layer* l = nullptr;
            if (layerType == "LSTM") {
       l = new LSTMLayer(ID, layInp, nNeurons, funcType, bOutput, iLink);
@@ -68,10 +69,11 @@ public:
       const bool bRecur = (layerType=="RNN") || (layerType=="Recurrent");
       l = new BaseLayer(ID, layInp, nNeurons, funcType, bRecur, bOutput, iLink);
     }
-
-
-    layers.push_back(l);
     assert(l not_eq nullptr);
+    layers.push_back(l);
+
+    if(bResLayer) layers.push_back(new ResidualLayer(ID+1, nNeurons));
+
     if(bOutput) nOutputs += l->nOutputs();
   }
 
@@ -141,8 +143,8 @@ public:
     bBuilt = true;
 
     nLayers = layers.size();
-    weights = allocate_parameters(layers);
-    tgt_weights = allocate_parameters(layers);
+    weights = allocate_parameters(layers, mpisize);
+    tgt_weights = allocate_parameters(layers, mpisize);
 
     // Initialize weights
     for(const auto & l : layers)
@@ -159,24 +161,24 @@ public:
     tgt_weights->copy(weights); //copy weights onto tgt_weights
 
     // Allocate a gradient for each thread.
-    Vgrad.resize(nThreads, nullptr);
+    #ifdef MIX_CMA_ADAM
+      Vgrad.resize(nThreads*CMApopSize, nullptr);
+    #else
+      Vgrad.resize(nThreads, nullptr);
+    #endif
     #pragma omp parallel for schedule(static, 1) num_threads(nThreads)
-    for (Uint i=0; i<nThreads; i++)
+    for (Uint i=0; i<Vgrad.size(); i++)
       #pragma omp critical // numa-aware allocation if OMP_PROC_BIND is TRUE
-        Vgrad[i] = allocate_parameters(layers);
-
-    // Allocate agents' memories. Will be used by RNN when selecting actions
-    mem.resize(nAgents);
-    for (Uint i=0; i<nAgents; ++i) mem[i] = allocate_memory(layers);
+        Vgrad[i] = allocate_parameters(layers, mpisize);
 
     // Initialize network workspace to check that all is ok
     Activation*const test = allocate_activation(layers);
 
-    if(test->nInputs not_eq nInputs)
+    if(test->nInputs not_eq (int) nInputs)
       _die("Mismatch between Builder's computed inputs:%u and Activation's:%u",
         nInputs, test->nInputs);
 
-    if(test->nOutputs not_eq nOutputs) {
+    if(test->nOutputs not_eq (int) nOutputs) {
       _warn("Mismatch between Builder's computed outputs:%u and Activation's:%u. Overruled Builder: probable cause is that user's net did not specify which layers are output. If multiple output layers expect trouble\n",
         nOutputs, test->nOutputs);
       nOutputs = test->nOutputs;
@@ -184,15 +186,17 @@ public:
 
     _dispose_object(test);
 
-    net = new Network(this, settings);
-    opt = new Optimizer(settings, weights, tgt_weights);
+    popW = initWpop(weights, CMApopSize, mpisize);
 
-    //if (!settings.learner_rank) opt->save("initial");
-    //#ifndef NDEBUG
-    //  MPI_Barrier(settings.mastersComm);
-    //  opt->restart("initial");
-    //  opt->save("restarted"+to_string(settings.learner_rank));
-    //#endif
+    net = new Network(this, settings);
+    if(CMApopSize>1)
+    #ifdef MIX_CMA_ADAM
+      opt = new AdamCMA_Optimizer(settings, weights,tgt_weights, popW, Vgrad);
+    #else
+      opt = new CMA_Optimizer(settings, weights,tgt_weights, popW);
+    #endif
+      else opt = new AdamOptimizer(settings, weights,tgt_weights, popW, Vgrad);
+
     return net;
   }
 
@@ -205,6 +209,14 @@ public:
     const int sumout=static_cast<int>(accumulate(nouts.begin(),nouts.end(),0));
     const string netType = settings.nnType, funcType = settings.nnFunc;
     const vector<int> lsize = settings.readNetSettingsSize();
+
+    if(ninps == 0)
+    {
+      warn("network with no input space. will return a param layer");
+      addParamLayer(sumout, settings.nnOutputFunc, vector<Real>(sumout,0));
+      return;
+    }
+
     addInput(ninps);
 
     //User can specify how many layers exist independendlty for each output
@@ -237,21 +249,20 @@ public:
 private:
   bool bBuilt = false;
 public:
-  Uint nAgents, nThreads;
+  const Settings & settings;
+  const Uint nThreads = settings.nThreads;
+  const Uint CMApopSize = settings.ESpopSize;
+  const Uint mpisize = settings.learner_size;
   Uint nInputs=0, nOutputs=0, nLayers=0;
   Real gradClip = 1;
-  std::vector<std::mt19937>& generators;
+  std::vector<std::mt19937>& generators = settings.generators;
   Parameters *weights, *tgt_weights;
   vector<Parameters*> Vgrad;
+  vector<Parameters*> popW;
   vector<Layer*> layers;
-  vector<Memory*> mem;
-  Settings & settings;
 
   Network* net = nullptr;
   Optimizer* opt = nullptr;
 
-  Builder(Settings& _sett): nAgents(_sett.nAgents), nThreads(_sett.nThreads),
-    generators(_sett.generators), settings(_sett) {
-    assert(nAgents>0 && nThreads>0);
-  }
+  Builder(const Settings& _sett) : settings(_sett) { }
 };

@@ -34,10 +34,19 @@ public:
 
     virtual void setDims ();
 
-    virtual bool pickReward(const Agent& agent);
+    virtual bool pickReward(const Agent& agent) const;
     virtual bool predefinedNetwork(Builder & input_net) const;
-    Communicator_internal create_communicator( const MPI_Comm workersComm, const int socket, const bool bSpawn);
+    Communicator_internal create_communicator();
 
     virtual Uint getNdumpPoints();
     virtual Rvec getDumpState(Uint k);
+
+    // for a given environment, size of the IRL reward dictionary
+    virtual Uint getNumberRewardParameters();
+
+    // compute the reward given a certain state and param vector
+    virtual Real getReward(const std::vector<memReal> s, const Rvec params);
+
+    // compute the gradient of the reward
+    virtual Rvec getRewardGrad(const std::vector<memReal> s, const Rvec params);
 };

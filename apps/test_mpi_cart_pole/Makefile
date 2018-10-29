@@ -11,7 +11,7 @@ app: cart-pole.o
 	#cp app.so ../../makefiles/test_mpi_cart_pole.so
 
 clean:
-	rm -f *.o
+	rm -f *.o libsimulation.a
 
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) -c $< -o $@

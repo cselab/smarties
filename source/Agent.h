@@ -14,18 +14,19 @@
 #define OUTBUFFSIZE 65536
 class Agent
 {
-protected:
+ public:
   const StateInfo&  sInfo;
   const ActionInfo& aInfo;
 
-public:
   State  sOld =  State(sInfo); // previous state
   State  s    =  State(sInfo); // current state
   // Action performed by agent. Updated by Learner::select and sent to Slave
   Action a    = Action(aInfo);
   Real r = 0;              // current reward
   Real cumulative_rewards = 0;
-  const int ID;
+  const Uint ID;
+  const Uint workerID;
+  const Uint localID;
   // status of agent's episode. 1: initial; 0: middle; 2: terminal; 3: truncated
   int Status = 1;
   int transitionID = 0;
@@ -34,8 +35,8 @@ public:
   mutable float buf[OUTBUFFSIZE];
   mutable std::atomic<Uint> buffCnter {0};
 
-  Agent(const int _ID, const StateInfo& _sInfo, const ActionInfo& _aInfo) :
-    sInfo(_sInfo), aInfo(_aInfo), ID(_ID) { }
+  Agent(Uint _ID, const StateInfo& _sInfo, const ActionInfo& _aInfo, Uint wID,
+    Uint lID): sInfo(_sInfo),aInfo(_aInfo),ID(_ID),workerID(wID),localID(lID) {}
 
   void writeBuffer(const int rank) const
   {
@@ -108,9 +109,11 @@ public:
     a.set(action);
   }
 
-  inline void copyAct(double * const ary) const
+  std::vector<double> getAct() const
   {
-    for(Uint j=0; j<aInfo.dim; j++) ary[j] = a.vals[j];
+    std::vector<double> ret(aInfo.dim);
+    for(Uint j=0; j<aInfo.dim; j++) ret[j] = a.vals[j];
+    return ret;
   }
 
   inline int getStatus() const

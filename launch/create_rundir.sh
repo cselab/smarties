@@ -16,9 +16,9 @@ fi
 
 MYNAME=`whoami`
 HOST=`hostname`
-#if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:3} == 'eu-' ] ; then
-#	export BASEPATH="/cluster/scratch/${MYNAME}/smarties/"
-#else
+if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:3} == 'eu-' ] ; then
+	export BASEPATH="/cluster/scratch/${MYNAME}/smarties/"
+else
 export BASEPATH="../runs/"
-#fi
+fi
 mkdir -p ${BASEPATH}${RUNFOLDER}
