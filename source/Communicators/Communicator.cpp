@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 #include <sys/un.h>
 

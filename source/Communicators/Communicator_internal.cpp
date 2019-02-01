@@ -13,8 +13,9 @@
 #include <iterator>
 #include <sys/un.h>
 
-static inline vector<string> split(const string &s, const char delim) {
-  stringstream ss(s); string item; vector<string> tokens;
+static inline std::vector<std::string> split(const std::string &s, const char delim) {
+  std::stringstream ss(s); std::string item;
+  std::vector<std::string> tokens;
   while (getline(ss, item, delim)) tokens.push_back(item);
   return tokens;
 }
@@ -91,19 +92,19 @@ void Communicator_internal::answerTerminateReq(const double answer) {
 void Communicator_internal::ext_app_run()
 {
   assert(workerGroup>=0 && rank_inside_app>=0 &&comm_inside_app!=MPI_COMM_NULL);
-  vector<string> argsFiles = split(paramfile, ',');
+  std::vector<std::string> argsFiles = split(paramfile, ',');
   if(nStepPerFile == "" and argsFiles.size() == 1) nStepPerFile = "0";
-  vector<string> stepNmbrs = split(nStepPerFile, ',');
+  std::vector<std::string> stepNmbrs = split(nStepPerFile, ',');
   if(argsFiles.size() not_eq stepNmbrs.size())
     die("error reading settings: nStepPappSett and appSettings");
   if(argsFiles.size() == 0) {
     if(paramfile not_eq "") die("");
     argsFiles.push_back("");
   }
-  vector<Uint> stepPrefix(argsFiles.size(), 0);
+  std::vector<Uint> stepPrefix(argsFiles.size(), 0);
   for (size_t i=1; i<stepNmbrs.size(); i++)
     stepPrefix[i] = stepPrefix[i-1] + std::stol(stepNmbrs[i-1]);
-  stepPrefix.push_back(numeric_limits<Uint>::max()); //last setup used for ever
+  stepPrefix.push_back(std::numeric_limits<Uint>::max()); //last setup used for ever
   assert(stepPrefix.size() == argsFiles.size() + 1);
 
   while(1)
@@ -122,7 +123,7 @@ void Communicator_internal::ext_app_run()
       if(learner_step_id >= stepPrefix[i]) settingsInd = i;
     Uint numStepTSet = stepPrefix[settingsInd+1] - learner_step_id;
     numStepTSet = numStepTSet * size_inside_app / S.nWorkers;
-    vector<char*> args = readRunArgLst(argsFiles[settingsInd]);
+    std::vector<char*> args = readRunArgLst(argsFiles[settingsInd]);
 
     redirect_stdout_init();
     app_main(commptr, comm_inside_app, args.size()-1, args.data(), numStepTSet);
@@ -133,7 +134,7 @@ void Communicator_internal::ext_app_run()
   }
 }
 
-vector<char*> Communicator_internal::readRunArgLst(const string _paramfile)
+std::vector<char*> Communicator_internal::readRunArgLst(const std::string _paramfile)
 {
   std::vector<char*> args;
   if (_paramfile == "") {
@@ -296,9 +297,9 @@ void Communicator_internal::sendTerminateReq()
   }
 }
 
-vector<double*> Communicator_internal::alloc_bufs(const int size, const int num)
+std::vector<double*> Communicator_internal::alloc_bufs(const int size, const int num)
 {
-  vector<double*> ret(num, nullptr);
+  std::vector<double*> ret(num, nullptr);
   for(int i=0; i<num; i++) ret[i] = _alloc(size);
   return ret;
 }

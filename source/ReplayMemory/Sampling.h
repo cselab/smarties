@@ -26,7 +26,7 @@ class Sampling
 
  public:
   Sampling(const Settings& S, MemoryBuffer*const R);
-  virtual void sample(vector<Uint>& seq, vector<Uint>& obs) = 0;
+  virtual void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) = 0;
   virtual void prepare(std::atomic<bool>& needs_pass) = 0;
   void IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
                   const std::vector<Uint>& ret, const Uint nSeqs);
@@ -37,7 +37,7 @@ class Sample_uniform : public Sampling
 {
  public:
   Sample_uniform(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
@@ -47,7 +47,7 @@ class Sample_impLen : public Sampling
   std::discrete_distribution<Uint> dist;
  public:
   Sample_impLen(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
@@ -57,7 +57,7 @@ class TSample_shuffle : public Sampling
   std::vector<std::pair<unsigned, unsigned>> samples;
  public:
   TSample_shuffle(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
@@ -68,7 +68,7 @@ class TSample_impRank : public Sampling
   std::discrete_distribution<Uint> distObs;
  public:
   TSample_impRank(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
@@ -79,7 +79,7 @@ class TSample_impErr : public Sampling
   std::discrete_distribution<Uint> distObs;
  public:
   TSample_impErr(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
@@ -90,7 +90,7 @@ class Sample_impSeq : public Sampling
   std::discrete_distribution<Uint> distObs;
  public:
   Sample_impSeq(const Settings& S, MemoryBuffer*const R);
-  void sample(vector<Uint>& seq, vector<Uint>& obs) override;
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };

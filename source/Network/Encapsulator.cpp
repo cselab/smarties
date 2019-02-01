@@ -163,10 +163,13 @@ void Encapsulator::getHeaders(ostringstream& buff) const
 {
   if(net == nullptr) return;
   buff << std::left << std::setfill(' ') <<"| " << std::setw(5) << name;
+  if(opt->tgtUpdateAlpha > 0) buff << "| dTgt ";
 }
 
 void Encapsulator::getMetrics(ostringstream& buff) const
 {
   if(net == nullptr) return;
   real2SS(buff, net->weights->compute_weight_norm(), 6, 1);
+  if(opt->tgtUpdateAlpha > 0)
+    real2SS(buff, net->weights->compute_weight_dist(net->tgt_weights), 6, 1);
 }

@@ -17,12 +17,12 @@ public:
   const Uint nThreads, nInputs, nOutputs, nLayers;
   const bool bDump;
   const Real gradClip;
-  const vector<Layer*> layers;
+  const std::vector<Layer*> layers;
   const Parameters* const weights;
   const Parameters* const tgt_weights;
-  const vector<Parameters*> Vgrad;
-  const vector<Parameters*> sampled_weights;
-  vector<std::mt19937>& generators;
+  const std::vector<Parameters*> Vgrad;
+  const std::vector<Parameters*> sampled_weights;
+  std::vector<std::mt19937>& generators;
 
   Uint getnOutputs() const { return nOutputs; }
   Uint getnInputs()  const { return nInputs;  }
@@ -34,7 +34,7 @@ public:
   //  return ret;
   //}
   inline Activation* allocateActivation() const {
-    vector<Uint> sizes, output, input;
+    std::vector<Uint> sizes, output, input;
     for(const auto & l : layers) l->requiredActivation(sizes, output, input);
     return new Activation(sizes, output, input);
   }
@@ -49,7 +49,7 @@ public:
     for(const auto & l : layers) l->transpose(weights);
   }
 
-  inline void prepForBackProp(vector<Activation*>& series, const Uint N) const
+  inline void prepForBackProp(std::vector<Activation*>& series, const Uint N) const
   {
     if (series.size() < N)
       for(Uint j=series.size(); j<N; j++)
@@ -65,7 +65,7 @@ public:
     for(Uint j=0; j<series.size(); j++) assert(not series[j]->written);
     #endif
   }
-  inline void prepForFwdProp (vector<Activation*>& series, const Uint N) const
+  inline void prepForFwdProp (std::vector<Activation*>& series, const Uint N) const
   {
     prepForBackProp(series, N);
     #if 0
@@ -93,8 +93,8 @@ public:
     _dispose_object(weights);
   }
 
-  inline vector<Real> predict(const vector<Real>& _inp,
-    const vector<Activation*>& timeSeries, const Uint step,
+  inline std::vector<Real> predict(const std::vector<Real>& _inp,
+    const std::vector<Activation*>& timeSeries, const Uint step,
     const Parameters*const _weights = nullptr) const
   {
     assert(timeSeries.size() > step);
@@ -103,14 +103,14 @@ public:
     return predict(_inp, prevStep, currStep, _weights);
   }
 
-  inline vector<Real> predict(const vector<Real>& _inp,
+  inline std::vector<Real> predict(const std::vector<Real>& _inp,
     const Activation* const currStep,
     const Parameters*const _weights = nullptr) const
   {
     return predict(_inp,  nullptr, currStep, _weights);
   }
 
-  vector<Real> predict(const vector<Real>& _inp,
+  std::vector<Real> predict(const std::vector<Real>& _inp,
     const Activation* const prevStep, const Activation* const currStep,
     const Parameters*const _weights = nullptr) const;
 
@@ -119,7 +119,7 @@ public:
   {
     return backProp(nullptr, currStep, nullptr, _grad, _weights);
   }
-  void backProp(const vector<Real>& _errors, const Activation*const currStep,
+  void backProp(const std::vector<Real>& _errors, const Activation*const currStep,
     const Parameters*const _grad, const Parameters*const _weights=nullptr) const
   {
     currStep->clearErrors();
@@ -129,7 +129,7 @@ public:
     backProp(nullptr, currStep, nullptr, _grad, _weights);
   }
 
-  vector<Real> inpBackProp(const vector<Real>& err, Activation*const act,
+  std::vector<Real> inpBackProp(const std::vector<Real>&err, Activation*const act,
     const Parameters*const W, const Uint ID) const
   {
     act->clearErrors();
@@ -141,7 +141,8 @@ public:
   }
 
 
-  void backProp(const vector<Activation*>& timeSeries, const Uint stepLastError,
+  void backProp(const std::vector<Activation*>& timeSeries,
+                const Uint stepLastError,
                 const Parameters*const _gradient,
                 const Parameters*const _weights = nullptr) const;
 

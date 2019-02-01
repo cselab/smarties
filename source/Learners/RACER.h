@@ -16,7 +16,12 @@ template<Uint nExperts>
 class Gaussian_mixture;
 
 class Discrete_advantage;
-class Quadratic_advantage;
+#ifdef ADV_GAUS
+#define Param_advantage Gaussian_advantage
+#else
+#define Param_advantage Quadratic_advantage
+#endif
+class Param_advantage;
 
 template<Uint nExperts>
 class Mixture_advantage;

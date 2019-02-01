@@ -9,6 +9,7 @@
 
 import gym, sys, socket, os, os.path, time
 from gym import wrappers
+#import matplotlib.pyplot as plt
 import numpy as np
 os.environ['MUJOCO_PY_FORCE_CPU'] = '1'
 from Communicator import Communicator
@@ -83,8 +84,6 @@ class Communicator_gym(Communicator):
         self.action_options = actOpts
         self.action_bounds = actVals
         self.send_stateaction_info()
-        #if self.bRender==3:
-        #    env = gym.wrappers.Monitor(env, './', force=True)
         self.gym = env
         self.seq_id, self.frame_id = 0, 0
         self.seed = sys.argv[1]
@@ -95,7 +94,7 @@ if __name__ == '__main__':
     comm = Communicator_gym() # create communicator with smarties
     env = comm.get_env() #
     #env.seed(comm.seed)
-
+    #fig = plt.figure()
     while True: #training loop
         observation = env.reset()
         t = 0
@@ -114,10 +113,13 @@ if __name__ == '__main__':
             else: assert(False)
             #advance the environment
             observation, reward, done, info = env.step(action)
+            #if t>0 : env.env.viewer_setup()
+            #img = env.render(mode='rgb_array')
+            #img = plt.imshow(img)
+            #fig.savefig('frame%04d.png' % t)
             t = t + 1
             #send the observation to smarties
             #print(t, done, env._max_episode_steps)
-            sys.stdout.flush()
             if done == True and t >= env._max_episode_steps:
               comm.truncateSeq(observation, reward)
             else:

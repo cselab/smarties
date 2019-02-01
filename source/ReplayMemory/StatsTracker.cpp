@@ -47,8 +47,8 @@ void DelayedReductor::update(const LDvec ret)
                  MPI_LONG_DOUBLE, MPI_SUM, mpicomm, &buffRequest);
 }
 
-TrainData::TrainData(const string _name, const Settings&set, bool bPPol,
-  const string extrah, const Uint nextra) : n_extra(nextra),
+TrainData::TrainData(const std::string _name, const Settings&set, bool bPPol,
+  const std::string extrah, const Uint nextra) : n_extra(nextra),
   nThreads(set.nThreads), bPolStats(bPPol), name(_name), extra_header(extrah)
 {
   resetSoft();
@@ -63,7 +63,7 @@ void TrainData::log(const Real Q, const Real Qerr,
   cntVec[thrID] ++;
   trackQ(Q, Qerr, thrID);
   trackPolicy(polG, penal, thrID);
-  const vector<Real> tmp = extra;
+  const std::vector<Real> tmp = extra;
   assert(tmp.size() == n_extra && bPolStats);
   for(Uint i=0; i<n_extra; i++) eVec[thrID][i] += tmp[i];
 }
@@ -72,7 +72,7 @@ void TrainData::log(const Real Q, const Real Qerr,
   std::initializer_list<Real> extra, const int thrID) {
   cntVec[thrID] ++;
   trackQ(Q, Qerr, thrID);
-  const vector<Real> tmp = extra;
+  const std::vector<Real> tmp = extra;
   assert(tmp.size() == n_extra);
   for(Uint i=0; i<n_extra; i++) eVec[thrID][i] += tmp[i];
 }
@@ -83,7 +83,7 @@ void TrainData::log(const Real Q, const Real Qerr, const int thrID) {
   assert(not bPolStats);
 }
 
-void TrainData::getMetrics(ostringstream& buff)
+void TrainData::getMetrics(std::ostringstream& buff)
 {
   reduce();
   real2SS(buff, q[0], 6, 1);
@@ -99,7 +99,7 @@ void TrainData::getMetrics(ostringstream& buff)
   for(Uint i=0; i<n_extra; i++) real2SS(buff, e[i], 6, 1);
 }
 
-void TrainData::getHeaders(ostringstream& buff) const
+void TrainData::getHeaders(std::ostringstream& buff) const
 {
   buff <<"| RMSE | avgQ | stdQ | minQ | maxQ ";
 
@@ -244,7 +244,7 @@ void StatsTracker::update()
   }
 }
 
-void StatsTracker::printToFile(const string base)
+void StatsTracker::printToFile(const std::string base)
 {
   if(!learn_rank) {
     FILE * pFile;
@@ -255,7 +255,7 @@ void StatsTracker::printToFile(const string base)
       fwrite(&printvals, sizeof(float), 1, pFile);
     }
     else pFile = fopen((base + "_outGrad_stats.raw").c_str(), "ab");
-    vector<float> printvals(n_stats*2);
+    std::vector<float> printvals(n_stats*2);
     for (Uint i=0; i<n_stats; i++) {
       printvals[i]         = avg[i];
       printvals[i+n_stats] = std[i];
@@ -277,10 +277,9 @@ void StatsTracker::finalize(const LDvec&oldM, const LDvec&oldS)
   }
 }
 
-void StatsTracker::reduce_stats(const string base, const Uint iter)
+void StatsTracker::reduce_stats(const std::string base, const Uint iter)
 {
   const LDvec oldsum = avg, oldstd = std;
-  assert(cntVec.size()>1);
   advance();
   update();
   if(iter % 1000 == 0) printToFile(base);

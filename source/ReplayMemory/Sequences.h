@@ -11,11 +11,6 @@
 #include "../Settings.h"
 #include "../Environments/Environment.h"
 
-#include <iostream>
-#include <iomanip>
-#include <algorithm>
-#include <fstream>
-
 struct Tuple // data obtained at time t
 {
   // vector containing the vector at time t
@@ -29,13 +24,13 @@ struct Tuple // data obtained at time t
   Tuple(const Fval*_s, const Uint dS, float _r) : s(convert(_s,dS)), r(_r) {}
 
   //convert to probably double (Rvec) to probably single precision for storage
-  static inline vector<memReal> convert(const Rvec _s) {
-    vector<memReal> ret ( _s.size() );
+  static inline std::vector<memReal> convert(const Rvec _s) {
+    std::vector<memReal> ret ( _s.size() );
     for(Uint i=0; i < _s.size(); i++) ret[i] = _s[i];
     return ret;
   }
-  static inline vector<memReal> convert(const Fval* _s, const Uint dS) {
-    vector<memReal> ret ( dS );
+  static inline std::vector<memReal> convert(const Fval* _s, const Uint dS) {
+    std::vector<memReal> ret ( dS );
     for(Uint i=0; i < dS; i++) ret[i] = _s[i];
     return ret;
   }
@@ -160,9 +155,9 @@ struct Sequence
   int restart(FILE * f, const Uint dS, const Uint dA, const Uint dP);
   void save(FILE * f, const Uint dS, const Uint dA, const Uint dP);
 
-  void unpackSequence(const vector<Fval>& data, const Uint dS,
+  void unpackSequence(const std::vector<Fval>& data, const Uint dS,
     const Uint dA, const Uint dP);
-  vector<Fval> packSequence(const Uint dS, const Uint dA, const Uint dP);
+  std::vector<Fval> packSequence(const Uint dS, const Uint dA, const Uint dP);
 
   static inline Uint computeTotalEpisodeSize(const Uint dS, const Uint dA,
     const Uint dP, const Uint Nstep)

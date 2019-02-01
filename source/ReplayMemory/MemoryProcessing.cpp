@@ -80,7 +80,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
       // if WS==1 then varS is exact, otherwise update second moment
       // centered around current mean[k] (ie. E[(Sk-mean[k])^2])
       long double varS = SSum2[k]/count - MmM*MmM*(2*WS-WS*WS);
-      if(varS < numeric_limits<long double>::epsilon()) varS = 1;
+      if(varS < std::numeric_limits<long double>::epsilon()) varS = 1;
       std[k] = (1-WS) * std[k] + WS * std::sqrt(varS);
       invstd[k] = 1/(std[k]+EPS);
     }
@@ -89,7 +89,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   #ifndef NDEBUG
     if( settings.learner_rank == 0 ) {
      std::ofstream outf("runningAverages.dat", std::ios::app);
-     outf<<count<<" "<<1/invstd_reward<<" "<<print(mean)<<" "<<print(std)<<endl;
+     outf<<count<<" "<<1/invstd_reward<<" "<<print(mean)<<" "<<print(std)<<std::endl;
      outf.flush(); outf.close();
     }
     Uint cntSamp = 0;
@@ -154,12 +154,17 @@ void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho)
           // sequence is off policy if offPol W is out of 1/C : C
           if(W>CmaxRho || W<invC) dbg_nOffPol += 1;
         }
-        if( std::fabs(dbg_sumKLDiv - Set[i]->sumKLDiv) > 1e-1 )
+        const auto badErr = [&](const Fval V, const Fval R) {
+            static const Fval EPS = std::numeric_limits<Fval>::epsilon();
+            const Fval den = std::max({std::fabs(R), std::fabs(V), EPS});
+            return std::fabs(V - R) / den > 0.01;
+          };
+        if( badErr(dbg_sumKLDiv, Set[i]->sumKLDiv) )
           _die("%f %f", dbg_sumKLDiv, Set[i]->sumKLDiv);
-        if( std::fabs(dbg_sum_mse - Set[i]->MSE) > 1e-1 )
+        if( badErr(dbg_sum_mse, Set[i]->MSE) )
           _die("%f %f", dbg_sum_mse, Set[i]->MSE);
         if(settings.epsAnneal <= 0) //else CmaxRho will change in time
-          if( std::fabs(dbg_nOffPol - Set[i]->nOffPol) > 1e-1 )
+          if( badErr(dbg_nOffPol, Set[i]->nOffPol) )
             _die("%f %f", dbg_nOffPol, Set[i]->nOffPol);
       #endif
 
@@ -223,7 +228,7 @@ void MemoryProcessing::finalize()
   RM->sampler->prepare(RM->needs_pass);
 }
 
-void MemoryProcessing::getMetrics(ostringstream& buff)
+void MemoryProcessing::getMetrics(std::ostringstream& buff)
 {
   Real avgR = 0;
   const long nSeq = nSequences.load();
@@ -245,13 +250,13 @@ void MemoryProcessing::getMetrics(ostringstream& buff)
   nPruned=0;
 }
 
-void MemoryProcessing::getHeaders(ostringstream& buff)
+void MemoryProcessing::getHeaders(std::ostringstream& buff)
 {
   buff <<
   "| avgR | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nFarP ";
 }
 
-FORGET MemoryProcessing::readERfilterAlgo(const string setting,
+FORGET MemoryProcessing::readERfilterAlgo(const std::string setting,
   const bool bReFER)
 {
   if(setting == "oldest")     return OLDEST;

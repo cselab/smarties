@@ -27,8 +27,8 @@ class Communicator_internal: public Communicator
   std::vector<int> clientSockets = std::vector<int>(nOwnWorkers, 0);
 
   std::mutex& mpi_mutex = S.mpi_mutex;
-  vector<double*> inpBufs;
-  vector<double*> outBufs;
+  std::vector<double*> inpBufs;
+  std::vector<double*> outBufs;
   std::vector<MPI_Request> requests =
                         std::vector<MPI_Request>(nOwnWorkers, MPI_REQUEST_NULL);
 
@@ -56,7 +56,7 @@ public:
   void save() const;
 
   void ext_app_run();
-  std::vector<char*> readRunArgLst(const string _paramfile);
+  std::vector<char*> readRunArgLst(const std::string _paramfile);
   void redirect_stdout_init();
   void redirect_stdout_finalize();
   void createGo_rundir();
@@ -73,7 +73,7 @@ public:
   Communicator_internal(Settings& sett);
   ~Communicator_internal();
 
-  static vector<double*> alloc_bufs(const int size, const int num);
+  static std::vector<double*> alloc_bufs(const int size, const int num);
   void unpackState(const int i, int& agent, envInfo& info,
       std::vector<double>& state, double& reward);
 };

@@ -53,7 +53,7 @@ void Learner_offPolicy::spawnTrainTasks_par()
     assert( samp_obs[i] == data->get(samp_seq[i])->ndata() - 1 );
 
   if(bSampleSequences) {
-  #pragma omp parallel for collapse(2) schedule(dynamic) num_threads(nThreads)
+  #pragma omp parallel for collapse(2) schedule(static) num_threads(nThreads)
     for (Uint wID=0; wID<ESpopSize; wID++)
       for (Uint bID=0; bID<batchSize; bID++) {
         const Uint thrID = omp_get_thread_num();

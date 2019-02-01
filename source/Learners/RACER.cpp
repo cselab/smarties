@@ -367,39 +367,39 @@ RACER(Environment*const _env, Settings& _set) : Learner_offPolicy(_env, _set),
 ////////////////////////////////////////////////////////////////////////////////
 
 template<> vector<Uint>
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 count_outputs(const ActionInfo*const aI) {
-  const Uint nL = Quadratic_advantage::compute_nL(aI);
+  const Uint nL = Param_advantage::compute_nL(aI);
   return vector<Uint>{1, nL, aI->dim, aI->dim};
 }
 template<> vector<Uint>
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 count_pol_starts(const ActionInfo*const aI) {
   const vector<Uint> sizes = count_outputs(aI);
   const vector<Uint> indices = count_indices(sizes);
   return vector<Uint>{indices[2], indices[3]};
 }
 template<> vector<Uint>
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 count_adv_starts(const ActionInfo*const aI) {
   const vector<Uint> sizes = count_outputs(aI);
   const vector<Uint> indices = count_indices(sizes);
   return vector<Uint>{indices[1]};
 }
 template<> Uint
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 getnOutputs(const ActionInfo*const aI) {
-  const Uint nL = Quadratic_advantage::compute_nL(aI);
+  const Uint nL = Param_advantage::compute_nL(aI);
   return 1 + nL + 2*aI->dim;
 }
 template<> Uint
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 getnDimPolicy(const ActionInfo*const aI) {
   return 2*aI->dim;
 }
 
 template<>
-RACER<Quadratic_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Gaussian_policy, Rvec>::
 RACER(Environment*const _env, Settings& _set) : Learner_offPolicy(_env, _set),
   net_outputs(count_outputs(&_env->aI)),
   pol_start(count_pol_starts(&_env->aI)),
@@ -426,7 +426,7 @@ RACER(Environment*const _env, Settings& _set) : Learner_offPolicy(_env, _set),
 
     Gaussian_policy pol = prepare_policy<Gaussian_policy>(output, &aInfo, pol_start);
     Rvec act = pol.finalize(1, &generators[0], mu);
-    Quadratic_advantage adv = prepare_advantage<Quadratic_advantage,
+    Param_advantage adv = prepare_advantage<Param_advantage,
       Gaussian_policy> ( output, &aInfo, adv_start, &pol );
     adv.test(act, &generators[0]);
     pol.prepare(act, mu);
@@ -501,5 +501,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupNet()
 ////////////////////////////////////////////////////////////////////////////
 
 template class RACER<Discrete_advantage, Discrete_policy, Uint>;
-template class RACER<Quadratic_advantage, Gaussian_policy, Rvec>;
+
+template class RACER<Param_advantage, Gaussian_policy, Rvec>;
+
 template class RACER<Mixture_advantage<NEXPERTS>, Gaussian_mixture<NEXPERTS>, Rvec>;

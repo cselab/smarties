@@ -97,7 +97,9 @@ struct Gaussian_policy
     sampAct = map_action(unbact);
     sampPonPolicy = evalLogProbability(sampAct);
     sampPBehavior = evalLogBehavior(sampAct, beta);
-    sampImpWeight = std::exp( sampPonPolicy - sampPBehavior ) ;
+    const auto arg = sampPonPolicy - sampPBehavior;
+    const auto clipArg = arg>7? 7 : (arg<-7? -7 : arg);
+    sampImpWeight = std::exp( clipArg ) ;
     sampKLdiv = kl_divergence(beta);
   }
 

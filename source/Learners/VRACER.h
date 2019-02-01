@@ -15,12 +15,6 @@ class Gaussian_policy;
 template<Uint nExperts>
 class Gaussian_mixture;
 
-class Discrete_advantage;
-class Quadratic_advantage;
-
-template<Uint nExperts>
-class Mixture_advantage;
-
 template<typename Policy_t, typename Action_t>
 class VRACER : public Learner_offPolicy
 {

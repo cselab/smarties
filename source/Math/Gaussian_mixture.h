@@ -8,6 +8,7 @@
 
 #pragma once
 #include "Utils.h"
+#include <algorithm>
 
 template<Uint nExperts>
 struct Gaussian_mixture

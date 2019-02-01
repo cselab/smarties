@@ -8,6 +8,7 @@
 
 #pragma once
 #include "Utils.h"
+#include <algorithm>
 
 struct Discrete_policy
 {

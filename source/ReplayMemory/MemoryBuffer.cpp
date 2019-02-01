@@ -8,13 +8,14 @@
 
 #include "MemoryBuffer.h"
 #include <iterator>
+#include <algorithm>
 
 MemoryBuffer::MemoryBuffer(const Settings&S, const Environment*const E):
  settings(S), env(E), sampler(prepareSampler(S, this)) {
   Set.reserve(settings.maxTotObsNum);
 }
 
-void MemoryBuffer::save(const string base, const Uint nStep, const bool bBackup)
+void MemoryBuffer::save(const std::string base, const Uint nStep, const bool bBackup)
 {
   FILE * wFile = fopen((base+"scaling.raw").c_str(), "wb");
   fwrite(   mean.data(), sizeof(memReal),   mean.size(), wFile);
@@ -24,7 +25,7 @@ void MemoryBuffer::save(const string base, const Uint nStep, const bool bBackup)
   fflush(wFile); fclose(wFile);
 
   if(bBackup) {
-    ostringstream S; S<<std::setw(9)<<std::setfill('0')<<nStep;
+    std::ostringstream S; S<<std::setw(9)<<std::setfill('0')<<nStep;
     wFile = fopen((base+"scaling_"+S.str()+".raw").c_str(), "wb");
     fwrite(   mean.data(), sizeof(memReal),   mean.size(), wFile);
     fwrite( invstd.data(), sizeof(memReal), invstd.size(), wFile);
@@ -34,7 +35,7 @@ void MemoryBuffer::save(const string base, const Uint nStep, const bool bBackup)
   }
 }
 
-void MemoryBuffer::restart(const string base)
+void MemoryBuffer::restart(const std::string base)
 {
   {
     FILE * wFile = fopen((base+"scaling.raw").c_str(), "rb");
@@ -67,7 +68,7 @@ void MemoryBuffer::clearAll()
   nSequences = 0;
 }
 
-void MemoryBuffer::sample(vector<Uint>& seq, vector<Uint>& obs)
+void MemoryBuffer::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   sampler->sample(seq, obs);
 
@@ -94,7 +95,7 @@ void MemoryBuffer::removeSequence(const Uint ind)
 }
 void MemoryBuffer::pushBackSequence(Sequence*const seq)
 {
-  lock_guard<mutex> lock(dataset_mutex);
+  std::lock_guard<std::mutex> lock(dataset_mutex);
   assert( readNSeq() == (long) Set.size() and seq not_eq nullptr);
   const auto ind = Set.size();
   Set.push_back(seq);

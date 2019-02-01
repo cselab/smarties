@@ -63,7 +63,7 @@ void Approximator::initializeNetwork(Builder& build) {
    }
 
   if(relay not_eq nullptr) {
-    vector<int> relayInputID;
+    std::vector<int> relayInputID;
     for(Uint i=1; i<net->layers.size(); i++) //assume layer 0 is passed to input
       if(net->layers[i]->bInput) relayInputID.push_back(i);
 
@@ -142,6 +142,26 @@ void Approximator::prepare_one(Sequence*const traj, const Uint samp,
   thread_seq[thrID] = traj;
 }
 
+void Approximator::prepare(Sequence*const traj, const Uint samp,
+    const Uint N, const Uint thrID, const Uint wghtID) const {
+  if(error_placements[thrID] > 0) die("");
+  // opc requires prediction of some states before samp for recurrencies
+  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, samp) : 0;
+  // might need to predict the value of next state if samp not terminal state
+  const Uint nTotal = nRecurr + 1 + N;
+
+  input->prepare(traj, nTotal, samp - nRecurr, thrID);
+
+  for(Uint k=0; k < 1+extraAlloc; k++)
+    net->prepForBackProp(series[thrID + k*nThreads], nTotal);
+
+  net->prepForFwdProp(series_tgt[thrID], nTotal);
+
+  first_sample[thrID] = samp - nRecurr;
+  thread_Wind[thrID] = wghtID;
+  thread_seq[thrID] = traj;
+}
+
 Rvec Approximator::forward(const Uint samp, const Uint thrID,
   const int USE_WGT, const int USE_ACT, const int overwrite) const {
   if(USE_ACT>0) assert( (Uint) USE_ACT <= extraAlloc );
@@ -149,8 +169,9 @@ Rvec Approximator::forward(const Uint samp, const Uint thrID,
   if(thrID>=nThreads) return forward_agent(thrID-nThreads);
 
   const Uint netID = thrID + USE_ACT*nThreads;
-  const vector<Activation*>& act = USE_ACT>=0? series[netID] :series_tgt[thrID];
-  const vector<Activation*>& act_cur = series[thrID];
+  const std::vector<Activation*>& act = USE_ACT>=0? series[netID]
+                                                  : series_tgt[thrID];
+  const std::vector<Activation*>& act_cur = series[thrID];
   const int ind = mapTime2Ind(samp, thrID);
 
   //if already computed just give answer
@@ -162,7 +183,7 @@ Rvec Approximator::forward(const Uint samp, const Uint thrID,
     forward(samp-1, thrID, std::max(USE_WGT, 0), 0);
 
   const Rvec inp = getInput(samp, thrID, USE_WGT);
-  //cout <<"Input : "<< print(inp) << endl; fflush(0);
+  //cout <<"USEW : "<< USE_WGT << endl; fflush(0);
   return getOutput(inp, ind, act[ind], thrID, USE_WGT);
 }
 
@@ -181,7 +202,7 @@ Rvec Approximator::getInput(const Uint samp, const Uint thrID, const int USEW) c
 Rvec Approximator::getOutput(const Rvec inp, const int ind,
   Activation*const act, const Uint thrID, const int USEW) const {
   //hardcoded to use time series predicted with cur weights for recurrencies:
-  const vector<Activation*>& act_cur = series[thrID];
+  const std::vector<Activation*>& act_cur = series[thrID];
   const Activation*const recur = ind? act_cur[ind-1] : nullptr;
   assert(USEW < (int) net->sampled_weights.size() );
   const Parameters* const W = opt->getWeights(USEW);
@@ -241,7 +262,7 @@ void Approximator::gradient(const Uint thrID, const int wID) const {
     for(Uint j = 0; j<=extraAlloc; j++) {
       const Uint netID  = thrID +   j*nThreads;
       const Uint gradID = thrID + wID*nThreads;
-      const vector<Activation*>& act = series[netID];
+      const std::vector<Activation*>& act = series[netID];
       for (int i=0; i<last_error; i++) assert(act[i]->written == true);
 
       net->backProp(act, last_error, net->Vgrad[gradID]);
@@ -302,7 +323,7 @@ Rvec Approximator::relay_backprop(const Rvec err,
     debugL("Skipping relay_backprop because we use ES optimizers.");
     return Rvec(relay->nOutputs(), 0);
   }
-  const vector<Activation*>& act = series_tgt[thrID];
+  const std::vector<Activation*>& act = series_tgt[thrID];
   const int ind = mapTime2Ind(samp, thrID), nInp = input->nOutputs();
   assert(act[ind]->written == true && relay not_eq nullptr);
   const Parameters*const W = bUseTargetWeights? net->tgt_weights : net->weights;
@@ -330,7 +351,7 @@ void Approximator::prepare_agent(Sequence*const traj, const Agent&agent,
   // learner->select always only gets one new state, so we assume that it needs
   // to run one (or more) forward net at time t, so here also compute recurrency
   const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT,stepid) : 0;
-  const vector<Activation*>& act = agent_series[agent.ID];
+  const std::vector<Activation*>& act = agent_series[agent.ID];
   net->prepForFwdProp(agent_series[agent.ID], nRecurr+1);
   input->prepare(traj, nRecurr+1, stepid-nRecurr, fakeThrID);
   // if using relays, ask for previous actions, to be used for recurrencies
@@ -345,7 +366,7 @@ void Approximator::prepare_agent(Sequence*const traj, const Agent&agent,
 
 Rvec Approximator::forward_agent(const Uint agentID) const {
   // assume we already computed recurrencies
-  const vector<Activation*>& act = agent_series[agentID];
+  const std::vector<Activation*>& act = agent_series[agentID];
   const int fakeThrID = nThreads + agentID, wghtID = agent_Wind[agentID];
   const Uint stepid = agent_seq[agentID]->ndata();
   const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, stepid) : 0;

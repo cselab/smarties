@@ -11,6 +11,8 @@
 #include "../Math/Gaussian_policy.h"
 #include "ACER.h"
 
+#define SEQ_CUTOFF 200
+
 static inline Gaussian_policy prepare_policy(const Rvec&O,
   const ActionInfo*const aI, const Tuple*const t = nullptr) {
   Gaussian_policy pol({0, aI->dim}, aI, O);
@@ -23,82 +25,87 @@ void ACER::TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
 {
   Sequence* const traj = data->get(seq);
   const int ndata = traj->tuples.size()-1;
+  std::uniform_int_distribution<Uint> dStart(0, ndata-1);
+  const int tst_samp = dStart(generators[thrID]);
+  const int tstart = std::min(tst_samp, std::max(ndata-SEQ_CUTOFF,0));
+  const int tend   = std::min(ndata, tstart+SEQ_CUTOFF);
+  const int nsteps = tend - tstart;
+  //printf("%d %d %d %d\n", ndata, tstart, tend, nsteps);
   //policy : we need just 2 calls: pi pi_tilde
-   F[0]->prepare_seq(traj, thrID, wID);
-   F[1]->prepare_seq(traj, thrID, wID);
-  relay->prepare_seq(traj, thrID, ACT);
+   F[0]->prepare(traj, tstart, nsteps, thrID, wID);
+   F[1]->prepare(traj, tstart, nsteps, thrID, wID);
+  relay->prepare(traj, tstart, nsteps, thrID, VEC);
   //advantage : 1+nAexpect [A(s,a)] + 1 [A(s,a'), same normalization] calls
-   F[2]->prepare_seq(traj, thrID, 1+nAexpectation);
+   F[2]->prepare(traj, tstart, nsteps, thrID, wID);
 
-  Rvec Vstates(ndata, 0);
-  vector<Rvec> policy_samples(ndata);
-  vector<Gaussian_policy> policies, policies_tgt;
-  policies_tgt.reserve(ndata); policies.reserve(ndata);
-  vector<Rvec> advantages(ndata, Rvec(2+nAexpectation, 0));
+  Rvec Vstates(nsteps, 0);
+  std::vector<Rvec> policy_samples(nsteps);
+  std::vector<Gaussian_policy> policies, policies_tgt;
+  policies_tgt.reserve(nsteps); policies.reserve(nsteps);
+  std::vector<Rvec> advantages(nsteps, Rvec(2+nAexpectation, 0));
 
   if(thrID==0) profiler->stop_start("FWD");
-  for(Uint k=0; k<(Uint)ndata; k++)
+  for(int step=tstart, i=0; step < tend; step++, i++)
   {
-    const Rvec outPc = F[0]->forward_cur(k, thrID);
-    policies.push_back(prepare_policy(outPc, &aInfo, traj->tuples[k]));
-    assert(policies.size() == k+1);
-    const Rvec outPt = F[0]->forward_tgt(k, thrID);
+    const Rvec outPc = F[0]->forward_cur(step, thrID);
+    policies.push_back(prepare_policy(outPc, &aInfo, traj->tuples[step]));
+    assert((int)policies.size() == i+1);
+    const Rvec outPt = F[0]->forward_tgt(step, thrID);
     policies_tgt.push_back(prepare_policy(outPt, &aInfo));
-    const Rvec outVs = F[1]->forward(k, thrID);
+    const Rvec outVs = F[1]->forward(step, thrID);
 
-    relay->set(policies[k].sampAct, k, thrID);
-    //if(thrID) cout << "Action: " << print(policies[k].sampAct) << endl;
-    const Rvec At = F[2]->forward_cur(k, thrID);
-    policy_samples[k] = policies[k].sample(&generators[thrID]);
-    //if(thrID) cout << "Sample: " << print(policy_samples[k]) << endl;
-    relay->set(policy_samples[k], k, thrID);
-    const Rvec Ap = F[2]->forward_cur<TGT>(k, thrID);
-    advantages[k][0] = At[0]; advantages[k][1] = Ap[0]; Vstates[k] = outVs[0];
-    for(Uint i = 0; i < nAexpectation; i++) {
-      relay->set(policies[k].sample(&generators[thrID]), k, thrID);
-      const Rvec A = F[2]->forward(k, thrID, 1+i);
-      advantages[k][2+i] = A[0];
+    relay->set(policies[i].sampAct, step, thrID);
+    //if(thrID==0) cout << "Action: " << print(policies[i].sampAct) << endl;
+    const Rvec At = F[2]->forward_cur(step, thrID);
+    policy_samples[i] = policies[i].sample(&generators[thrID]);
+    //if(thrID==0) cout << "Sample: " << print(policy_samples[i]) << endl;
+    relay->set(policy_samples[i], step, thrID);
+    const Rvec Ap = F[2]->forward_cur<TGT>(step, thrID);
+    advantages[i][0] = At[0]; advantages[i][1] = Ap[0]; Vstates[i] = outVs[0];
+    for(Uint samp = 0; samp < nAexpectation; samp++) {
+      relay->set(policies[i].sample(&generators[thrID]), step, thrID);
+      const Rvec A = F[2]->forward(step, thrID, 1+samp);
+      advantages[i][2+samp] = A[0];
     }
-    //cout << print(advantages[k]) << endl; fflush(0);
+    //cout << print(advantages[i]) << endl; fflush(0);
   }
-  Real Q_RET = data->scaledReward(traj, ndata);
-  Real Q_OPC = data->scaledReward(traj, ndata);
-  if ( not traj->ended ) {
-    const Rvec v_term = F[1]->forward(ndata, thrID);
+  Real Q_RET = data->scaledReward(traj, tend);
+  if ( not traj->isTerminal(tend) ) {
+    const Rvec v_term = F[1]->forward(tend, thrID);
     Q_RET += gamma*v_term[0];
-    Q_OPC += gamma*v_term[0];
   }
+  Real Q_OPC = Q_RET;
   if(thrID==0)  profiler->stop_start("POL");
-  for(int k=ndata-1; k>=0; k--)
+  for(int step=tend-1, i=nsteps-1; step>=tstart; step--, i--)
   {
-    const Tuple*const T = traj->tuples[k];
-    Real QTheta = Vstates[k]+advantages[k][0], APol = advantages[k][1];
-    for(Uint i = 0; i < nAexpectation; i++) {
-      QTheta -= facExpect*advantages[k][2+i];
-      APol -= facExpect*advantages[k][2+i];
+    const Tuple*const T = traj->tuples[step];
+    Real QTheta = Vstates[i]+advantages[i][0], APol = advantages[i][1];
+    for(Uint samp = 0; samp < nAexpectation; samp++) {
+      QTheta -= facExpect*advantages[i][2+samp];
+      APol -= facExpect*advantages[i][2+samp];
     }
-    const Real A_OPC = Q_OPC - Vstates[k], Q_err = Q_RET - QTheta;
+    const Real A_OPC = Q_OPC - Vstates[i], Q_err = Q_RET - QTheta;
 
-    const Real rho = policies[k].sampImpWeight;
+    const Real rho = policies[i].sampImpWeight;
     const Real W = std::min((Real)1, rho);
     const Real C = std::pow(W, acerTrickPow);
-    const Real dkl = policies[k].sampKLdiv;
-    const Real R = data->scaledReward(traj, k);
+    const Real dkl = policies[i].sampKLdiv;
+    const Real R = data->scaledReward(traj, step);
     const Real V_err = Q_err*W;
-    const Rvec pGrad = policyGradient(T, policies[k], policies_tgt[k], A_OPC,
-      APol, policy_samples[k]);
+    const Rvec pGrad = policyGradient(T, policies[i], policies_tgt[i], A_OPC,
+      APol, policy_samples[i]);
 
-    F[0]->backward(pGrad, k, thrID);
-    F[1]->backward({(V_err+Q_err)}, k, thrID);
-    F[2]->backward({Q_err}, k, thrID);
-    for(Uint i = 0; i < nAexpectation; i++)
-      F[2]->backward({-facExpect*Q_err}, k, thrID, i+1);
+    F[0]->backward(pGrad, step, thrID);
+    F[1]->backward({(V_err+Q_err)}, step, thrID);
+    F[2]->backward({Q_err}, step, thrID);
+    for(Uint samp = 0; samp < nAexpectation; samp++)
+      F[2]->backward({-facExpect*Q_err}, step, thrID, samp+1);
     //prepare Q with off policy corrections for next step:
-    Q_RET = R +gamma*( C*(Q_RET-QTheta) +Vstates[k]);
-    Q_OPC = R +gamma*(   (Q_OPC-QTheta) +Vstates[k]); // as paper, but bad
-    //Q_OPC = R +gamma*( C*(Q_OPC-QTheta) +Vstates[k]);
-    const Rvec penal = policies[k].div_kl_grad(T->mu, -1);
-    traj->setMseDklImpw(k, Q_err*Q_err, dkl, rho, CmaxRet, CinvRet);
+    Q_RET = R +gamma*( C*(Q_RET-QTheta) +Vstates[i]);
+    Q_OPC = R +gamma*(   (Q_OPC-QTheta) +Vstates[i]); // as paper, but bad
+    //Q_OPC = R +gamma*( C*(Q_OPC-QTheta) +Vstates[i]);
+    const Rvec penal = policies[i].div_kl_grad(T->mu, -1);
+    traj->setMseDklImpw(step, Q_err*Q_err, dkl, rho, CmaxRet, CinvRet);
     trainInfo->log(QTheta, Q_err, pGrad, penal, {rho}, thrID);
   }
 
@@ -175,11 +182,11 @@ ACER::ACER(Environment*const _env, Settings&_set): Learner_offPolicy(_env,_set)
   Builder build_adv = F[2]->buildFromSettings(_set, 1 ); // A
 
   F[0]->initializeNetwork(build_pol);
-  _set.learnrate *= 3;
+  _set.learnrate *= 10;
   _set.targetDelay = 0; // unneeded for adv and val targets
   F[1]->initializeNetwork(build_val);
   F[2]->initializeNetwork(build_adv);
-  _set.learnrate /= 3;
+  _set.learnrate /= 10;
   F[2]->allocMorePerThread(nAexpectation);
   printf("ACER\n");
   trainInfo = new TrainData("acer", _set, 1, "| avgW ", 1);

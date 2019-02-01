@@ -8,7 +8,7 @@
 
 #include "Sequences.h"
 
-vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uint dP)
+std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uint dP)
 {
   const Uint seq_len = tuples.size();
   const Uint totalSize = Sequence::computeTotalEpisodeSize(dS, dA, dP, seq_len);
@@ -52,13 +52,13 @@ void Sequence::save(FILE * f, const Uint dS, const Uint dA, const Uint dP) {
   fwrite(buffer.data(), sizeof(Fval), buffer.size(), f);
 }
 
-void Sequence::unpackSequence(const vector<Fval>& data, const Uint dS,
+void Sequence::unpackSequence(const std::vector<Fval>& data, const Uint dS,
   const Uint dA, const Uint dP)
 {
   const Uint seq_len = Sequence::computeTotalEpisodeNstep(dS,dA,dP,data.size());
   const Fval* buf = data.data();
   assert(tuples.size() == 0);
-  tuples = vector<Tuple*>(seq_len, nullptr);
+  tuples = std::vector<Tuple*>(seq_len, nullptr);
   for (Uint i = 0; i<seq_len; i++) {
     tuples[i] = new Tuple(buf, dS, buf[dS]); buf += dS + 1;
     tuples[i]->setAct(buf, dA, dP); buf += dA + dP;
@@ -80,7 +80,7 @@ int Sequence::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
   Uint seq_len = 0;
   if(fread(& seq_len, sizeof(Uint), 1, f) != 1) return 1;
   const Uint totalSize = Sequence::computeTotalEpisodeSize(dS, dA, dP, seq_len);
-  vector<Fval> buffer(totalSize);
+  std::vector<Fval> buffer(totalSize);
   if(fread(buffer.data(), sizeof(Fval), totalSize, f) != totalSize)
     die("mismatch");
   unpackSequence(buffer, dS, dA, dP);

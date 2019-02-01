@@ -42,6 +42,8 @@ struct Aggregator
 
   void prepare_one(Sequence*const traj, const Uint samp,
       const Uint thrID, const RELAY SET = VEC) const;
+  void prepare(Sequence*const traj, const Uint samp, const Uint N,
+      const Uint thrID, const RELAY SET) const;
 
   void set(const Rvec vec, const Uint samp, const Uint thrID) const;
 

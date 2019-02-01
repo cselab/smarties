@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Optimizer.h"
-#include <iomanip>
+
 class Saru;
 #define ACCEL_CMA
 //#define FDIFF_CMA

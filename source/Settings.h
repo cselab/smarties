@@ -25,10 +25,10 @@ struct Settings
 ///////////////////////////////////////////////////////////////////////////////
 #define CHARARG_learner 'a'
 #define COMMENT_learner "Algorithm."
-#define TYPEVAL_learner string
+#define TYPEVAL_learner std::string
 #define TYPENUM_learner STRING
 #define DEFAULT_learner "RACER"
-  string learner = DEFAULT_learner;
+  std::string learner = DEFAULT_learner;
 
 #define CHARARG_bTrain 'b'
 #define COMMENT_bTrain "Whether training a policy (=1) or evaluating (=0)."
@@ -67,10 +67,10 @@ learning algorithm), for continuous actions it is the (initial) stdev."
 #define COMMENT_ERoldSeqFilter "Filter algorithm to remove old episodes from \
 memory buffer. Accepts: oldest, farpolfrac, maxkldiv, minerror, or default. \
 Default means oldest for ER and farpolfrac for ReFER"
-#define TYPEVAL_ERoldSeqFilter string
+#define TYPEVAL_ERoldSeqFilter std::string
 #define TYPENUM_ERoldSeqFilter STRING
 #define DEFAULT_ERoldSeqFilter "default"
-  string ERoldSeqFilter = DEFAULT_ERoldSeqFilter;
+  std::string ERoldSeqFilter = DEFAULT_ERoldSeqFilter;
 
 #define CHARARG_gamma 'g'
 #define COMMENT_gamma "Discount factor."
@@ -81,10 +81,10 @@ Default means oldest for ER and farpolfrac for ReFER"
 
 #define CHARARG_dataSamplingAlgo 'i'
 #define COMMENT_dataSamplingAlgo "Algorithm for sampling the Replay Buffer."
-#define TYPEVAL_dataSamplingAlgo string
+#define TYPEVAL_dataSamplingAlgo std::string
 #define TYPENUM_dataSamplingAlgo STRING
 #define DEFAULT_dataSamplingAlgo "uniform"
-  string dataSamplingAlgo = DEFAULT_dataSamplingAlgo;
+  std::string dataSamplingAlgo = DEFAULT_dataSamplingAlgo;
 
 #define CHARARG_klDivConstraint 'k'
 #define COMMENT_klDivConstraint "Constraint on max KL div, algo specific."
@@ -230,19 +230,19 @@ together to form policy input (eg. see frames in DQN paper)."
 
 #define CHARARG_nnOutputFunc 'E'
 #define COMMENT_nnOutputFunc "Activation function for output layers."
-#define TYPEVAL_nnOutputFunc string
+#define TYPEVAL_nnOutputFunc std::string
 #define TYPENUM_nnOutputFunc STRING
 #define DEFAULT_nnOutputFunc "Linear"
-  string nnOutputFunc = DEFAULT_nnOutputFunc;
+  std::string nnOutputFunc = DEFAULT_nnOutputFunc;
 
 #define CHARARG_nnFunc 'F'
 #define COMMENT_nnFunc "Activation function for non-output layers (which should\
  always be linear) which are built from settings. (Relu, Tanh, Sigm, PRelu, \
 softSign, softPlus, ...)"
-#define TYPEVAL_nnFunc string
+#define TYPEVAL_nnFunc std::string
 #define TYPENUM_nnFunc STRING
 #define DEFAULT_nnFunc "SoftSign"
-  string nnFunc = DEFAULT_nnFunc;
+  std::string nnFunc = DEFAULT_nnFunc;
 
 #define CHARARG_learnrate 'L'
 #define COMMENT_learnrate "Learning rate."
@@ -262,10 +262,10 @@ softSign, softPlus, ...)"
 #define COMMENT_nnType "Type of non-output layers read from settings. (RNN, \
 LSTM, everything else maps to FFNN). Conv2D layers need to be built in \
 environment directly."
-#define TYPEVAL_nnType string
+#define TYPEVAL_nnType std::string
 #define TYPENUM_nnType STRING
 #define DEFAULT_nnType "FFNN"
-  string nnType = DEFAULT_nnType;
+  std::string nnType = DEFAULT_nnType;
 
 #define CHARARG_outWeightsPrefac 'O'
 #define COMMENT_outWeightsPrefac "Output weights initialization factor (will \
@@ -353,10 +353,10 @@ app (=1) or is launched by it (=0) (then cannot train)."
 
 #define CHARARG_restart '^'
 #define COMMENT_restart "Prefix of net save files. If 'none' then no restart."
-#define TYPEVAL_restart string
+#define TYPEVAL_restart std::string
 #define TYPENUM_restart STRING
 #define DEFAULT_restart "none"
-  string restart = DEFAULT_restart;
+  std::string restart = DEFAULT_restart;
 
 #define CHARARG_maxTotSeqNum '='
 #define COMMENT_maxTotSeqNum "DEPRECATED: Maximum number of sequences in \
@@ -387,10 +387,10 @@ checkpoints can be used to evaluate learners, but not yet to restart learning."
 #define CHARARG_environment '0'
 #define COMMENT_environment "Environment name, required is action/state \
 space properties are hardcoded in smarties rather than read at runtime."
-#define TYPEVAL_environment string
+#define TYPEVAL_environment std::string
 #define TYPENUM_environment STRING
 #define DEFAULT_environment "Environment"
-  string environment = DEFAULT_environment;
+  std::string environment = DEFAULT_environment;
 
 #define CHARARG_workersPerEnv '1'
 #define COMMENT_workersPerEnv "Number of MPI ranks required to run each instance of the environment."
@@ -418,33 +418,33 @@ in the environment)."
 #define COMMENT_nStepPappSett "Number of time steps per appSettings file to \
 use. Must be a list of positive numbers separated by semicolons. Last number \
 will be overwritten to 0; i.e. last appSettings will be used til termination."
-#define TYPEVAL_nStepPappSett string
+#define TYPEVAL_nStepPappSett std::string
 #define TYPENUM_nStepPappSett STRING
 #define DEFAULT_nStepPappSett ""
-  string nStepPappSett = DEFAULT_nStepPappSett;
+  std::string nStepPappSett = DEFAULT_nStepPappSett;
 
 #define CHARARG_launchfile '7'
 #define COMMENT_launchfile "Name of executable or launch script of user \
 application. No arguments can go here. The file must be placed in the \
 base run folder."
-#define TYPEVAL_launchfile string
+#define TYPEVAL_launchfile std::string
 #define TYPENUM_launchfile STRING
 #define DEFAULT_launchfile "launchSim.sh"
-  string launchfile = DEFAULT_launchfile;
+  std::string launchfile = DEFAULT_launchfile;
 
 #define CHARARG_appSettings '8'
 #define COMMENT_appSettings "Name of file containing the command line arguments for user's application."
-#define TYPEVAL_appSettings string
+#define TYPEVAL_appSettings std::string
 #define TYPENUM_appSettings STRING
 #define DEFAULT_appSettings ""
-  string appSettings = DEFAULT_appSettings;
+  std::string appSettings = DEFAULT_appSettings;
 
 #define CHARARG_setupFolder '9'
 #define COMMENT_setupFolder "The contents of this folder are copied over into the folder where the simulation is run. It can contain additional files needed to set up the simulation such as settings files, configuration files..."
-#define TYPEVAL_setupFolder string
+#define TYPEVAL_setupFolder std::string
 #define TYPENUM_setupFolder STRING
 #define DEFAULT_setupFolder ""
-string setupFolder = DEFAULT_setupFolder;
+std::string setupFolder = DEFAULT_setupFolder;
 
 #define READOPT(NAME)  { CHARARG_ ## NAME, #NAME, TYPENUM_ ## NAME, \
   COMMENT_ ## NAME, &NAME, (TYPEVAL_ ## NAME) DEFAULT_ ## NAME }
@@ -495,7 +495,7 @@ string setupFolder = DEFAULT_setupFolder;
       die("Increase memory buffer size or decrease batchsize, or switch to sampling by transitions.");
 
     if(bTrain == false && restart == "none") {
-     cout<<"Did not specify path for restart files, assumed current dir."<<endl;
+     std::cout<<"Did not specify path for restart files, assumed current dir."<<std::endl;
      restart = ".";
     }
 
@@ -555,11 +555,11 @@ string setupFolder = DEFAULT_setupFolder;
     }
   }
 
-  vector<ArgParser::OptionStruct> initializeOpts ()
+  std::vector<ArgParser::OptionStruct> initializeOpts ()
   { //  //{ CHARARG_, "", TYPENUM_, COMMENT_, &, (TYPEVAL_) DEFAULT_ },
     //AVERT YOUR EYES!
 
-    return vector<ArgParser::OptionStruct> ({
+    return std::vector<ArgParser::OptionStruct> ({
       // LEARNER ARGS: MUST contain all 17 mentioned above (more if modified)
       READOPT(learner), READOPT(bTrain), READOPT(clipImpWeight),
       READOPT(targetDelay), READOPT(explNoise), READOPT(ERoldSeqFilter),
@@ -592,10 +592,11 @@ string setupFolder = DEFAULT_setupFolder;
   void initRandomSeed()
   {
     if(randSeed<=0) {
-      struct timeval clock;
-      gettimeofday(&clock, NULL);
-      const long MAXINT = std::numeric_limits<int>::max();
-      randSeed = abs(clock.tv_usec % MAXINT);
+      std::random_device rdev;
+      static constexpr long MAXINT = std::numeric_limits<int>::max();
+      randSeed = std::abs(rdev() % MAXINT);
+
+      std::cout << "Using seed " << randSeed << std::endl;
       MPI_Bcast(&randSeed, 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
     sockPrefix = randSeed + world_rank;
@@ -620,9 +621,9 @@ string setupFolder = DEFAULT_setupFolder;
     }
   }
 
-  vector<int> readNetSettingsSize() const
+  std::vector<int> readNetSettingsSize() const
   {
-    vector<int> ret;
+    std::vector<int> ret;
     //if(nnl1<1) die("Add at least one hidden layer.\n");
     if(nnl1>0) {
       ret.push_back(nnl1);

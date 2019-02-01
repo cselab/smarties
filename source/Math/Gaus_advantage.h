@@ -10,7 +10,7 @@
 
 #include "Gaussian_policy.h"
 
-struct Quadratic_advantage
+struct Gaussian_advantage
 {
   static inline Uint compute_nL(const ActionInfo* const aI) {
     return 1 + 2*aI->dim;
@@ -35,7 +35,7 @@ struct Quadratic_advantage
   const Gaussian_policy * const policy;
 
   //Normalized quadratic advantage, with own mean
-  Quadratic_advantage(const vector<Uint>& starts, const ActionInfo* const aI,
+  Gaussian_advantage(const vector<Uint>& starts, const ActionInfo* const aI,
    const Rvec& out, const Gaussian_policy*const pol) :
    start_coefs(starts[0]), nA(aI->dim), nL(compute_nL(aI)), netOutputs(out),
    coef(extract_coefs(netOutputs,starts[0])),
@@ -113,8 +113,8 @@ public:
       const Uint index = start_coefs+i;
       out_1[index] -= 0.0001; out_2[index] += 0.0001;
 
-      Quadratic_advantage a1(vector<Uint>{start_coefs}, aInfo, out_1, policy);
-      Quadratic_advantage a2(vector<Uint>{start_coefs}, aInfo, out_2, policy);
+      Gaussian_advantage a1(vector<Uint>{start_coefs}, aInfo, out_1, policy);
+      Gaussian_advantage a2(vector<Uint>{start_coefs}, aInfo, out_2, policy);
       const Real A_1 = a1.computeAdvantage(act), A_2 = a2.computeAdvantage(act);
       const Real fdiff =(A_2-A_1)/.0002, abserr = std::fabs(_grad[index]-fdiff);
       const Real scale = std::max(std::fabs(fdiff), std::fabs(_grad[index]));

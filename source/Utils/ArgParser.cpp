@@ -86,18 +86,18 @@ void Parser::parse(int argc, char * const * argv, bool verbose)
       break;
 
     case CHAR:
-      *((string*)myOpt.value) = optarg;
+      *((std::string*)myOpt.value) = optarg;
       break;
 
     case STRING:
-      *((string*)myOpt.value) = optarg;
+      *((std::string*)myOpt.value) = optarg;
       break;
     }
   }
 
   if (verbose)
   {
-    ofstream fout("settings.log", ios::app);
+    std::ofstream fout("settings.log", std::ios::app);
     if( not fout.is_open()) die("Save fail\n");
 
     for (int i=0; i<nOpt; i++) {
@@ -122,10 +122,10 @@ void Parser::parse(int argc, char * const * argv, bool verbose)
         break;
 
       case STRING:
-        fout << ((string*)myOpt.value)->c_str();
+        fout << ((std::string*)myOpt.value)->c_str();
         break;
       }
-      fout << endl;
+      fout << std::endl;
     }
     fout.close();
   }

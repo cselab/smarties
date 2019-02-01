@@ -45,9 +45,9 @@ inline nnReal* allocate_param(const Uint _size, const Real mpiSz)
 }
 
 
-inline vector<nnReal*> allocate_vec(vector<Uint> _sizes)
+inline std::vector<nnReal*> allocate_vec(std::vector<Uint> _sizes)
 {
-  vector<nnReal*> ret(_sizes.size(), nullptr);
+  std::vector<nnReal*> ret(_sizes.size(), nullptr);
   for(Uint i=0; i<_sizes.size(); i++) ret[i] = allocate_ptr(_sizes[i]);
   return ret;
 }

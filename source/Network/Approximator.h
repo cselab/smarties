@@ -9,15 +9,13 @@
 #pragma once
 #include "Encapsulator.h"
 
-#include <list>
-
 struct Aggregator;
 
 enum NET { CUR, TGT }; /* use CUR or TGT weights */
 struct Approximator
 {
   const Settings& settings;
-  const string name;
+  const std::string name;
   const bool bRecurrent = settings.bRecurrent;
   const Uint nAgents = settings.nAgents, nThreads = settings.nThreads;
   const Uint mpisize = settings.learner_size, nMaxBPTT = settings.nnBPTTseq;
@@ -86,6 +84,8 @@ struct Approximator
     const Uint wghtID) const;
 
   void prepare_one(Sequence*const traj, const Uint samp,
+      const Uint thrID, const Uint wghtID) const;
+  void prepare(Sequence*const traj, const Uint samp, const Uint N,
       const Uint thrID, const Uint wghtID) const;
 
   Rvec forward(const Uint samp, const Uint thrID,

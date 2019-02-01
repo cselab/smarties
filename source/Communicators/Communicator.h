@@ -10,7 +10,6 @@
 #include <vector>
 #include <cstring>
 #include <random>
-#include <sstream>
 
 #define envInfo  int
 #define CONT_COMM 0

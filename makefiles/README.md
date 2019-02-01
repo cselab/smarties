@@ -18,10 +18,11 @@
 	module swap PrgEnv-cray PrgEnv-gnu
 	module load daint-gpu python_virtualenv/15.0.3
 	```
-* **MacOs** Install `mpich` with `gcc`. Assuming gcc version 7:  
+* **MacOs** Install `gcc`. Then assuming gcc version 8:  
     In `~/.profile`:
     ```
-    export HOMEBREW_CC=gcc-7
-    export HOMEBREW_CXX=g++-7
+    export HOMEBREW_CC=gcc-8
+    export HOMEBREW_CXX=g++-8
     ```
-    Then `brew install mpich --build-from-source` and `brew install openblas` (without openmp).
+    Then `source ~/.profile`
+    Then `brew install openmpi --build-from-source` and `brew install openblas` (without openmp).

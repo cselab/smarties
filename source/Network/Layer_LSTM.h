@@ -168,9 +168,12 @@ class LSTMLayer: public Layer
     { // forget gate starts open, inp/out gates are closed
      nnReal* const BB = para->B(ID);
      for(Uint o=0*nCells; o<1*nCells; o++) BB[o]=dis(*gen);
-     for(Uint o=1*nCells; o<2*nCells; o++) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
-     for(Uint o=2*nCells; o<3*nCells; o++) BB[o]=dis(*gen)-LSTM_PRIME_FAC;
-     for(Uint o=3*nCells; o<4*nCells; o++) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
+     //for(Uint o=1*nCells; o<2*nCells; o++) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
+     //for(Uint o=2*nCells; o<3*nCells; o++) BB[o]=dis(*gen)-LSTM_PRIME_FAC;
+     //for(Uint o=3*nCells; o<4*nCells; o++) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
+     for(Uint o=1*nCells; o<2*nCells; o++) BB[o]=dis(*gen)-LSTM_PRIME_FAC;
+     for(Uint o=2*nCells; o<3*nCells; o++) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
+     for(Uint o=3*nCells; o<4*nCells; o++) BB[o]=dis(*gen)-LSTM_PRIME_FAC;
     }
     {
      nnReal* const weight = para->W(ID);

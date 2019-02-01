@@ -9,6 +9,7 @@
 #pragma once
 #include "../Bund.h"
 #include <mutex>
+#include <sstream>
 #include <stdarg.h>
 
 namespace ErrorHandling
@@ -23,7 +24,7 @@ namespace ErrorHandling
 //#define PR_ERR(fd,a,...) fprintf(fd,a,__func__,__FILE__,__LINE__,##__VA_ARGS__);
 #define FLUSHALL fflush(stdout); fflush(stderr); fflush(0);
 #define KILLALL MPI_Abort(MPI_COMM_WORLD, 1);
-#define LOCKCOMM lock_guard<mutex> wlock(ErrorHandling::warn_mutex);
+#define LOCKCOMM std::lock_guard<std::mutex> wlock(ErrorHandling::warn_mutex);
 
 inline static void printfmt(char*const p, const int N, const char*const a, ... )
 {
@@ -32,6 +33,7 @@ inline static void printfmt(char*const p, const int N, const char*const a, ... )
   vsnprintf (p, N, a, args);
   va_end (args);
 }
+
 
 // THESE ARE ALL DEFINES ALLOWING PRINTING FILE, FUNC, LINE
 
@@ -114,3 +116,30 @@ inline static void printfmt(char*const p, const int N, const char*const a, ... )
     " ", BUF); FLUSHALL} } while(0)
 
 }
+
+template <typename T>
+inline std::string print(const std::vector<T> vals, const int width=-1)
+{
+  std::ostringstream o;
+  if(!vals.size()) return o.str();
+  if(width>0) o << std::setprecision(3) << std::fixed;
+  for (Uint i=0; i<vals.size()-1; i++) o << vals[i] << " ";
+  o << vals[vals.size()-1];
+  return o.str();
+}
+
+inline void real2SS(std::ostringstream&B,const Real V,const int W, const bool bPos)
+{
+  B<<" "<<std::setw(W);
+  if(std::fabs(V)>= 1e4) B << std::setprecision(std::max(W-7+bPos,0));
+  else
+  if(std::fabs(V)>= 1e3) B << std::setprecision(std::max(W-6+bPos,0));
+  else
+  if(std::fabs(V)>= 1e2) B << std::setprecision(std::max(W-5+bPos,0));
+  else
+  if(std::fabs(V)>= 1e1) B << std::setprecision(std::max(W-4+bPos,0));
+  else
+                         B << std::setprecision(std::max(W-3+bPos,0));
+  B<<std::fixed<<V;
+}
+

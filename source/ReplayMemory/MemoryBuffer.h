@@ -18,7 +18,7 @@ class MemoryBuffer
   const Environment * const env;
   const StateInfo& sI = env->sI;
   const ActionInfo& aI = env->aI;
-  const vector<Agent*>& agents = env->agents;
+  const std::vector<Agent*>& agents = env->agents;
   Uint learnID = 0;
  private:
 
@@ -70,7 +70,7 @@ class MemoryBuffer
   void clearAll();
 
   template<typename T>
-  inline Rvec standardizeAppended(const vector<T>& state) const {
+  inline Rvec standardizeAppended(const std::vector<T>& state) const {
     Rvec ret(sI.dimUsed*(1+nAppended));
     assert(state.size() == sI.dimUsed*(1+nAppended));
     for (Uint j=0; j<1+nAppended; j++)
@@ -79,7 +79,7 @@ class MemoryBuffer
     return ret;
   }
   template<typename T>
-  inline Rvec standardize(const vector<T>& state) const {
+  inline Rvec standardize(const std::vector<T>& state) const {
     Rvec ret(sI.dimUsed);
     assert(state.size() == sI.dimUsed && mean.size() == sI.dimUsed);
     for (Uint i=0; i<sI.dimUsed; i++) ret[i] =(state[i]-mean[i])*invstd[i];
@@ -95,10 +95,10 @@ class MemoryBuffer
   }
   inline Real scaledReward(const Real r) const { return r * invstd_reward; }
 
-  void restart(const string base);
-  void save(const string base, const Uint nStep, const bool bBackup);
+  void restart(const std::string base);
+  void save(const std::string base, const Uint nStep, const bool bBackup);
 
-  void sample(vector<Uint>& seq, vector<Uint>& obs);
+  void sample(std::vector<Uint>& seq, std::vector<Uint>& obs);
 
   inline long readNSeen_loc() const {
     return nSeenTransitions_loc.load();

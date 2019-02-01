@@ -43,7 +43,7 @@ struct DelayedReductor
 struct TrainData
 {
   const Uint n_extra, nThreads, bPolStats;
-  const string name, extra_header;
+  const std::string name, extra_header;
 
   long double cnt = 0;
   LDvec q = LDvec(5, 0);
@@ -55,8 +55,8 @@ struct TrainData
   THRvec<LDvec> pVec = THRvec<LDvec>(nThreads, LDvec(3, 0));
   THRvec<LDvec> eVec = THRvec<LDvec>(nThreads, LDvec(n_extra, 0));
 
-  TrainData(const string _name, const Settings&set, bool bPPol=0,
-    const string extrah = string(), const Uint nextra=0);
+  TrainData(const std::string _name, const Settings&set, bool bPPol=0,
+    const std::string extrah = std::string(), const Uint nextra=0);
 
   ~TrainData();
 
@@ -67,8 +67,8 @@ struct TrainData
     std::initializer_list<Real> extra, const int thrID);
   void log(const Real Q, const Real Qerr, const int thrID);
 
-  void getMetrics(ostringstream& buff);
-  void getHeaders(ostringstream& buff) const;
+  void getMetrics(std::ostringstream& buff);
+  void getHeaders(std::ostringstream& buff) const;
 
   void resetSoft();
   void resetHead();
@@ -105,10 +105,10 @@ struct StatsTracker
 
   void update();
 
-  void printToFile(const string base);
+  void printToFile(const std::string base);
 
   void finalize(const LDvec&oldM, const LDvec&oldS);
 
-  void reduce_stats(const string base, const Uint iter = 0);
+  void reduce_stats(const std::string base, const Uint iter = 0);
 
 };

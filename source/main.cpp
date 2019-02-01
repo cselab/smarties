@@ -82,7 +82,7 @@ int main (int argc, char** argv)
     hostname[1023] = '\0';
     gethostname(hostname, 1023);
     //#ifndef NDEBUG
-      printf("Rank %d Thread %3d  is running on CPU %3d of hose %s\n",
+      printf("Rank %d Thread %3d  is running on CPU %3d of host %s\n",
             S.world_rank, omp_get_thread_num(), cpu_num, hostname);
     //#endif
   }

@@ -9,14 +9,13 @@
 #pragma once
 #include "../Agent.h"
 #include "../Communicators/Communicator_internal.h"
-#include <map>
 
 class Builder;
 
 class Environment
 {
 protected:
-    mt19937 * const g; //only ok if only thread 0 accesses
+    std::mt19937 * const g; //only ok if only thread 0 accesses
     Communicator_internal* comm_ptr = nullptr;
     void commonSetup();
 
@@ -25,7 +24,7 @@ public:
     Uint nAgents, nAgentsPerRank;
     const Real gamma;
 
-    vector<Agent*> agents;
+    std::vector<Agent*> agents;
     StateInfo  sI;
     ActionInfo aI;
     Environment(Settings & _settings);

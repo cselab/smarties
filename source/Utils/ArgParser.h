@@ -9,11 +9,9 @@
 #pragma once
 #include <getopt.h>
 #include <map>
-#include <utility>
 #include <string>
 #include <vector>
 
-using namespace std;
 enum argumentTypes { NONE, INT, REAL, CHAR, STRING };
 
 namespace ArgParser
@@ -21,15 +19,20 @@ namespace ArgParser
 struct OptionStruct
 {
   char   shortOpt;
-  string longOpt;
+  std::string longOpt;
   argumentTypes  type;
-  string description;
+  std::string description;
   void*  value;
 
   template <typename T>
-  OptionStruct(char _shortOpt, string _longOpt, argumentTypes _type,
-    string _description, T* _val, T _defVal) : shortOpt(_shortOpt),
-    longOpt(_longOpt), type(_type), description(_description), value((void*)_val)
+  OptionStruct(
+    char _shortOpt,
+    std::string _longOpt,
+    argumentTypes _type,
+    std::string _description,
+    T* _val, T _defVal
+  ) : shortOpt(_shortOpt), longOpt(_longOpt), type(_type),
+      description(_description), value((void*)_val)
   {
     *_val = _defVal;
   }
@@ -42,11 +45,11 @@ struct OptionStruct
 class Parser
 {
 private:
-  const vector<OptionStruct> opts;
-  map<char, OptionStruct> optsMap;
+  const std::vector<OptionStruct> opts;
+  std::map<char, OptionStruct> optsMap;
   const int nOpt = opts.size();
   struct option* const long_options = new option[nOpt + 1];
-  string ctrlString = "";
+  std::string ctrlString = "";
 
 public:
   ~Parser() {delete [] long_options;}

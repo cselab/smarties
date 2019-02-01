@@ -37,6 +37,19 @@ void Aggregator::prepare_one(Sequence*const traj, const Uint samp,
   seq[thrID] = traj;
 }
 
+void Aggregator::prepare(Sequence*const traj, const Uint samp, const Uint N,
+  const Uint thrID, const RELAY SET) const {
+  // opc requires prediction of some states before samp for recurrencies
+  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, samp) : 0;
+  // might need to predict the value of next state if samp not terminal state
+  const Uint nTotal = nRecurr + 1 + N;
+  inputs[thrID].clear(); //make sure we only have empty vectors
+  inputs[thrID].resize(nTotal, Rvec());
+  first_sample[thrID] = samp - nRecurr;
+  usage[thrID] = SET;
+  seq[thrID] = traj;
+}
+
 void Aggregator::set(const Rvec vec, const Uint samp, const Uint thrID) const {
   usage[thrID] = VEC;
   const int ind = (int)samp - first_sample[thrID];

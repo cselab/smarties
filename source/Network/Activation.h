@@ -12,21 +12,21 @@
 
 struct Activation
 {
-  Uint _nOuts(vector<Uint> _sizes, vector<Uint> _bOut) {
+  Uint _nOuts(std::vector<Uint> _sizes, std::vector<Uint> _bOut) {
     assert(_sizes.size() == _bOut.size() && (size_t) nLayers == _bOut.size());
     Uint ret = 0;
     for(Uint i=0; i<_bOut.size(); i++) if(_bOut[i]) ret += _sizes[i];
     if(!ret) die("err nOutputs");
     return ret;
   }
-  Uint _nInps(vector<Uint> _sizes, vector<Uint> _bInp) {
+  Uint _nInps(std::vector<Uint> _sizes, std::vector<Uint> _bInp) {
     assert(_sizes.size() == _bInp.size() && (size_t) nLayers == _bInp.size());
     Uint ret = 0;
     for(Uint i=0; i<_bInp.size(); i++) if(_bInp[i]) ret += _sizes[i];
     return ret;
   }
 
-  Activation(vector<Uint>_sizes, vector<Uint>_bOut, vector<Uint>_bInp):
+  Activation(std::vector<Uint>_sizes, std::vector<Uint>_bOut, std::vector<Uint>_bInp):
     nLayers(_sizes.size()), nOutputs(_nOuts(_sizes,_bOut)), nInputs(_nInps(_sizes,_bInp)), sizes(_sizes), output(_bOut), input(_bInp),
     suminps(allocate_vec(_sizes)), outvals(allocate_vec(_sizes)), errvals(allocate_vec(_sizes)) {
     assert(suminps.size()== (size_t) nLayers);
@@ -41,7 +41,7 @@ struct Activation
   }
 
   template<typename T>
-  inline void setInput(const vector<T> inp) const {
+  inline void setInput(const std::vector<T> inp) const {
     assert( (size_t) nInputs == inp.size());
     for(int j=0; j<nInputs; j++)
       assert(!std::isnan(inp[j]) && !std::isinf(inp[j]));
@@ -53,8 +53,8 @@ struct Activation
     }
     assert(k == nInputs);
   }
-  inline vector<Real> getInput() const {
-    vector<Real> ret(nInputs);
+  inline std::vector<Real> getInput() const {
+    std::vector<Real> ret(nInputs);
     int k=0;
     for(int i=0; i<nLayers; i++) if(input[i]) {
       std::copy(outvals[i], outvals[i]+sizes[i], &ret[k]);
@@ -65,16 +65,16 @@ struct Activation
     return ret;
   }
 
-  inline vector<Real> getInputGradient(const Uint ID) const {
+  inline std::vector<Real> getInputGradient(const Uint ID) const {
     assert(written == true);
-    vector<Real> ret(sizes[ID]);
+    std::vector<Real> ret(sizes[ID]);
     std::copy(errvals[ID], errvals[ID]+sizes[ID], &ret[0]);
     //memcpy(&ret[0], errvals[ID], sizes[ID]*sizeof(nnReal));
     return ret;
   }
 
   template<typename T>
-  inline void setOutputDelta(const vector<T> delta) const {
+  inline void setOutputDelta(const std::vector<T> delta) const {
     assert( (size_t) nOutputs == delta.size()); //alternative not supported
     for(int j=0; j<nOutputs; j++)
       assert(!std::isnan(delta[j]) && !std::isinf(delta[j]));
@@ -89,7 +89,7 @@ struct Activation
   }
 
   template<typename T>
-  inline void addOutputDelta(const vector<T> delta) const {
+  inline void addOutputDelta(const std::vector<T> delta) const {
     assert( (size_t) nOutputs == delta.size()); //alternative not supported
     int k=0;
     for(int i=0; i<nLayers; i++) if(output[i])
@@ -98,9 +98,9 @@ struct Activation
     written = true;
   }
 
-  inline vector<nnReal> getOutputDelta() const {
+  inline std::vector<nnReal> getOutputDelta() const {
     assert(written == true);
-    vector<nnReal> ret(nOutputs);
+    std::vector<nnReal> ret(nOutputs);
     int k=0;
     for(int i=0; i<nLayers; i++) if(output[i]) {
       std::copy(errvals[i], errvals[i]+sizes[i], &ret[k]);
@@ -111,9 +111,9 @@ struct Activation
     return ret;
   }
 
-  inline vector<Real> getOutput() const {
+  inline std::vector<Real> getOutput() const {
     assert(written == true);
-    vector<Real> ret(nOutputs);
+    std::vector<Real> ret(nOutputs);
     int k=0;
     for(int i=0; i<nLayers; i++) if(output[i]) {
       std::copy(outvals[i], outvals[i]+sizes[i], &ret[k]);
@@ -161,22 +161,22 @@ struct Activation
   }
 
   const int nLayers, nOutputs, nInputs;
-  const vector<Uint> sizes, output, input;
+  const std::vector<Uint> sizes, output, input;
   //contains all inputs to each neuron (inputs to network input layer is empty)
-  const vector<nnReal*> suminps;
+  const std::vector<nnReal*> suminps;
   //contains all neuron outputs that will be the incoming signal to linked layers (outputs of input layer is network inputs)
-  const vector<nnReal*> outvals;
+  const std::vector<nnReal*> outvals;
   //deltas for each neuron
-  const vector<nnReal*> errvals;
+  const std::vector<nnReal*> errvals;
   mutable bool written = false;
 };
 
-inline void deallocateUnrolledActivations(vector<Activation*>& r)
+inline void deallocateUnrolledActivations(std::vector<Activation*>& r)
 {
   for (auto & ptr : r) _dispose_object(ptr);
   r.clear();
 }
-inline void deallocateUnrolledActivations(vector<Activation*>* r)
+inline void deallocateUnrolledActivations(std::vector<Activation*>* r)
 {
   for (auto & ptr : *r) _dispose_object(ptr);
   r->clear();

@@ -46,7 +46,7 @@ void Sampling::IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
 
 Sample_uniform::Sample_uniform(const Settings&S, MemoryBuffer*const R):
   Sampling(S,R) {}
-void Sample_uniform::sample(vector<Uint>& seq, vector<Uint>& obs)
+void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   if(seq.size() not_eq obs.size()) die(" ");
 
@@ -93,7 +93,7 @@ bool Sample_uniform::requireImportanceWeights() { return false; }
 
 Sample_impLen::Sample_impLen(const Settings&S, MemoryBuffer*const R):
 Sampling(S,R) {}
-void Sample_impLen::sample(vector<Uint>& seq, vector<Uint>& obs)
+void Sample_impLen::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   if(seq.size() not_eq obs.size()) die(" ");
   const Uint nBatch = obs.size();
@@ -172,7 +172,7 @@ void TSample_shuffle::prepare(std::atomic<bool>& needs_pass)
   };
   __gnu_parallel::random_shuffle(samples.begin(), samples.end(), RNG);
 }
-void TSample_shuffle::sample(vector<Uint>& seq, vector<Uint>& obs)
+void TSample_shuffle::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   for(Uint i=0; i<seq.size(); ++i)
   {
@@ -199,11 +199,11 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
   // 3) compute inv sqrt of all errors, same sweep also get minP
   //const float EPS = numeric_limits<float>::epsilon();
   using USI = unsigned short;
-  using TupEST = tuple<float, USI, USI>;
+  using TupEST = std::tuple<float, USI, USI>;
   const long nSeqs = nSequences(), nData = nTransitions();
   if(nSeqs >= 65535) die("Too much data for data format");
 
-  vector<TupEST> errors(nData);
+  std::vector<TupEST> errors(nData);
   // 1)
   for(long i=0, locPrefix=0; i<nSeqs; i++) {
     Set[i]->prefix = locPrefix;
@@ -221,21 +221,21 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
 
   // 3)
   float minP = 1e9;
-  vector<float> probs = vector<float>(nData, 1);
+  std::vector<float> probs = std::vector<float>(nData, 1);
   #pragma omp parallel for reduction(min:minP) schedule(static)
   for(long i=0; i<nData; i++) {
     // if samples never seen by optimizer the samples have high priority
     const float P = std::get<0>(errors[i])>0 ? approxRsqrt(i+1) : 1;
-    const Uint seq = get<1>(errors[i]), t = get<2>(errors[i]);
+    const Uint seq = std::get<1>(errors[i]), t = std::get<2>(errors[i]);
     probs[Set[seq]->prefix + t] = P;
     Set[seq]->priorityImpW[t] = P;
     minP = std::min(minP, P);
   }
 
   setMinMaxProb(1, minP);
-  distObs = discrete_distribution<Uint>(probs.begin(), probs.end());
+  distObs = std::discrete_distribution<Uint>(probs.begin(), probs.end());
 }
-void TSample_impRank::sample(vector<Uint>& seq, vector<Uint>& obs)
+void TSample_impRank::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   if(seq.size() not_eq obs.size()) die(" ");
 
@@ -301,9 +301,9 @@ void TSample_impErr::prepare(std::atomic<bool>& needs_pass)
 
   setMinMaxProb(maxP, minP);
   // std::discrete_distribution handles normalizing by sum P
-  distObs = discrete_distribution<Uint>(probs.begin(), probs.end());
+  distObs = std::discrete_distribution<Uint>(probs.begin(), probs.end());
 }
-void TSample_impErr::sample(vector<Uint>& seq, vector<Uint>& obs)
+void TSample_impErr::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   if(seq.size() not_eq obs.size()) die(" ");
 
@@ -360,9 +360,9 @@ void Sample_impSeq::prepare(std::atomic<bool>& needs_pass)
   setMinMaxProb(maxP, minP);
 
   // std::discrete_distribution handles normalizing by sum P
-  distObs = discrete_distribution<Uint>(probs.begin(), probs.end());
+  distObs = std::discrete_distribution<Uint>(probs.begin(), probs.end());
 }
-void Sample_impSeq::sample(vector<Uint>& seq, vector<Uint>& obs)
+void Sample_impSeq::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   if(seq.size() not_eq obs.size()) die(" ");
   const Uint nBatch = obs.size();

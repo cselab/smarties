@@ -12,8 +12,8 @@
 struct Parameters
 {
  private:
-  vector<Uint> indBiases, indWeights;
-  vector<Uint> nBiases, nWeights;
+  std::vector<Uint> indBiases, indWeights;
+  std::vector<Uint> nBiases, nWeights;
  public:
   const Uint nParams, nLayers;
   mutable bool written = false;
@@ -24,13 +24,13 @@ struct Parameters
   //each layer requests a certain number of parameters, here compute contiguous
   //memory required such that each layer gets an aligned pointer to both
   //its first bias and and first weight, allowing SIMD ops on all layers
-  Uint computeNParams(vector<Uint> _nWeights, vector<Uint> _nBiases)
+  Uint computeNParams(std::vector<Uint> _nWeights, std::vector<Uint> _nBiases)
   {
     assert(_nWeights.size() == _nBiases.size());
     const Uint nL = _nWeights.size();
     Uint nTotPara = 0;
-    indBiases = vector<Uint>(nL, 0);
-    indWeights = vector<Uint>(nL, 0);
+    indBiases = std::vector<Uint>(nL, 0);
+    indWeights = std::vector<Uint>(nL, 0);
     for(Uint i=0; i<nL; i++) {
       indWeights[i] = nTotPara;
       nTotPara += roundUpSimd(_nWeights[i]);
@@ -59,7 +59,7 @@ struct Parameters
     memcpy(params, tgt->params, nParams*sizeof(nnReal));
   }
 
-  Parameters(vector<Uint>_nWeights, vector<Uint>_nBiases, const Uint _mpisize) :
+  Parameters(std::vector<Uint>_nWeights, std::vector<Uint>_nBiases, const Uint _mpisize) :
    nBiases(_nBiases), nWeights(_nWeights),
    nParams(computeNParams(_nWeights, _nBiases)), nLayers(_nWeights.size()),
    params(allocate_param(nParams, _mpisize))  { }
@@ -68,7 +68,7 @@ struct Parameters
     if(params not_eq nullptr) free(params);
   }
 
-  void reduceThreadsGrad(const vector<Parameters*>& g) const
+  void reduceThreadsGrad(const std::vector<Parameters*>& g) const
   {
     #ifndef NDEBUG
       //vector<nnReal> gradMagn = vector<nnReal>(g.size(), 0);
@@ -172,8 +172,8 @@ struct Parameters
   }
 };
 
-inline vector<Parameters*> initWpop(const Parameters*const W,Uint popsz,Uint mpisize) {
-  vector<Parameters*> ret(popsz, nullptr);
+inline std::vector<Parameters*> initWpop(const Parameters*const W,Uint popsz,Uint mpisize) {
+  std::vector<Parameters*> ret(popsz, nullptr);
   for(Uint i=0; i<popsz; i++) ret[i] = W->allocateGrad(mpisize);
   return ret;
 }

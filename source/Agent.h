@@ -132,7 +132,7 @@ class Agent
   }
 
   template<typename T>
-  void update(const envInfo _i, const vector<T>& _s, const double _r)
+  void update(const envInfo _i, const std::vector<T>& _s, const double _r)
   {
     if(_i == FAIL_COMM) {
       cumulative_rewards = 0; transitionID = 0; r = 0;

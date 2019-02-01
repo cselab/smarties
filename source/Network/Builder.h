@@ -15,7 +15,6 @@
 //#include "Layer_IntFire.h"
 #include "Layer_LSTM.h"
 #include "Layer_MGU.h"
-#include <fstream>
 
 class Builder
 {
@@ -57,7 +56,6 @@ public:
       die("Missing input layer.");
     if(nNeurons <= 0)  die("Requested empty layer.");
     const Uint layInp = layers[ID-iLink]->nOutputs();
-    const bool bResLayer = (int) layers[ID-1]->nOutputs() == nNeurons;
     Layer* l = nullptr;
            if (layerType == "LSTM") {
       l = new LSTMLayer(ID, layInp, nNeurons, funcType, bOutput, iLink);
@@ -72,7 +70,10 @@ public:
     assert(l not_eq nullptr);
     layers.push_back(l);
 
-    if(bResLayer) layers.push_back(new ResidualLayer(ID+1, nNeurons));
+    const bool bResLayer = (int) layers[ID-1]->nOutputs()==nNeurons && !bOutput;
+    //const bool bResLayer = not bOutput;
+    if(bResLayer)
+      layers.push_back(new ResidualLayer(ID+1, nNeurons));
 
     if(bOutput) nOutputs += l->nOutputs();
   }

@@ -106,7 +106,14 @@ class Communicator:
     def truncateSeq(self, observation, reward, agent_id=0):
         self.sendState(observation, reward, terminal=True, initial=False, truncated=True, agent_id=agent_id)
 
-    def sendState(self, observation, reward, terminal=False, initial=False, truncated=False, agent_id=0):
+    def sendState(self,
+        observation,     # state vector
+        reward,          # scalar reward
+        terminal=False,  # bool: is episode terminated?
+        initial=False,   # bool: is new episode?
+        truncated=False, # bool: is episode truncated?
+        agent_id=0       # ID of querying agent
+        ):
         if initial: self.seq_id, self.frame_id = self.seq_id+1, 0
         self.frame_id = self.frame_id + 1
         self.send_stateaction_info()

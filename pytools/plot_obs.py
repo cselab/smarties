@@ -64,6 +64,9 @@ print("Plot column %d out of %d. Log contains %d time steps from %d episodes." \
 inds = np.arange(0,NROW)
 ST = np.zeros(len(terminals))
 
+act = DATA[:,ICOL]
+max_a, min_a = 1.9, 0.1
+#DATA[:,ICOL] = min_a + 0.5 * (max_a-min_a) * (np.tanh(act) + 1);
 for ind in range(IND0, len(terminals), SKIP):
   term = terminals[ind]; term = term[0]
   init =  initials[ind]; init = init[0]
@@ -77,9 +80,9 @@ for ind in range(IND0, len(terminals), SKIP):
   #print(xini, xes, xtrm)
   if (ind % 1) == 0:
     if ind==IND0:
-      plt.plot(xes, DATA[span,ICOL], 'bo', label='x-trajectory')
+      plt.plot(xes, DATA[span,ICOL], 'bo-', label='x-trajectory')
     else:
-      plt.plot(xes, DATA[span,ICOL], 'bo')
+      plt.plot(xes, DATA[span,ICOL], 'bo-')
 
   #plt.plot(inds, DATA[:,ICOL])
   ST[ind] = DATA[term, ICOL]

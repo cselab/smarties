@@ -37,7 +37,7 @@ void DPG::Train(const Uint seq, const Uint t, const Uint wID,
   const Gaussian_policy POL = prepare_policy(polVec, &aInfo, traj->tuples[t]);
   const Real DKL = POL.sampKLdiv, rho = POL.sampImpWeight;
   //if(!thrID) cout<<"tpol "<<print(polVec)<<" act: "<<print(POL.sampAct)<<endl;
-  const bool isOff = traj->isFarPolicy(t, rho, CmaxRet,CinvRet);
+  const bool isOff= dropRule==1? false:traj->isFarPolicy(t,rho,CmaxRet,CinvRet);
 
   relay->prepare(traj, thrID, ACT);
   const Rvec q_curr = F[1]->forward_cur(t, thrID); // inp here is {s,a}
@@ -69,9 +69,10 @@ void DPG::Train(const Uint seq, const Uint t, const Uint wID,
 
   const Rvec penG = POL.div_kl_grad(traj->tuples[t]->mu, -1);
   // if beta=1 (which is inevitable for CmaxPol=0) this will be equal to polG
-  Rvec mixG = weightSum2Grads(polG, penG, beta);
   Rvec finalG(F[0]->nOutputs(), 0);
-  POL.finalize_grad(mixG, finalG);
+  if(dropRule==2) POL.finalize_grad(polG, finalG);
+  else POL.finalize_grad(weightSum2Grads(polG, penG, beta), finalG);
+
   //#pragma omp critical //"O:"<<print(polVec)<<
   //if(!thrID) cout<<"G:"<<print(polG)<<" D:"<<print(penG)<<endl;
   F[0]->backward(finalG, t, thrID);

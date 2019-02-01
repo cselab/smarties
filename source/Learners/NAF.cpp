@@ -96,7 +96,8 @@ void NAF::Train(const Uint seq, const Uint samp, const Uint wID,
   //cout << POL.sampImpWeight << " " << POL.sampKLdiv << " " << CmaxRet << endl;
 
   const Real Qsold = output[net_indices[0]] + ADV.computeAdvantage(POL.sampAct);
-  const bool isOff = traj->isFarPolicy(samp, POL.sampImpWeight,CmaxRet,CinvRet);
+  const bool isOff= dropRule==1? false :
+                     traj->isFarPolicy(samp, POL.sampImpWeight,CmaxRet,CinvRet);
 
   Real Vsnew = data->scaledReward(traj, samp+1);
   if (not traj->isTerminal(samp+1) && not isOff) {
@@ -107,7 +108,7 @@ void NAF::Train(const Uint seq, const Uint samp, const Uint wID,
   Rvec grad(F[0]->nOutputs());
   grad[net_indices[0]] = error;
   ADV.grad(POL.sampAct, error, grad);
-  if(CmaxRet>1 && beta<1) { // then ReFER
+  if(CmaxRet>1 && beta<1 && dropRule!=2) { // then ReFER
     const Rvec penG = POL.div_kl_grad(traj->tuples[samp]->mu, -1);
     for(Uint i=0; i<nA; i++)
       grad[net_indices[2]+i] = beta*grad[net_indices[2]+i] + (1-beta)*penG[i];

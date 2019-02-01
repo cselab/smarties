@@ -8,7 +8,6 @@
 
 #pragma once
 #include "Parameters.h"
-#include <iomanip>
 
 class Optimizer
 {

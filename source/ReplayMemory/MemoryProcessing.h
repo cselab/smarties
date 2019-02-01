@@ -17,9 +17,9 @@ private:
   const int ID = settings.learner_rank;
   MemoryBuffer * const RM;
 
-  vector<memReal>& invstd = RM->invstd;
-  vector<memReal>& mean = RM->mean;
-  vector<memReal>& std = RM->std;
+  std::vector<memReal>& invstd = RM->invstd;
+  std::vector<memReal>& mean = RM->mean;
+  std::vector<memReal>& std = RM->std;
   Real& invstd_reward = RM->invstd_reward;
 
   const Uint dimS = RM->dimS;
@@ -48,14 +48,14 @@ public:
 
   void updateRewardsStats(const Real WR, const Real WS, const bool bInit=false);
 
-  static FORGET readERfilterAlgo(const string setting, const bool bReFER);
+  static FORGET readERfilterAlgo(const std::string setting, const bool bReFER);
 
   // Algorithm for maintaining and filtering dataset, and optional imp weight range parameter
   void prune(const FORGET ALGO, const Fval CmaxRho = 1);
   void finalize();
 
-  void getMetrics(ostringstream& buff);
-  void getHeaders(ostringstream& buff);
+  void getMetrics(std::ostringstream& buff);
+  void getHeaders(std::ostringstream& buff);
 
   Uint nFarPol() {
     return nOffPol;
