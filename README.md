@@ -15,10 +15,10 @@ The folder `launch` contains the launch scripts, some description on how to use 
 
 To cite this repository, reference the paper:
 ```
-@article{novati2018a,
-    title={Remember and Forget for Experience Replay},
-    author={Novati, G and Koumoutsakos, P},
-    journal={arXiv preprint arXiv:1807.05827},
-    year={2018}
+@inproceedings{novati2019a,
+title={Remember and Forget for Experience Replay},
+author={Novati, Guido and Koumoutsakos, Petros},
+booktitle={Proceedings of the 36\textsuperscript{th} International Conference on Machine Learning},
+year={2019}
 }
 ```
