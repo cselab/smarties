@@ -1,0 +1,1 @@
+../launchSim.sh -CFL 0.02 -DLM 0 -lambda 1e5 -poissonType cosine -muteAll 1 -bpdx 32 -bpdy 32 -tdump 1 -nu 0.00004 -tend 0 -shapes 'glider_semiAxisX=.125_semiAxisY=.025_rhoS=1.01_xpos=.6_ypos=.4_bFixed=1_bForced=0'

@@ -1,0 +1,10 @@
+{
+  "learner": "CMA",
+  "ESpopSize": 12,
+  "batchSize": 32,
+  "explNoise": 0.1,
+  "gamma": 0.99,
+  "learnrate": 0.01,
+  "maxTotObsNum": 64000,
+  "nnLayerSizes": [64, 64]
+}

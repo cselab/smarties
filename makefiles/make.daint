@@ -1,0 +1,9 @@
+MPICXX=CC
+LD=CC
+
+ifeq ($(INTEL_LICENSE_FILE),)
+LIBS+= -lsci_gnu
+else
+LIBS+= -lsci_intel
+endif
+CPPFLAGS+= -DUSE_OPENBLAS

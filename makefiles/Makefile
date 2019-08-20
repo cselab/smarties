@@ -1,15 +1,10 @@
-hn ?= $(shell hostname)
-username ?= $(shell whoami)
+SHELL := /bin/bash
+CURPWD := $(shell pwd)
 UNAME_S := $(shell uname -s)
 config ?= prod
 extra ?=
-ifeq ($(INTEL_LICENSE_FILE),)
-compiler ?= gnu
-else
-compiler ?= intel
-endif
 
-CPPFLAGS=-DSMARTIES
+CPPFLAGS=
 LIBS=
 
 ifeq ($(UNAME_S),Darwin)
@@ -34,12 +29,28 @@ ifeq "$(findstring panda,$(shell hostname))" "panda"
 include make.falcon
 endif
 
-exp ?= GAUS
-ifeq "$(exp)" "GAUS"
-CPPFLAGS+= -DADV_GAUS
+ifeq "$(findstring lair,$(shell hostname))" "lair"
+include make.lair
 endif
-nexp ?= 1
-CPPFLAGS+= -DNEXPERTS=$(nexp)
+
+#ifeq "$(MPICXX)" ""
+#CPPFLAGS+= -I$(CURPWD)/../extern/build/mpich-3.3/include/
+#LIBS+= -L$(CURPWD)/../extern/build/mpich-3.3/lib/
+#MPICXX=$(CURPWD)/../extern/build/mpich-3.3/bin/mpic++
+#LD=$(CURPWD)/../extern/build/mpich-3.3/bin/mpic++
+#else
+LD=$(MPICXX)
+#endif
+
+ifeq "$(shell $(MPICXX) --version | grep -ci 'icpc')" "0"
+ifeq "$(shell $(MPICXX) --version | grep -ci 'llvm')" "0"
+compiler=gnu
+else
+compiler=llvm
+endif
+else
+compiler=intel
+endif
 
 testdiff ?= off
 ifeq "$(testdiff)" "on"
@@ -47,71 +58,107 @@ CPPFLAGS+= -D__CHECK_DIFF
 endif
 
 precision ?= double
+app_precision ?= $(precision)
 ifeq "$(precision)" "single"
 CPPFLAGS+= -DSINGLE_PREC
 endif
 
-app ?= ext_app_test
-
 ifeq "$(compiler)" "intel"
 include make.icc.flags
 else
+ifeq "$(compiler)" "llvm"
+include make.llvm.flags
+else
 include make.gcc.flags
+endif
 endif
 
 DIRS = $(sort $(dir $(wildcard ../source/*/)))
+
 OBJ_FILES = \
-		ArgParser.o main.o ObjectFactory.o Communicator.o Sequences.o Profiler.o \
-		AtariEnvironment.o Approximator.o Network.o Optimizer.o Environment.o \
-		CMA_Optimizer_MPI.o CMALearner.o MemoryBuffer.o Learner_offPolicy.o \
-		Math_tests.o Communicator_internal.o Learner.o  Scheduler.o Aggregator.o \
-		VRACER.o Encapsulator.o Collector.o MemoryProcessing.o MemorySharing.o \
-		StatsTracker.o Sampling.o PPO.o RACER.o RETPG.o DPG.o NAF.o DQN.o ACER.o \
-		StateAction.o
+	PPO.o \
+	NAF.o \
+	DPG.o \
+	DQN.o \
+	ACER.o \
+	RACER.o \
+	CMALearner.o \
+	Learner_pytorch.o \
+	Learner_approximator.o \
+	AlgoFactory.o \
+	Sequences.o \
+	Learner.o \
+	Sampling.o \
+	Collector.o \
+	Math_tests.o \
+	MemoryBuffer.o \
+	DataCoordinator.o \
+	MemoryProcessing.o \
+	Builder.o \
+	Network.o \
+	Optimizer.o \
+	CMA_Optimizer.o \
+	StatsTracker.o \
+	Communicator.o \
+	Approximator.o \
+	Launcher.o \
+	Settings.o \
+	Profiler.o \
+	Master.o \
+	Worker.o \
+	Engine.o
 
 CPP_FILES = $(notdir $(OBJ_FILES:.o=.cpp))
 
-.DEFAULT_GOAL := rl
+.DEFAULT_GOAL := all
 
-ifneq "$(MAKECMDGOALS)" "clean"
--include $(notdir $(patsubst %.cpp,%.d,$(CPP_FILES)))
-endif
-
-LIBS+= -L. -lsimulation
-
-############### Compile application as static library if needed ###############
-ifneq "$(app)" "ext_app_test"
-
-# let's check if app requires some flag / lib
-ifneq ("$(wildcard ../apps/$(app)/make.flags)","")
-include ../apps/$(app)/make.flags
-endif
-CPPFLAGS+= -DINTERNALAPP # app is linked directly to smarties
-
-lib:
-	+make -C ../apps/$(app)/ clean
-	+make -C ../apps/$(app)/ CC=$(CC) CXX=$(CC) compiler=$(compiler) config=$(config)
-
+###################### Compile Communicator Library ###########################
+PYBINDINC:=$(shell python3 -m pybind11 --includes) $(NOWARNP11)
+PYBINDSUF:=$(shell python3-config --extension-suffix)
+ifeq ($(UNAME_S),Darwin)
+PYBINDLD= $(LDFLAGS) -undefined dynamic_lookup
 else
-
-# app is compiled independently and uses communication through sockets
-# this is just for testing:
-lib: ext_app_test.o
-	ar rs libsimulation.a $^
-
+PYBINDLD= $(LDFLAGS)
 endif
 
-rl: $(OBJ_FILES) lib
-	$(CC) $(OBJ_FILES) $(LIBS) -o $@
+PATH_COMM_PY11=../source/smarties_pybind11.cpp
+smarties_pybind11.o:
+	$(MPICXX) $(CPPFLAGS) $(PYBINDINC) -fPIC -c $(PATH_COMM_PY11) -o $@
+
+lib: $(OBJ_FILES)
+	mkdir -p ../lib
+	$(MPICXX) -shared -fPIC $(LDFLAGS) -o ../lib/libsmarties.so $^ $(LIBS)
+	@echo "Remember to update the environmental variables to include the smarties library like:"
+	@cd ../include && echo "echo 'export SMARTIES_INCLUDE=`pwd`' >> ~/.bash_profile"
+	@cd ../lib && echo "echo 'export SMARTIES_LIB=`pwd`' >> ~/.bash_profile"
+	@cd ../ && echo "echo 'export SMARTIES_ROOT=`pwd`' >> ~/.bash_profile"
+
+#echo "echo 'export LD_LIBRARY_PATH=\"\$${LD_LIBRARY_PATH}:`pwd`\"' >> ~/.bash_profile"
+
+py11: $(OBJ_FILES) smarties_pybind11.o
+	mkdir -p ../lib
+	$(MPICXX) -shared $(PYBINDLD) -o ../lib/smarties$(PYBINDSUF) $^ $(LIBS)
+
+
+#$(MPICXX) $(CPPFLAGS) -DSMARTIES_LIB -shared -fPIC \
+#	$(PATH_COMM).cpp -o libsmarties.so
+#g++ -shared -Wl,-soname,$(LIBNAME) -o $(LIBNAME) CommunicatorLib.o
+
+#exec: $(OBJ_FILES) main.o
+#	$(LD) $(LDFLAGS) -o rl main.o $(LIBS) $(OBJ_FILES)
+
+exec: lib main.o
+	$(LD) $(LDFLAGS) -o rl main.o -L../lib/ -lsmarties
+
+all: lib
+
+main.o: ../source/main.cpp
+	$(MPICXX) $(extra) $(CPPFLAGS) -c $< -o $@
 
 %.o: %.cpp
-	$(CC) $(extra)  $(CPPFLAGS) -c $< -o $@
-
-%.d: %.cpp
-	$(CC) $(extra)  $(CPPFLAGS) -c -MD $<
+	$(MPICXX) $(extra) $(CPPFLAGS) -fPIC -c $< -o $@
 
 vpath %.cpp $(DIRS)
-vpath %.h   $(DIRS)
 
 clean:
-	rm -f *.o *.so *.s *.d libsimulation.a rl
+	rm -f *.o *.so *.s *.d ../lib/lib*

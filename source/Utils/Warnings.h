@@ -6,25 +6,30 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#pragma once
-#include "../Bund.h"
+#ifndef smarties_Warnings_h
+#define smarties_Warnings_h
+
+#include "MPIUtilities.h"
 #include <mutex>
-#include <sstream>
+//#include <sstream>
 #include <stdarg.h>
 
-namespace ErrorHandling
+namespace smarties
 {
-  static std::mutex warn_mutex;
-  enum Debug_level { SILENT, WARNINGS, SCHEDULER, ENVIRONMENT, NETWORK, COMMUNICATOR, LEARNERS, TRANSITIONS };
+namespace Warnings
+{
+static std::mutex warn_mutex;
+enum Debug_level { SILENT, WARNINGS, SCHEDULER, ENVIRONMENT, NETWORK, COMMUNICATOR, LEARNERS, TRANSITIONS };
 
-  static constexpr Debug_level level = WARNINGS;
-  //static constexpr Debug_level level = LEARNERS;
-  //static constexpr Debug_level level = SCHEDULER;
+static constexpr Debug_level level = WARNINGS;
+//static constexpr Debug_level level = LEARNERS;
+//static constexpr Debug_level level = SCHEDULER;
 
-//#define PR_ERR(fd,a,...) fprintf(fd,a,__func__,__FILE__,__LINE__,##__VA_ARGS__);
-#define FLUSHALL fflush(stdout); fflush(stderr); fflush(0);
-#define KILLALL MPI_Abort(MPI_COMM_WORLD, 1);
-#define LOCKCOMM std::lock_guard<std::mutex> wlock(ErrorHandling::warn_mutex);
+static inline void flushAll() { fflush(stdout); fflush(stderr); fflush(0); }
+
+static inline void abortAll() { MPI_Abort(MPI_COMM_WORLD, 1); }
+
+#define SMARTIES_LOCKCOMM std::lock_guard<std::mutex> wlock(smarties::Warnings::warn_mutex)
 
 inline static void printfmt(char*const p, const int N, const char*const a, ... )
 {
@@ -33,113 +38,87 @@ inline static void printfmt(char*const p, const int N, const char*const a, ... )
   vsnprintf (p, N, a, args);
   va_end (args);
 }
-
-
 // THESE ARE ALL DEFINES ALLOWING PRINTING FILE, FUNC, LINE
 
-#define    die(format)      do { LOCKCOMM  \
-  int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
+#define    die(format)      do { \
+  SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
   fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-  " FATAL",format); FLUSHALL KILLALL } while(0)
+  " FATAL",format); smarties::Warnings::flushAll(); smarties::Warnings::abortAll(); } while(0)
 
-#define   _die(format, ...) do { LOCKCOMM  \
-  int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-  char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+#define   _die(format, ...) do { \
+  SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+  char BUF[512]; Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
   fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-  " FATAL", BUF); FLUSHALL KILLALL } while(0)
+  " FATAL", BUF); smarties::Warnings::flushAll(); smarties::Warnings::abortAll(); } while(0)
 
-#define  error(format, ...) do { LOCKCOMM \
-  int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-  char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+#define  error(format, ...) do { \
+  SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+  char BUF[512]; Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
   fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-  " ERROR", BUF); FLUSHALL} while(0)
+  " ERROR", BUF); smarties::Warnings::flushAll(); } while(0)
 
 #define   warn(format)  do { \
-  if(ErrorHandling::level >= ErrorHandling::WARNINGS) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
+  if(Warnings::level >= smarties::Warnings::WARNINGS) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
     fprintf(stdout,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " WARNING",format); FLUSHALL} } while(0)
+    " WARNING",format); smarties::Warnings::flushAll(); } } while(0)
 
 #define  _warn(format, ...)  do { \
-  if(ErrorHandling::level >= ErrorHandling::WARNINGS) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level >= smarties::Warnings::WARNINGS) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stdout,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " WARNING", BUF); FLUSHALL} } while(0)
+    " WARNING", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugS(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::SCHEDULER) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::SCHEDULER) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stdout,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugE(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::ENVIRONMENT) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::ENVIRONMENT) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugN(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::NETWORK) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::NETWORK) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugC(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::COMMUNICATOR) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::COMMUNICATOR) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define _debugL(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::LEARNERS) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::LEARNERS) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugL(format)  do { \
-  if(ErrorHandling::level == ErrorHandling::LEARNERS) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
+  if(Warnings::level == smarties::Warnings::LEARNERS) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " LEARNER",format); FLUSHALL} } while(0)
+    " LEARNER",format); smarties::Warnings::flushAll(); } } while(0)
 
 #define debugT(format, ...)  do { \
-  if(ErrorHandling::level == ErrorHandling::TRANSITIONS) { LOCKCOMM \
-    int wrnk; MPI_Comm_rank(MPI_COMM_WORLD, &wrnk); \
-    char BUF[512]; ErrorHandling::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
+  if(Warnings::level == smarties::Warnings::TRANSITIONS) { \
+    SMARTIES_LOCKCOMM; const auto wrnk = smarties::MPIworldRank(); \
+    char BUF[512]; smarties::Warnings::printfmt(BUF, 512, format, ##__VA_ARGS__ ); \
     fprintf(stderr,"Rank %d %s(%s:%d)%s %s\n",wrnk,__func__,__FILE__,__LINE__, \
-    " ", BUF); FLUSHALL} } while(0)
+    " ", BUF); smarties::Warnings::flushAll(); } } while(0)
 
-}
+} // end namespace Warnings
 
-template <typename T>
-inline std::string print(const std::vector<T> vals, const int width=-1)
-{
-  std::ostringstream o;
-  if(!vals.size()) return o.str();
-  if(width>0) o << std::setprecision(3) << std::fixed;
-  for (Uint i=0; i<vals.size()-1; i++) o << vals[i] << " ";
-  o << vals[vals.size()-1];
-  return o.str();
-}
-
-inline void real2SS(std::ostringstream&B,const Real V,const int W, const bool bPos)
-{
-  B<<" "<<std::setw(W);
-  if(std::fabs(V)>= 1e4) B << std::setprecision(std::max(W-7+bPos,0));
-  else
-  if(std::fabs(V)>= 1e3) B << std::setprecision(std::max(W-6+bPos,0));
-  else
-  if(std::fabs(V)>= 1e2) B << std::setprecision(std::max(W-5+bPos,0));
-  else
-  if(std::fabs(V)>= 1e1) B << std::setprecision(std::max(W-4+bPos,0));
-  else
-                         B << std::setprecision(std::max(W-3+bPos,0));
-  B<<std::fixed<<V;
-}
-
+} // end namespace smarties
+#endif

@@ -1,0 +1,6 @@
+CC=mpic++
+LIBS+= -L/home/viper/libraries/openblas/lib/ -lopenblas
+LIBS+= -L/home/viper/libraries/mpich-install/lib/
+CPPFLAGS+= -I/home/viper/libraries/mpich-install/include/
+CPPFLAGS+= -I/home/viper/libraries/openblas/include
+CPPFLAGS+= -DUSE_OPENBLAS

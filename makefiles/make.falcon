@@ -1,3 +1,5 @@
-CC=mpic++
+MPICXX=mpic++
+LD=mpic++
+
 LIBS+= -L/opt/OpenBLAS/lib/ -lopenblas
-CPPFLAGS+= -I/opt/OpenBLAS/include/
+CPPFLAGS+= -I/opt/OpenBLAS/include/ -DUSE_OPENBLAS

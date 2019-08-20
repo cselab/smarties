@@ -1,0 +1,10 @@
+{
+  "learner": "RACER",
+  "nnLayerSizes": [128, 128, 128],
+  "gamma": 1,
+  "epsAnneal": 2e-7,
+  "nnLambda": 1e-6,
+  "penalTol": 0.05,
+  "clipImpWeight": 1,
+  "maxTotObsNum": 524288
+}

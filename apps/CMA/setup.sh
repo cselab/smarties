@@ -1,3 +1,4 @@
+export INTERNALAPP=false
 make -C ../apps/CMA/ clean
 make -C ../apps/CMA/
 

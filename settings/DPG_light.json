@@ -1,0 +1,14 @@
+{
+  "learner": "DPG",
+  "batchSize": 32,
+  "clipImpWeight": 4,
+  "encoderLayerSizes": [32],
+  "epsAnneal": 5e-7,
+  "explNoise": 0.2,
+  "gamma": 0.99,
+  "learnrate": 0.000001,
+  "maxTotObsNum": 262144,
+  "minTotObsNum": 65536,
+  "nnLayerSizes": [32],
+  "targetDelay": 0.001
+}

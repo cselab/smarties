@@ -1,0 +1,14 @@
+{
+  "learner": "VRACER",
+  "batchSize": 60,
+  "ESpopSize": 60,
+  "clipImpWeight": 4,
+  "epsAnneal": 0,
+  "explNoise": 0.447214,
+  "gamma": 0.995,
+  "learnrate": 0.001,
+  "maxTotObsNum": 262144,
+  "nnLayerSizes": [64, 64],
+  "obsPerStep": 1,
+  "outWeightsPrefac": 0.01
+}

@@ -7,19 +7,36 @@
 //
 
 #include "Sequences.h"
+#include <cstring>
+#include <cmath>
+
+namespace smarties
+{
 
 std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uint dP)
 {
-  const Uint seq_len = tuples.size();
+  const Uint seq_len = states.size();
+  assert(states.size() == actions.size() && states.size() == policies.size());
   const Uint totalSize = Sequence::computeTotalEpisodeSize(dS, dA, dP, seq_len);
+  assert( seq_len == Sequence::computeTotalEpisodeNstep(dS,dA,dP,totalSize) );
   std::vector<Fval> ret(totalSize, 0);
   Fval* buf = ret.data();
-  for (Uint i = 0; i<seq_len; i++) {
-    std::copy(tuples[i]->s.begin(), tuples[i]->s.end(), buf);
-    buf[dS] = tuples[i]->r; buf += dS + 1;
-    std::copy(tuples[i]->a.begin(),  tuples[i]->a.end(),  buf); buf += dA;
-    std::copy(tuples[i]->mu.begin(), tuples[i]->mu.end(), buf); buf += dP;
+
+  for (Uint i = 0; i<seq_len; ++i)
+  {
+    assert(states[i].size() == dS);
+    assert(actions[i].size() == dA);
+    assert(policies[i].size() == dP);
+    std::copy(states[i].begin(), states[i].end(), buf);
+    buf[dS] = rewards[i]; buf += dS + 1;
+    std::copy(actions[i].begin(),  actions[i].end(),  buf); buf += dA;
+    std::copy(policies[i].begin(), policies[i].end(), buf); buf += dP;
   }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // following vectors may be of size less than seq_len because
+  // some algorithms do not allocate them. I.e. Q-learning-based
+  // algorithms do not need to advance retrace-like value estimates
 
   assert(Q_RET.size() <= seq_len);        Q_RET.resize(seq_len);
   std::copy(Q_RET.begin(), Q_RET.end(), buf); buf += seq_len;
@@ -30,6 +47,11 @@ std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uin
   assert(state_vals.size() <= seq_len);   state_vals.resize(seq_len);
   std::copy(state_vals.begin(), state_vals.end(), buf); buf += seq_len;
 
+  /////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////
+  // post processing quantities might not be already allocated
+
   assert(SquaredError.size() <= seq_len); SquaredError.resize(seq_len);
   std::copy(SquaredError.begin(), SquaredError.end(), buf); buf += seq_len;
 
@@ -39,14 +61,26 @@ std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uin
   assert(KullbLeibDiv.size() <= seq_len); KullbLeibDiv.resize(seq_len);
   std::copy(KullbLeibDiv.begin(), KullbLeibDiv.end(), buf); buf += seq_len;
 
-  *(buf++) = ended+.5; *(buf++) = ID+.5; *(buf++) = nOffPol;
-  *(buf++) = MSE; *(buf++) = sumKLDiv; *(buf++) = totR;
-  assert(buf - ret.data() == totalSize);
+  /////////////////////////////////////////////////////////////////////////////
+
+  *(buf++) = nOffPol; //fval
+  *(buf++) = MSE; //fval
+  *(buf++) = sumKLDiv; //fval
+  *(buf++) = totR; //fval
+
+  char * charPos = (char*) buf;
+  memcpy(charPos, &       ended, sizeof(bool)); charPos += sizeof(bool);
+  memcpy(charPos, &          ID, sizeof(Sint)); charPos += sizeof(Sint);
+  memcpy(charPos, &just_sampled, sizeof(Sint)); charPos += sizeof(Sint);
+  memcpy(charPos, &      prefix, sizeof(Uint)); charPos += sizeof(Uint);
+  memcpy(charPos, &     agentID, sizeof(Uint)); charPos += sizeof(Uint);
+
+  // assert(buf - ret.data() == (ptrdiff_t) totalSize);
   return ret;
 }
 
 void Sequence::save(FILE * f, const Uint dS, const Uint dA, const Uint dP) {
-  const Uint seq_len = tuples.size();
+  const Uint seq_len = states.size();
   fwrite(& seq_len, sizeof(Uint), 1, f);
   Fvec buffer = packSequence(dS, dA, dP);
   fwrite(buffer.data(), sizeof(Fval), buffer.size(), f);
@@ -56,23 +90,39 @@ void Sequence::unpackSequence(const std::vector<Fval>& data, const Uint dS,
   const Uint dA, const Uint dP)
 {
   const Uint seq_len = Sequence::computeTotalEpisodeNstep(dS,dA,dP,data.size());
+  assert( data.size() == Sequence::computeTotalEpisodeSize(dS,dA,dP,seq_len) );
   const Fval* buf = data.data();
-  assert(tuples.size() == 0);
-  tuples = std::vector<Tuple*>(seq_len, nullptr);
-  for (Uint i = 0; i<seq_len; i++) {
-    tuples[i] = new Tuple(buf, dS, buf[dS]); buf += dS + 1;
-    tuples[i]->setAct(buf, dA, dP); buf += dA + dP;
+  assert(states.size() == 0);
+  for (Uint i = 0; i<seq_len; ++i) {
+    states.push_back(  Fvec(buf, buf+dS));
+    rewards.push_back(buf[dS]); buf += dS + 1;
+    actions.push_back( Rvec(buf, buf+dA)); buf += dA;
+    policies.push_back(Rvec(buf, buf+dP)); buf += dP;
   }
-  Q_RET = Fvec(buf, buf + seq_len); buf += seq_len;
-  action_adv = Fvec(buf, buf + seq_len); buf += seq_len;
-  state_vals = Fvec(buf, buf + seq_len); buf += seq_len;
-  SquaredError = Fvec(buf, buf + seq_len); buf += seq_len;
-  offPolicImpW = Fvec(buf, buf + seq_len); buf += seq_len;
-  KullbLeibDiv = Fvec(buf, buf + seq_len); buf += seq_len;
+
+  /////////////////////////////////////////////////////////////////////////////
+  Q_RET      = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
+  action_adv = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
+  state_vals = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
+  /////////////////////////////////////////////////////////////////////////////
+  SquaredError = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
+  offPolicImpW = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
+  KullbLeibDiv = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
+  /////////////////////////////////////////////////////////////////////////////
   priorityImpW = std::vector<float>(seq_len, 1);
-  ended = *(buf++); ID = *(buf++); nOffPol = *(buf++);
-  MSE = *(buf++); sumKLDiv = *(buf++); totR = *(buf++);
-  assert(buf-data.data()==Sequence::computeTotalEpisodeSize(dS,dA,dP,seq_len));
+  /////////////////////////////////////////////////////////////////////////////
+  nOffPol  = *(buf++);
+  MSE      = *(buf++);
+  sumKLDiv = *(buf++);
+  totR     = *(buf++);
+
+  const char * charPos = (const char *) buf;
+  memcpy(&       ended, charPos, sizeof(bool)); charPos += sizeof(bool);
+  memcpy(&          ID, charPos, sizeof(Sint)); charPos += sizeof(Sint);
+  memcpy(&just_sampled, charPos, sizeof(Sint)); charPos += sizeof(Sint);
+  memcpy(&      prefix, charPos, sizeof(Uint)); charPos += sizeof(Uint);
+  memcpy(&     agentID, charPos, sizeof(Uint)); charPos += sizeof(Uint);
+  //assert(buf-data.data()==(ptrdiff_t)computeTotalEpisodeSize(dS,dA,dP,seq_len));
 }
 
 int Sequence::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
@@ -85,4 +135,41 @@ int Sequence::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
     die("mismatch");
   unpackSequence(buffer, dS, dA, dP);
   return 0;
+}
+
+template<typename T>
+inline bool isDifferent(const T& a, const T& b) {
+  return std::fabs(a-b) > 100*std::numeric_limits<Fval>::epsilon();
+}
+template<typename T>
+inline bool isDifferent(const std::vector<T>& a, const std::vector<T>& b) {
+  if(a.size() not_eq b.size()) return true;
+  for(size_t i=0; i<b.size(); ++i) if( isDifferent(a[i], b[i]) ) return true;
+  return false;
+}
+
+bool Sequence::isEqual(const Sequence * const S) const
+{
+  if( isDifferent(S->states      , states      ) ) assert(false && "states");
+  if( isDifferent(S->actions     , actions     ) ) assert(false && "actions");
+  if( isDifferent(S->policies    , policies    ) ) assert(false && "policies");
+  if( isDifferent(S->rewards     , rewards     ) ) assert(false && "rewards");
+  if( isDifferent(S->Q_RET       , Q_RET       ) ) assert(false && "Q_RET");
+  if( isDifferent(S->action_adv  , action_adv  ) ) assert(false && "action_adv");
+  if( isDifferent(S->state_vals  , state_vals  ) ) assert(false && "state_vals");
+  if( isDifferent(S->SquaredError, SquaredError) ) assert(false && "SquaredError");
+  if( isDifferent(S->offPolicImpW, offPolicImpW) ) assert(false && "offPolicImpW");
+  if( isDifferent(S->KullbLeibDiv, KullbLeibDiv) ) assert(false && "KullbLeibDiv");
+  if( isDifferent(S->nOffPol     , nOffPol     ) ) assert(false && "nOffPol");
+  if( isDifferent(S->MSE         , MSE         ) ) assert(false && "MSE");
+  if( isDifferent(S->sumKLDiv    , sumKLDiv    ) ) assert(false && "sumKLDiv");
+  if( isDifferent(S->totR        , totR        ) ) assert(false && "totR");
+  if(S->ended        not_eq ended       ) assert(false && "ended");
+  if(S->ID           not_eq ID          ) assert(false && "ID");
+  if(S->just_sampled not_eq just_sampled) assert(false && "just_sampled");
+  if(S->prefix       not_eq prefix      ) assert(false && "prefix");
+  if(S->agentID      not_eq agentID     ) assert(false && "agentID");
+  return true;
+}
+
 }

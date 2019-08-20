@@ -5,32 +5,36 @@
 //
 //  Created by Guido Novati (novatig@ethz.ch).
 //
-#pragma once
+
+#ifndef smarties_MemoryProcessing_h
+#define smarties_MemoryProcessing_h
 
 #include "MemoryBuffer.h"
+#include "../Utils/StatsTracker.h"
 
-enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV};
+namespace smarties
+{
+
 class MemoryProcessing
 {
 private:
-  const Settings & settings;
-  const int ID = settings.learner_rank;
-  MemoryBuffer * const RM;
+  MemoryBuffer* const RM;
+  MDPdescriptor & MDP = RM->MDP;
+  const Settings & settings = RM->settings;
+  const DistributionInfo & distrib = RM->distrib;
 
-  std::vector<memReal>& invstd = RM->invstd;
-  std::vector<memReal>& mean = RM->mean;
-  std::vector<memReal>& std = RM->std;
-  Real& invstd_reward = RM->invstd_reward;
+  std::vector<nnReal>& invstd = RM->invstd;
+  std::vector<nnReal>& mean = RM->mean;
+  std::vector<nnReal>& std = RM->std;
+  //nnReal& stddev_reward = RM->stddev_reward;
+  nnReal& invstd_reward = RM->invstd_reward;
 
-  const Uint dimS = RM->dimS;
   Uint nPruned = 0, minInd = 0, nOffPol = 0;
-  Real avgDKL = 0;
-  int delPtr = -1;
+  Real avgDKL =  0;
+  Sint delPtr = -1;
 
-  DelayedReductor Ssum1Rdx = DelayedReductor(settings, LDvec(dimS, 0) );
-  DelayedReductor Ssum2Rdx = DelayedReductor(settings, LDvec(dimS, 1) );
-  DelayedReductor Rsum2Rdx = DelayedReductor(settings, LDvec(   1, 1) );
-  DelayedReductor Csum1Rdx = DelayedReductor(settings, LDvec(   1, 1) );
+  DelayedReductor<long double> Ssum1Rdx, Ssum2Rdx, Rsum2Rdx, Csum1Rdx;
+  DelayedReductor<long> globalStep_reduce;
 
   const std::vector<Sequence*>& Set = RM->Set;
   std::atomic<long>& nSequences = RM->nSequences;
@@ -42,9 +46,7 @@ private:
 
 public:
 
-  MemoryProcessing(const Settings&S, MemoryBuffer*const _RM);
-
-  ~MemoryProcessing() { }
+  MemoryProcessing(MemoryBuffer*const _RM);
 
   void updateRewardsStats(const Real WR, const Real WS, const bool bInit=false);
 
@@ -61,3 +63,6 @@ public:
     return nOffPol;
   }
 };
+
+}
+#endif

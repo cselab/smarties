@@ -1,0 +1,39 @@
+
+CPPFLAGS+= -std=c++14 -fopenmp=libomp
+LDFLAGS+= -fopenmp=libomp
+
+# block all the LLVM complaints that I have no control over (libs/extern)
+CPPFLAGS+= -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic \
+  -Wno-old-style-cast -Wno-sign-conversion -Wno-extra-semi-stmt -Wno-padded \
+  -Wno-cast-qual -Wno-zero-as-null-pointer-constant -Wno-shorten-64-to-32 \
+  -Wno-double-promotion -Wno-unused-parameter -Wno-exit-time-destructors \
+  -Wno-gnu-zero-variadic-macro-arguments -Wno-undef -Wno-documentation \
+  -Wno-covered-switch-default -Wno-weak-vtables -Wno-global-constructors \
+  -Wno-cast-align -Wno-implicit-float-conversion -Wno-unused-template \
+  -Wno-extra-semi -Wno-float-conversion -Wno-format-nonliteral \
+  -Wno-switch-enum -Wno-reserved-id-macro -Wno-weak-template-vtables \
+  -Wno-undefined-func-template -Wno-documentation-unknown-command \
+  -Wno-documentation-pedantic #-Wno-pass-failed=transform-warning
+
+
+NOWARNP11= -Wno-shadow-field-in-constructor -Wno-documentation-unknown-command \
+  -Wno-shadow-uncaptured-local -Wno-shadow-field -Wno-range-loop-analysis \
+  -Wno-missing-prototypes -Wno-undefined-reinterpret-cast -Wno-float-equal \
+  -undefined dynamic_lookup
+
+ifeq "$(config)" "debug"
+CPPFLAGS+= -g -O0
+endif
+
+ifeq "$(config)" "segf"
+CPPFLAGS+= -g -O0 -fsanitize=address
+LDFLAGS+= -fsanitize=address
+endif
+ifeq "$(config)" "nans"
+CPPFLAGS+= -g -O0 -fsanitize=undefined
+LDFLAGS+= -fsanitize=undefined
+endif
+
+ifeq "$(config)" "prod"
+CPPFLAGS+= -DNDEBUG -O3
+endif

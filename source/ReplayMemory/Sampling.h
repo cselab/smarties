@@ -5,10 +5,15 @@
 //
 //  Created by Guido Novati (novatig@ethz.ch).
 //
-#pragma once
 
-#include "Sequences.h"
-#include <atomic>
+#ifndef smarties_Sampling_h
+#define smarties_Sampling_h
+
+#include "../Core/StateAction.h"
+#include <random>
+
+namespace smarties
+{
 
 class MemoryBuffer;
 
@@ -25,7 +30,8 @@ class Sampling
   void setMinMaxProb(const Real maxP, const Real minP);
 
  public:
-  Sampling(const Settings& S, MemoryBuffer*const R);
+  Sampling(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSampleSeqs);
+  virtual ~Sampling() {}
   virtual void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) = 0;
   virtual void prepare(std::atomic<bool>& needs_pass) = 0;
   void IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
@@ -36,7 +42,7 @@ class Sampling
 class Sample_uniform : public Sampling
 {
  public:
-  Sample_uniform(const Settings& S, MemoryBuffer*const R);
+  Sample_uniform(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
@@ -46,7 +52,7 @@ class Sample_impLen : public Sampling
 {
   std::discrete_distribution<Uint> dist;
  public:
-  Sample_impLen(const Settings& S, MemoryBuffer*const R);
+  Sample_impLen(std::vector<std::mt19937>&, MemoryBuffer*const, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
@@ -56,7 +62,7 @@ class TSample_shuffle : public Sampling
 {
   std::vector<std::pair<unsigned, unsigned>> samples;
  public:
-  TSample_shuffle(const Settings& S, MemoryBuffer*const R);
+  TSample_shuffle(std::vector<std::mt19937>&, MemoryBuffer*const, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
@@ -67,7 +73,7 @@ class TSample_impRank : public Sampling
   int stepSinceISWeep = 0;
   std::discrete_distribution<Uint> distObs;
  public:
-  TSample_impRank(const Settings& S, MemoryBuffer*const R);
+  TSample_impRank(std::vector<std::mt19937>&, MemoryBuffer*const, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
@@ -78,7 +84,7 @@ class TSample_impErr : public Sampling
   int stepSinceISWeep = 0;
   std::discrete_distribution<Uint> distObs;
  public:
-  TSample_impErr(const Settings& S, MemoryBuffer*const R);
+  TSample_impErr(std::vector<std::mt19937>&, MemoryBuffer*const, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
@@ -89,8 +95,11 @@ class Sample_impSeq : public Sampling
   int stepSinceISWeep = 0;
   std::discrete_distribution<Uint> distObs;
  public:
-  Sample_impSeq(const Settings& S, MemoryBuffer*const R);
+  Sample_impSeq(std::vector<std::mt19937>&, MemoryBuffer*const, bool bSeqs);
   void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) override;
   void prepare(std::atomic<bool>& needs_pass) override;
   bool requireImportanceWeights() override;
 };
+
+}
+#endif // smarties_Sampling_h

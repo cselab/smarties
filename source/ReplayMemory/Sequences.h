@@ -5,75 +5,88 @@
 //
 //  Created by Guido Novati (novatig@ethz.ch).
 //
-#pragma once
 
-#include "../StateAction.h"
-#include "../Settings.h"
-#include "../Environments/Environment.h"
+#ifndef smarties_Sequences_h
+#define smarties_Sequences_h
 
-struct Tuple // data obtained at time t
+#include "../Utils/Bund.h"
+#include "../Utils/Warnings.h"
+#include <cassert>
+#include <mutex>
+
+namespace smarties
 {
-  // vector containing the vector at time t
-  const std::vector<memReal> s;
-  // actions and behavior follower at time t
-  Rvec a, mu;
-  // reward obtained with state s (at time 0 this is 0)
-  const Real r;
-  Tuple(const Tuple*const c): s(c->s), a(c->a), mu(c->mu), r(c->r) {}
-  Tuple(const Rvec _s, const Real _r) : s(convert(_s)), r(_r) {}
-  Tuple(const Fval*_s, const Uint dS, float _r) : s(convert(_s,dS)), r(_r) {}
-
-  //convert to probably double (Rvec) to probably single precision for storage
-  static inline std::vector<memReal> convert(const Rvec _s) {
-    std::vector<memReal> ret ( _s.size() );
-    for(Uint i=0; i < _s.size(); i++) ret[i] = _s[i];
-    return ret;
-  }
-  static inline std::vector<memReal> convert(const Fval* _s, const Uint dS) {
-    std::vector<memReal> ret ( dS );
-    for(Uint i=0; i < dS; i++) ret[i] = _s[i];
-    return ret;
-  }
-  inline void setAct(const Fval* _b, const Uint dA, const Uint dP) {
-    a = Rvec( dA ); mu = Rvec( dP );
-    for(Uint i=0; i < dA; i++)  a[i] = *_b++;
-    for(Uint i=0; i < dP; i++) mu[i] = *_b++;
-  }
-};
 
 struct Sequence
 {
-  std::vector<Tuple*> tuples;
-  long ended = 0, ID = -1, just_sampled = -1;
-  Uint prefix = 0;
-  Fval nOffPol = 0, MSE = 0, sumKLDiv = 0, totR = 0;
+  Sequence()
+  {
+    states.reserve(MAX_SEQ_LEN);
+    actions.reserve(MAX_SEQ_LEN);
+    policies.reserve(MAX_SEQ_LEN);
+    rewards.reserve(MAX_SEQ_LEN);
+  }
 
-  Fvec Q_RET, action_adv, state_vals;
+  bool isEqual(const Sequence * const S) const;
+
+  // Fval is just a storage format, probably float while Real is prob. double
+  std::vector<Fvec> states;
+  std::vector<Rvec> actions;
+  std::vector<Rvec> policies;
+  std::vector<Real> rewards;
+
+  // additional quantities which may be needed by algorithms:
+  NNvec Q_RET, action_adv, state_vals;
   //Used for sampling, filtering, and sorting off policy data:
   Fvec SquaredError, offPolicImpW, KullbLeibDiv;
   std::vector<float> priorityImpW;
 
+  // some quantities needed for processing of experiences
+  Fval nOffPol = 0, MSE = 0, sumKLDiv = 0, totR = 0;
+
+  // did episode terminate (i.e. terminal state) or was a time out (i.e. V(s_end) != 0
+  bool ended = false;
+  // unique identifier of the episode, counter
+  Sint ID = -1;
+  // used for prost processing eps: idx of latest time step sampled during past gradient update
+  Sint just_sampled = -1;
+  // used for uniform sampling : prefix sum
+  Uint prefix = 0;
+  // local agent id (agent id within environment) that generated epiosode
+  Uint agentID;
+
   std::mutex seq_mutex;
 
-  inline Uint ndata() const {
-    assert(tuples.size());
-    if(tuples.size()==0) return 0;
-    return tuples.size()-1;
+  Uint ndata() const // how much data to train from? ie. not terminal
+  {
+    assert(states.size());
+    if(states.size()==0) return 0;
+    else return states.size() - 1;
   }
-  inline bool isLast(const Uint t) const {
-    return t+1 >= tuples.size();
+  Uint nsteps() const // total number of time steps observed
+  {
+    return states.size();
   }
-  inline bool isTerminal(const Uint t) const {
-    return t+1 == tuples.size() && ended;
+  bool isLast(const Uint t) const
+  {
+    return t+1 >= states.size();
   }
-  inline bool isTruncated(const Uint t) const {
-    return t+1 == tuples.size() && not ended;
+  bool isTerminal(const Uint t) const
+  {
+    return t+1 == states.size() && ended;
+  }
+  bool isTruncated(const Uint t) const
+  {
+    return t+1 == states.size() && not ended;
   }
   ~Sequence() { clear(); }
-  void clear() {
-    for(auto &t : tuples) _dispose_object(t);
-    tuples.clear();
+  void clear()
+  {
     ended=0; ID=-1; just_sampled=-1; nOffPol=0; MSE=0; sumKLDiv=0; totR=0;
+    states.clear();
+    actions.clear();
+    policies.clear();
+    rewards.clear();
     //priorityImpW.clear();
     SquaredError.clear();
     offPolicImpW.clear();
@@ -83,22 +96,26 @@ struct Sequence
     state_vals.clear();
     Q_RET.clear();
   }
-  inline void setSampled(const int t) {//update ind of latest sampled time step
+  void setSampled(const int t) //update ind of latest sampled time step
+  {
     if(just_sampled < t) just_sampled = t;
   }
-  inline void setRetrace(const Uint t, const Fval Q) {
+  void setRetrace(const Uint t, const Fval Q)
+  {
     assert( t < Q_RET.size() );
     Q_RET[t] = Q;
   }
-  inline void setAdvantage(const Uint t, const Fval A) {
+  void setAdvantage(const Uint t, const Fval A)
+  {
     assert( t < action_adv.size() );
     action_adv[t] = A;
   }
-  inline void setStateValue(const Uint t, const Fval V) {
+  void setStateValue(const Uint t, const Fval V)
+  {
     assert( t < state_vals.size() );
     state_vals[t] = V;
   }
-  inline void setMseDklImpw(const Uint t, const Fval E, const Fval D,
+  void setMseDklImpw(const Uint t, const Fval E, const Fval D,
     const Fval W, const Fval C, const Fval invC)
   {
     const bool wasOff = offPolicImpW[t] > C || offPolicImpW[t] < invC;
@@ -114,42 +131,34 @@ struct Sequence
     offPolicImpW[t] = W;
   }
 
-  inline bool isFarPolicyPPO(const Uint t, const Fval W, const Fval C) const {
+  bool isFarPolicyPPO(const Uint t, const Fval W, const Fval C) const
+  {
     assert(C<1) ;
     const bool isOff = W > (Fval)1 + C || W < (Fval)1 - C;
     return isOff;
   }
-  inline bool isFarPolicy(const Uint t, const Fval W,
+  bool isFarPolicy(const Uint t, const Fval W,
     const Fval C, const Fval invC) const {
     const bool isOff = W > C || W < invC;
     // If C<=1 assume we never filter far policy samples
     return C > (Fval)1 && isOff;
   }
-  inline bool distFarPolicy(const Uint t,const Fval D,const Fval target) const {
+  bool distFarPolicy(const Uint t,const Fval D,const Fval target) const
+  {
     // If target<=0 assume we never filter far policy samples
     return target>0 && D > target;
   }
-  inline void add_state(const Rvec state, const Real reward=0) {
-    Tuple * t = new Tuple(state, reward);
-    if(tuples.size()) totR += reward;
-    else assert(std::fabs(reward)<2.2e-16);
-    tuples.push_back(t);
-  }
-  inline void add_action(const Rvec act, const Rvec mu) {
-    assert( 0==tuples.back()->a.size() && 0==tuples.back()->mu.size() );
-    tuples.back()->a = act;
-    tuples.back()->mu = mu;
-  }
-  void finalize(const Uint index) {
+
+  void finalize(const Uint index)
+  {
     ID = index;
-    const Uint seq_len = tuples.size();
+    const Uint seq_len = states.size();
     // whatever the meaning of SquaredError, initialize with all zeros
     // this must be taken into account when sorting/filtering
-    SquaredError = Fvec(seq_len, 0);
+    SquaredError = std::vector<Fval>(seq_len, 0);
     // off pol importance weights are initialized to 1s
-    offPolicImpW.resize(seq_len, 1);
-
-    KullbLeibDiv = Fvec(seq_len, 0);
+    offPolicImpW = std::vector<Fval>(seq_len, 1);
+    KullbLeibDiv = std::vector<Fval>(seq_len, 0);
   }
 
   int restart(FILE * f, const Uint dS, const Uint dA, const Uint dP);
@@ -159,21 +168,135 @@ struct Sequence
     const Uint dA, const Uint dP);
   std::vector<Fval> packSequence(const Uint dS, const Uint dA, const Uint dP);
 
-  static inline Uint computeTotalEpisodeSize(const Uint dS, const Uint dA,
+  static Uint computeTotalEpisodeSize(const Uint dS, const Uint dA,
     const Uint dP, const Uint Nstep)
   {
     const Uint tuplSize = dS+dA+dP+1;
-    const Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
-    const Uint ret = (tuplSize+infoSize)*Nstep + 6;
+    static constexpr Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
+    //extras : ended,ID,sampled,prefix,agentID x 2 for conversion safety
+    static constexpr Uint extraSize = 14;
+    const Uint ret = (tuplSize+infoSize)*Nstep + extraSize;
     return ret;
   }
-  static inline Uint computeTotalEpisodeNstep(const Uint dS, const Uint dA,
+  static Uint computeTotalEpisodeNstep(const Uint dS, const Uint dA,
     const Uint dP, const Uint size)
   {
     const Uint tuplSize = dS+dA+dP+1;
-    const Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
-    const Uint nStep = (size - 6)/(tuplSize+infoSize);
+    static constexpr Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
+    static constexpr Uint extraSize = 14;
+    const Uint nStep = (size - extraSize)/(tuplSize+infoSize);
     assert(Sequence::computeTotalEpisodeSize(dS,dA,dP,nStep) == size);
     return nStep;
   }
 };
+
+struct MiniBatch
+{
+  const Uint size;
+  MiniBatch(const Uint _size) : size(_size)
+  {
+    episodes.resize(size);
+    begTimeStep.resize(size);
+    endTimeStep.resize(size);
+    sampledTimeStep.resize(size);
+    S.resize(size); A.resize(size); MU.resize(size); R.resize(size);
+    W.resize(size);
+  }
+
+  std::vector<Sequence*> episodes;
+  std::vector<Uint> begTimeStep;
+  std::vector<Uint> endTimeStep;
+  std::vector<Uint> sampledTimeStep;
+  Uint getBegStep(const Uint b) const { return begTimeStep[b]; }
+  Uint getEndStep(const Uint b) const { return endTimeStep[b]; }
+  Uint getTstep(const Uint b) const { return sampledTimeStep[b]; }
+  Uint getNumSteps(const Uint b) const {
+    assert(begTimeStep.size() > b);
+    assert(endTimeStep.size() > b);
+    return endTimeStep[b] - begTimeStep[b];
+  }
+  Uint mapTime2Ind(const Uint b, const Uint t) const
+  {
+    assert(begTimeStep.size() >  b);
+    assert(begTimeStep[b]     <= t);
+    //ind is mapping from time stamp along trajectoy and along alloc memory
+    return t - begTimeStep[b];
+  }
+  Uint mapInd2Time(const Uint b, const Uint k) const
+  {
+    assert(begTimeStep.size() > b);
+    //ind is mapping from time stamp along trajectoy and along alloc memory
+    return k + begTimeStep[b];
+  }
+
+  // episodes | time steps | dimensionality
+  std::vector< std::vector< NNvec > > S;  // state
+  std::vector< std::vector< Rvec* > > A;  // action pointer
+  std::vector< std::vector< Rvec* > > MU; // behavior pointer
+  std::vector< std::vector< Real  > > R;  // reward
+  std::vector< std::vector< nnReal> > W;  // importance sampling
+
+  Sequence& getEpisode(const Uint b) const
+  {
+    return * episodes[b];
+  }
+  NNvec& state(const Uint b, const Uint t)
+  {
+    return S[b][mapTime2Ind(b, t)];
+  }
+  Rvec& action(const Uint b, const Uint t)
+  {
+    return * A[b][mapTime2Ind(b, t)];
+  }
+  Rvec& mu(const Uint b, const Uint t)
+  {
+    return * MU[b][mapTime2Ind(b, t)];
+  }
+  const NNvec& state(const Uint b, const Uint t) const
+  {
+    return S[b][mapTime2Ind(b, t)];
+  }
+  const Rvec& action(const Uint b, const Uint t) const
+  {
+    return * A[b][mapTime2Ind(b, t)];
+  }
+  const Rvec& mu(const Uint b, const Uint t) const
+  {
+    return * MU[b][mapTime2Ind(b, t)];
+  }
+  void set_action(const Uint b, const Uint t, std::vector<Real>& act)
+  {
+    A[b][mapTime2Ind(b, t)] = & act;
+  }
+  void set_mu(const Uint b, const Uint t, std::vector<Real>& pol)
+  {
+    MU[b][mapTime2Ind(b, t)] = & pol;
+  }
+  Real& reward(const Uint b, const Uint t)
+  {
+    return R[b][mapTime2Ind(b, t)];
+  }
+  nnReal& importanceWeight(const Uint b, const Uint t)
+  {
+    return W[b][mapTime2Ind(b, t)];
+  }
+  const Real& reward(const Uint b, const Uint t) const
+  {
+    return R[b][mapTime2Ind(b, t)];
+  }
+  const nnReal& importanceWeight(const Uint b, const Uint t) const
+  {
+    return W[b][mapTime2Ind(b, t)];
+  }
+
+  void resizeStep(const Uint b, const Uint nSteps)
+  {
+    assert( S.size()>b); assert( A.size()>b);
+    assert(MU.size()>b); assert( R.size()>b);
+    S [b].resize(nSteps); A[b].resize(nSteps);
+    MU[b].resize(nSteps); R[b].resize(nSteps); W[b].resize(nSteps);
+  }
+};
+
+} // namespace smarties
+#endif // smarties_Sequences_h

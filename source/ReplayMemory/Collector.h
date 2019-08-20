@@ -5,31 +5,38 @@
 //
 //  Created by Guido Novati (novatig@ethz.ch).
 //
-#pragma once
 
-#include "MemorySharing.h"
+#ifndef smarties_Collector_h
+#define smarties_Collector_h
+
+#include "MemoryBuffer.h"
+#include "../Utils/StatsTracker.h"
+
+namespace smarties
+{
+
+class DataCoordinator;
 
 class Collector
 {
 private:
-  const Settings & settings;
-  const Environment * const env;
   MemoryBuffer * const replay;
-  MemorySharing * const sharing;
-
-  const bool bWriteToFile = settings.samplesFile;
-  const Uint policyVecDim = env->aI.policyVecDim;
-  const int learn_rank = settings.learner_rank;
+  DataCoordinator * const sharing;
+  //const MDPdescriptor & MDP = replay->MDP;
+  //const Settings & settings = replay->settings;
+  const DistributionInfo & distrib = replay->distrib;
+  //const StateInfo& sI = replay->sI;
+  const ActionInfo& aI = replay->aI;
 
   std::vector<Sequence*> inProgress;
 
-  const bool prepareImpWeights = replay->sampler->requireImportanceWeights();
-  std::atomic<long>& nSeenSequences = replay->nSeenSequences;
   std::atomic<long>& nSeenSequences_loc = replay->nSeenSequences_loc;
   std::atomic<long>& nSeenTransitions_loc = replay->nSeenTransitions_loc;
 
+  std::mutex envTerminationCheck;
+
 public:
-  void add_state(const Agent&a);
+  void add_state(Agent&a);
   void add_action(const Agent& a, const Rvec pol);
   void terminate_seq(Agent&a);
   void push_back(const int & agentId);
@@ -41,7 +48,10 @@ public:
     return inProgress.size();
   }
 
-  Collector(const Settings&S, Learner*const L, MemoryBuffer*const RM);
+  Collector(MemoryBuffer*const RM, DataCoordinator*const C);
 
   ~Collector();
 };
+
+}
+#endif

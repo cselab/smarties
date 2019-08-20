@@ -7,380 +7,321 @@
 //
 
 #include "Approximator.h"
-#include "Aggregator.h"
-#include "Builder.h"
+#include "Optimizer.h"
+#include "Network.h"
+#include "../Utils/ParameterBlob.h"
 
-Approximator::Approximator(const string _name, Settings&S, Encapsulator*const E,
-  MemoryBuffer* const data_ptr, const Aggregator* const r) :
-settings(S), name(_name), input(E), data(data_ptr), relay(r) { }
+namespace smarties
+{
+
+Approximator::Approximator(std::string name_,
+                           const Settings&S,
+                           const DistributionInfo&D,
+                           const MemoryBuffer* const replay_,
+                           const Approximator* const preprocessing_,
+                           const Approximator* const auxInputNet_) :
+  settings(S), distrib(D), name(name_), replay(replay_),
+  preprocessing(preprocessing_), auxInputNet(auxInputNet_)
+{ }
 
 Approximator::~Approximator()
 {
-  _dispose_object(relay);
+  if(gradStats not_eq nullptr) delete gradStats;
 }
 
-Builder Approximator::buildFromSettings(Settings&sett, const vector<Uint>nouts)
+void Approximator::setBlockGradsToPreprocessing()
 {
-  Builder build(sett);
-  Uint nInputs = input->nOutputs() + (relay==nullptr ? 0 : relay->nOutputs());
-  build.stackSimple( nInputs, nouts );
-  return build;
+  m_blockInpGrad = true;
 }
 
-Builder Approximator::buildFromSettings(Settings& _s, const Uint n_outputs) {
-  Builder build(_s);
-  Uint nInputs = input->nOutputs() + (relay==nullptr ? 0 : relay->nOutputs());
-  build.stackSimple( nInputs, {n_outputs} );
-  return build;
+void Approximator::setNumberOfAddedSamples(const Uint nSamples)
+{
+  if(bCreatedNetwork) die("cannot modify network setup after it was built");
+  m_numberOfAddedSamples = nSamples;
 }
 
-void Approximator::allocMorePerThread(const Uint nAlloc) {
-  assert(nAlloc > 0 && extraAlloc == 0);
-  extraAlloc = nAlloc;
-  assert(opt not_eq nullptr && net not_eq nullptr);
-  series.resize(nThreads*(1+nAlloc));
-
-  for (Uint j=1; j<=nAlloc; j++)
-    #pragma omp parallel for schedule(static, 1) num_threads(nThreads)
-      for (Uint i = j*nThreads; i<(1+j)*nThreads; i++)
-        #pragma omp critical
-          series[i].reserve(MAX_SEQ_LEN);
-}
-
-void Approximator::initializeNetwork(Builder& build) {
-  net = build.build();
-  opt = build.opt;
-  assert(opt not_eq nullptr && net not_eq nullptr);
-
-  for (Uint i=0; i<nAgents; i++) agent_series[i].reserve(2);
-
-  #pragma omp parallel for schedule(static, 1) num_threads(nThreads)
-  for (Uint i=0; i<nThreads; i++) // numa aware allocation
-   #pragma omp critical
-   {
-     series[i].reserve(MAX_SEQ_LEN);
-     series_tgt[i].reserve(MAX_SEQ_LEN);
-   }
-
-  if(relay not_eq nullptr) {
-    std::vector<int> relayInputID;
-    for(Uint i=1; i<net->layers.size(); i++) //assume layer 0 is passed to input
-      if(net->layers[i]->bInput) relayInputID.push_back(i);
-
-    if(relayInputID.size() > 1) { die("should not be possible");
-    } else if (relayInputID.size() == 1) {
-      relayInp = relayInputID[0];
-      if(net->layers[relayInp]->nOutputs() != relay->nOutputs()) die("crap");
-    } else relayInp = 0;
+//specify type (and size) of auxiliary input
+void Approximator::setAddedInput(const ADDED_INPUT type, Sint size)
+{
+  if(bCreatedNetwork) die("cannot modify network setup after it was built");
+  if(type == NONE)
+  {
+    if(size>0) die("No added input must have size 0");
+    if(auxInputNet) die("Given auxInputNet Approximator but specified no added inputyo");
+    m_auxInputSize = 0;
   }
-
-  if(not net->layers[0]->bInput) {
-    warn("Network has no input.");
-  }
-  // skip backprop to input vector or to input features if `blockInpGrad`
-  if ( input->net == nullptr or blockInpGrad ) {
-    Uint layBckPrpInp = 1, nInps = input->nOutputs();
-    // make sure that we are computing relay gradient
-    if(relayInp>0) { //then lay 0 is input, 1 is relay, 2 is joining
-      layBckPrpInp = 3;
-      if(not net->layers[1]->bInput) die("should not be possible"); //relay
-      if(net->layers[2]->bInput) die("should not be possible"); //joining
+  else if (type == NETWORK)
+  {
+    if(not auxInputNet) die("auxInputNet was not given on construction");
+    if(size<0) m_auxInputSize = auxInputNet->nOutputs();
+    else {
+      m_auxInputSize = size;
+      if(auxInputNet->nOutputs() < (Uint) size)
+        die("Approximator allows inserting the first 'size' outputs of "
+            "another 'auxInputNet' Approximator as additional input (along "
+            "with the state or the output of 'preprocessing' Approximator). "
+            "But auxInputNet's output must be at least of size 'size'.");
     }
-    if(relay==nullptr) {
-      if(net->layers.size() < layBckPrpInp)
-      if(net->layers[layBckPrpInp]->spanCompInpGrads!=nInps)
-        die("should not be possible");
-    } else
-      if(net->layers[layBckPrpInp]->spanCompInpGrads!=nInps+relay->nOutputs())
-        die("should not be possible");
+  }
+  else if (type == ACTION || type == VECTOR)
+  {
+    if(size<=0) die("Did not specify size of the action/vector");
+    m_auxInputSize = size;
+  } else die("type not recognized");
+  if(m_auxInputSize<0) die("m_auxInputSize cannot be negative at this point");
+}
 
-    if(net->layers.size() < layBckPrpInp) {
-      net->layers[layBckPrpInp]->spanCompInpGrads -= nInps;
-      net->layers[layBckPrpInp]->startCompInpGrads = nInps;
+// specify whether we are using target networks
+void Approximator::setUseTargetNetworks(const Sint targetNetworkSampleID,
+                                        const bool bTargetNetUsesTargetWeights)
+{
+  if(bCreatedNetwork) die("cannot modify network setup after it was built");
+  m_UseTargetNetwork = true;
+  m_bTargetNetUsesTargetWeights = bTargetNetUsesTargetWeights;
+  m_targetNetworkSampleID = targetNetworkSampleID;
+}
+
+void Approximator::initializeNetwork()
+{
+  const MDPdescriptor & MDP = replay->MDP;
+  if(build->layers.back()->bOutput == false)
+  {
+    assert(build->nOutputs == 0);
+    if (MPICommSize(distrib.world_comm) == 0)
+      warn("Requested net where last layer isnt output. Overridden: now it is");
+    build->layers.back()->bOutput = true;
+    build->nOutputs = build->layers.back()->size;
+  }
+  if(MPICommRank(distrib.world_comm) == 0) {
+    printf("Initializing %s approximator.\nLayers composition:\n",name.c_str());
+  }
+  build->build();
+  std::swap(net, build->net); std::swap(opt, build->opt);
+  std::vector<std::shared_ptr<Parameters>> grads = build->threadGrads;
+  assert(opt && net && grads.size() == nThreads);
+  delete build.release();
+
+  contexts.reserve(nThreads);
+  #pragma omp parallel num_threads(nThreads)
+  for (Uint i=0; i<nThreads; ++i)
+  {
+    if(i == (Uint) omp_get_thread_num())
+      contexts.emplace_back(
+        std::make_unique<ThreadContext>(i, grads[i],
+                                        m_numberOfAddedSamples,
+                                        m_UseTargetNetwork,
+                                        m_bTargetNetUsesTargetWeights? -1 : 0));
+    #pragma omp barrier
+  }
+
+  agentsContexts.reserve(nAgents);
+  for (Uint i=0; i<nAgents; ++i)
+    agentsContexts.emplace_back( std::make_unique<AgentContext>(i) );
+
+  const auto& layers = net->layers;
+  if (m_auxInputSize>0) // If we have an auxInput (eg policy for DPG) to what
+  {                     // layer does it attach? Then we can grab gradient.
+    auxInputAttachLayer = 0; // preprocessing/state and aux in one input layer
+    for(Uint i=1; i<layers.size(); ++i) if(layers[i]->bInput) {
+      if(auxInputAttachLayer>0) die("too many input layers, not supported");
+      auxInputAttachLayer = i;
+    }
+    if (auxInputAttachLayer > 0) {
+      if(layers[auxInputAttachLayer]->nOutputs() != auxInputNet->nOutputs())
+        die("Size of layer to which auxInputNet does not match auxInputNet");
+      if(preprocessing && layers[0]->nOutputs() != preprocessing->nOutputs())
+        die("Mismatch in preprocessing output size and network input");
+      const Uint stateInpSize = (1+MDP.nAppendedObs) * MDP.dimStateObserved;
+      if(not preprocessing && layers[0]->nOutputs() != stateInpSize)
+        die("Mismatch in state size and network input");
+    }
+    if(MDP.dimStateObserved > 0 and not layers[0]->bInput)
+      die("Network does not have input layer.");
+  }
+
+
+  if (m_blockInpGrad or not preprocessing)
+  {
+    // Skip backprop to input vector or to preprocessing if 'm_blockInpGrad'
+    // Three cases of interest:
+    // 1) (most common) no aux input or both both preprocessing and aux input
+    //    are given at layer 0 then block backprop at layer 1
+    // 2) aux input given at layer greater than 1:  block backprop at layer 1
+    // 3) aux input is layer 1 and layer 2 is joining (glue) layer, then
+    //    gradient blocking is done at layer 3
+    const Uint skipBackPropLayerID = auxInputAttachLayer==1? 3 : 1;
+    if (auxInputAttachLayer==1) // check logic of statement 3)
+      assert(layers[1]->bInput && not net->layers[2]->bInput);
+
+    if (layers.size() > skipBackPropLayerID) {
+      const Uint inputSize = preprocessing? preprocessing->nOutputs()
+                           : (1+MDP.nAppendedObs) * MDP.dimStateObserved;
+      if(auxInputAttachLayer==0) // check statement 1)
+        assert(layers[1]->spanCompInpGrads == inputSize + m_auxInputSize);
+      else if(auxInputAttachLayer==1) // check statement 3)
+        assert(layers[3]->spanCompInpGrads == inputSize + m_auxInputSize);
+      assert(layers[skipBackPropLayerID]->spanCompInpGrads >= inputSize);
+      // next two lines actually tell the network to skip backprop to input:
+      layers[skipBackPropLayerID]->spanCompInpGrads -= inputSize;
+      layers[skipBackPropLayerID]->startCompInpGrads = inputSize;
     }
   }
 
   #ifdef __CHECK_DIFF //check gradients with finite differences
     net->checkGrads();
   #endif
-  gradStats = new StatsTracker(net->getnOutputs(), settings);
+  gradStats = new StatsTracker(net->getnOutputs(), distrib);
 }
 
-void Approximator::prepare_seq(Sequence*const traj, const Uint thrID,
-  const Uint wghtID) const {
-  if(error_placements[thrID] > 0) die("");
-  input->prepare(traj, traj->tuples.size(), 0, thrID);
+// buildFromSettings reads from the settings file the amount of fully connected
+// layers (nnl1, nnl2, ...) and builds a network with given number of nInputs
+// and nOutputs. Supports LSTM, RNN and MLP (aka InnerProduct or Dense).
+//void stackSimple(Uint ninps,Uint nouts) { return stackSimple(ninps,{nouts}); }
+void Approximator::buildFromSettings(const std::vector<Uint> outputSizes)
+{
+  if (not build)
+    build = std::make_unique<Builder>(settings, distrib);
 
-  for(Uint k=0; k < 1+extraAlloc; k++)
-    net->prepForBackProp(series[thrID + k*nThreads], traj->tuples.size());
-
-  if(series_tgt.size()>thrID)
-    net->prepForFwdProp(series_tgt[thrID], traj->tuples.size());
-
-  first_sample[thrID] = 0;
-  thread_Wind[thrID] = wghtID;
-  thread_seq[thrID] = traj;
-}
-
-void Approximator::prepare_one(Sequence*const traj, const Uint samp,
-    const Uint thrID, const Uint wghtID) const {
-  if(error_placements[thrID] > 0) die("");
-  // opc requires prediction of some states before samp for recurrencies
-  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, samp) : 0;
-  // might need to predict the value of next state if samp not terminal state
-  const Uint nTotal = nRecurr + 2;
-
-  input->prepare(traj, nTotal, samp - nRecurr, thrID);
-
-  for(Uint k=0; k < 1+extraAlloc; k++)
-    net->prepForBackProp(series[thrID + k*nThreads], nTotal);
-
-  net->prepForFwdProp(series_tgt[thrID], nTotal);
-
-  first_sample[thrID] = samp - nRecurr;
-  thread_Wind[thrID] = wghtID;
-  thread_seq[thrID] = traj;
-}
-
-void Approximator::prepare(Sequence*const traj, const Uint samp,
-    const Uint N, const Uint thrID, const Uint wghtID) const {
-  if(error_placements[thrID] > 0) die("");
-  // opc requires prediction of some states before samp for recurrencies
-  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, samp) : 0;
-  // might need to predict the value of next state if samp not terminal state
-  const Uint nTotal = nRecurr + 1 + N;
-
-  input->prepare(traj, nTotal, samp - nRecurr, thrID);
-
-  for(Uint k=0; k < 1+extraAlloc; k++)
-    net->prepForBackProp(series[thrID + k*nThreads], nTotal);
-
-  net->prepForFwdProp(series_tgt[thrID], nTotal);
-
-  first_sample[thrID] = samp - nRecurr;
-  thread_Wind[thrID] = wghtID;
-  thread_seq[thrID] = traj;
-}
-
-Rvec Approximator::forward(const Uint samp, const Uint thrID,
-  const int USE_WGT, const int USE_ACT, const int overwrite) const {
-  if(USE_ACT>0) assert( (Uint) USE_ACT <= extraAlloc );
-  // To handle Relay calling to answer agents' requests:
-  if(thrID>=nThreads) return forward_agent(thrID-nThreads);
-
-  const Uint netID = thrID + USE_ACT*nThreads;
-  const std::vector<Activation*>& act = USE_ACT>=0? series[netID]
-                                                  : series_tgt[thrID];
-  const std::vector<Activation*>& act_cur = series[thrID];
-  const int ind = mapTime2Ind(samp, thrID);
-
-  //if already computed just give answer
-  if(act[ind]->written && not overwrite) return act[ind]->getOutput();
-
-  // write previous outputs if needed (note: will spawn nested function calls)
-  // previous output use the same weights only if not target weights
-  if(ind>0 && not act_cur[ind-1]->written)
-    forward(samp-1, thrID, std::max(USE_WGT, 0), 0);
-
-  const Rvec inp = getInput(samp, thrID, USE_WGT);
-  //cout <<"USEW : "<< USE_WGT << endl; fflush(0);
-  return getOutput(inp, ind, act[ind], thrID, USE_WGT);
-}
-
-Rvec Approximator::getInput(const Uint samp, const Uint thrID, const int USEW) const {
-  Rvec inp = input->forward(samp, thrID, USEW);
-  if(relay not_eq nullptr) {
-    const Rvec addedinp = relay->get(samp, thrID, USEW);
-    assert(addedinp.size());
-    inp.insert(inp.end(), addedinp.begin(), addedinp.end());
-    //if(!thrID) cout << "relay "<<print(addedinp) << endl;
+  const MDPdescriptor & MDP = replay->MDP;
+  // last chance to update size of aux input size:
+  if(auxInputNet && m_auxInputSize<=0) {
+    assert(m_auxInputSize not_eq 0 && "Default is -1, what set it to 0?");
+    m_auxInputSize = auxInputNet->nOutputs();
   }
-  assert(inp.size() == net->getnInputs());
-  return inp;
-}
+  //build.stackSimple( inputSize, outputSizes );
 
-Rvec Approximator::getOutput(const Rvec inp, const int ind,
-  Activation*const act, const Uint thrID, const int USEW) const {
-  //hardcoded to use time series predicted with cur weights for recurrencies:
-  const std::vector<Activation*>& act_cur = series[thrID];
-  const Activation*const recur = ind? act_cur[ind-1] : nullptr;
-  assert(USEW < (int) net->sampled_weights.size() );
-  const Parameters* const W = opt->getWeights(USEW);
-  assert( W not_eq nullptr );
-  const Rvec ret = net->predict(inp, recur, act, W);
-  //if(!thrID) cout<<"net fwd with inp:"<<print(inp)<<" out:"<<print(ret)<<endl;
-  act->written = true;
-  return ret;
-}
+  const Uint nOuts = std::accumulate(outputSizes.begin(), outputSizes.end(), 0);
+  const std::string outFuncType = settings.nnOutputFunc;
+  const std::vector<Uint>& layerSizes = settings.nnLayerSizes;
 
-void Approximator::applyImpSampling(Rvec& grad, const Sequence*const traj,
-  const Uint samp) const
-{
-  const float anneal = std::min( (Real)1, opt->nStep * opt->epsAnneal);
-  assert( anneal >= 0 );
-  const float beta = 0.5 + 0.5 * anneal, P0 = traj->priorityImpW[samp];
-  // if samples never seen by optimizer the samples have high priority
-  // this matches one of last lines of Sampling::prepare()
-  const float P = P0<=0 ? data->getMaxPriorityImpW() : P0;
-  const float PERW = std::pow(data->getMinPriorityImpW() / P, beta);
-  for(Uint i=0; i<grad.size(); i++) grad[i] *= PERW;
-}
-
-void Approximator::backward(Rvec grad, const Uint samp, const Uint thrID,
-  const int USE_ACT) const
-{
-  if(USE_ACT>0) assert( (Uint) USE_ACT <= extraAlloc );
-  const Uint netID = thrID + USE_ACT*nThreads;
-
-  if( data->requireImpWeights )
-    applyImpSampling(grad, thread_seq[thrID], samp);
-
-  gradStats->track_vector(grad, thrID);
-  const int ind = mapTime2Ind(samp, thrID);
-  //ind+1 because we use c-style for loops in other places:
-  error_placements[thrID] = std::max(ind+1, error_placements[thrID]);
-
-  if(ESpopSize > 1) debugL("Skipping backward because we use ES.");
-
-  const auto& act = USE_ACT>=0? series[netID] :series_tgt[thrID];
-  assert(act[ind]->written);
-  act[ind]->addOutputDelta(grad);
-}
-
-void Approximator::gradient(const Uint thrID, const int wID) const {
-  if(error_placements[thrID]<=0) die("");
-
-  nAddedGradients++;
-
-  if(ESpopSize > 1)
+  if( build->layers.size() )
   {
-    debugL("Skipping gradient because we use ES (derivative-free) optimizers.");
+    // cannot have both already built preprocessing net and also build
+    // preprocessing layers below here.
+    if(preprocessing)
+      die("Preprocessing layers were created for a network type that does not "
+          "support being together with preprocessing layers");
+    if(m_auxInputSize>0)
+      build->addInput(m_auxInputSize); // add slot to insert aux input layer
   }
   else
   {
-    const int last_error = error_placements[thrID];
-    for(Uint j = 0; j<=extraAlloc; j++) {
-      const Uint netID  = thrID +   j*nThreads;
-      const Uint gradID = thrID + wID*nThreads;
-      const std::vector<Activation*>& act = series[netID];
-      for (int i=0; i<last_error; i++) assert(act[i]->written == true);
+    Uint inputSize = preprocessing not_eq nullptr ? preprocessing->nOutputs()
+                                  : (1+MDP.nAppendedObs) * MDP.dimStateObserved;
+    if(m_auxInputSize>0) inputSize += m_auxInputSize;
 
-      net->backProp(act, last_error, net->Vgrad[gradID]);
-      //for(int i=0;i<last_error&&!thrID;i++)cout<<i<<" inpG:"<<print(act[i]->getInputGradient(0))<<endl;
-      if(input->net == nullptr || blockInpGrad) continue;
+    if(inputSize == 0) {
+      warn("network with no input space. will return a param layer");
+      build->addParamLayer(nOuts, outFuncType, std::vector<Real>(nOuts, 0));
+      return;
+    } else
+      build->addInput(inputSize);
+  }
+  // if user already asked RNN/LSTM/GRU, follow settings
+  // else if MDP declared that it is partially obs override and use simple RNN
+  const std::string netType =
+    MDP.isPartiallyObservable and settings.bRecurrent == false? "RNN"
+                                                              : settings.nnType;
+  for(Uint i=0; i<layerSizes.size(); ++i)
+    if(layerSizes[i] > 0)
+      build->addLayer(layerSizes[i], settings.nnFunc, false, netType);
 
-      for(int i=0; i<last_error; i++) {
-        Rvec inputG = act[i]->getInputGradient(0);
-        inputG.resize(input->nOutputs());
-        input->backward(inputG, first_sample[thrID] +i, thrID);
-      }
+  if(nOuts > 0) build->addLayer(nOuts, settings.nnOutputFunc, true);
+}
+
+void Approximator::buildPreprocessing(const std::vector<Uint> preprocLayers)
+{
+  if(build)
+    die("attempted to create preprocessing layers multiple times");
+  if(preprocessing)
+    die("Preprocessing layers were created for a network type that does not "
+        "support being together with preprocessing layers");
+
+  build = std::make_unique<Builder>(settings, distrib);
+
+  const MDPdescriptor & MDP = replay->MDP;
+  const Uint dimS = preprocessing? preprocessing->nOutputs()
+                                 : (1+MDP.nAppendedObs) * MDP.dimStateObserved;
+  if ( MDP.conv2dDescriptors.size() > 0 )
+  {
+    const Uint nConvs = MDP.conv2dDescriptors.size();
+    const auto& conv0 = MDP.conv2dDescriptors[0];
+    assert(dimS >= conv0.inpFeatures*conv0.inpY*conv0.inpX);
+    const Sint extraInputSize = dimS - conv0.inpFeatures*conv0.inpY*conv0.inpX;
+
+    build->addInput(conv0.inpFeatures * conv0.inpY * conv0.inpX );
+    for(Uint i=0; i<nConvs; ++i)
+      build->addConv2d(MDP.conv2dDescriptors[i]);
+
+    if(extraInputSize) {
+      warn("Mismatch between state dim and input conv2d, will add extra "
+           "variables after the convolutional layers.");
+      build->addInput(extraInputSize);
     }
   }
-  error_placements[thrID] = -1; //to stop additional backprops
+  else build->addInput( dimS );
+
+  // if user already asked RNN/LSTM/GRU, follow settings
+  // else if MDP declared that it is partially obs override and use simple RNN
+  const std::string netType =
+    MDP.isPartiallyObservable and settings.bRecurrent == false? "RNN"
+                                                              : settings.nnType;
+  for (Uint i=0; i<preprocLayers.size(); ++i)
+    if(preprocLayers[i]>0)
+      build->addLayer(preprocLayers[i], settings.nnFunc, false, netType);
 }
 
-void Approximator::prepareUpdate()
+void Approximator::getHeaders(std::ostringstream& buff) const
 {
-  for(Uint i=0; i<nThreads; i++) if(error_placements[i]>0) die("");
-
-  if(nAddedGradients==0) die("No-gradient update. Revise hyperparameters.");
-
-  if(input->net not_eq nullptr and not blockInpGrad) {
-    for(int i=0; i<ESpopSize; i++) input->losses[i] += losses[i];
-  }
-
-  opt->prepare_update(losses);
-  losses = Rvec(ESpopSize, 0);
-  reducedGradients = 1;
-  nAddedGradients = 0;
+  return opt->getHeaders(buff, name);
+}
+void Approximator::getMetrics(std::ostringstream& buff) const
+{
+  return opt->getMetrics(buff);
 }
 
-void Approximator::applyUpdate() {
-  if(reducedGradients == 0) return;
-
-  opt->apply_update();
-  net->updateTransposed();
-  reducedGradients = 0;
-}
-
-void Approximator::getHeaders(ostringstream& buff) const {
-  buff << std::left << std::setfill(' ') <<"| " << std::setw(6) << name;
-  if(opt->tgtUpdateAlpha > 0) buff << "| dTgt ";
-  opt->getHeaders(buff);
-}
-
-void Approximator::getMetrics(ostringstream& buff) const {
-  real2SS(buff, net->weights->compute_weight_norm(), 7, 1);
-  if(opt->tgtUpdateAlpha > 0)
-    real2SS(buff, net->weights->compute_weight_dist(net->tgt_weights), 6, 1);
-  opt->getMetrics(buff);
-}
-
-Rvec Approximator::relay_backprop(const Rvec err,
-  const Uint samp, const Uint thrID, const bool bUseTargetWeights) const {
-  if(relay == nullptr || relayInp < 0) die("improperly set up the relay");
-  if(ESpopSize > 1) {
-    debugL("Skipping relay_backprop because we use ES optimizers.");
-    return Rvec(relay->nOutputs(), 0);
-  }
-  const std::vector<Activation*>& act = series_tgt[thrID];
-  const int ind = mapTime2Ind(samp, thrID), nInp = input->nOutputs();
-  assert(act[ind]->written == true && relay not_eq nullptr);
-  const Parameters*const W = bUseTargetWeights? net->tgt_weights : net->weights;
-  const Rvec ret = net->inpBackProp(err, act[ind], W, relayInp);
-  for(Uint j=0; j<ret.size(); j++)
-    assert(!std::isnan(ret[j]) && !std::isinf(ret[j]));
-  //if(!thrID)
-  //{
-  //  const auto pret = Rvec(&ret[nInp], &ret[nInp+relay->nOutputs()]);
-  //  const auto inp = act[ind]->getInput();
-  //  const auto pinp = Rvec(&inp[nInp], &inp[nInp+relay->nOutputs()]);
-  //  cout <<"G:"<<print(pret)<< " Inp:"<<print(pinp)<<endl;
-  //}
-  if(relayInp>0) return ret;
-  else return Rvec(&ret[nInp], &ret[nInp+relay->nOutputs()]);
-}
-
-void Approximator::prepare_agent(Sequence*const traj, const Agent&agent,
-  const Uint wghtID) const {
-  //This is called by a std::thread and uses separate workspace from omp threads
-  //We use a fake thread id to avoid code duplication in encapsulator class
-  const Uint fakeThrID = nThreads + agent.ID, stepid = traj->ndata();
-  agent_Wind[agent.ID] = wghtID;
-  agent_seq[agent.ID] = traj;
-  // learner->select always only gets one new state, so we assume that it needs
-  // to run one (or more) forward net at time t, so here also compute recurrency
-  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT,stepid) : 0;
-  const std::vector<Activation*>& act = agent_series[agent.ID];
-  net->prepForFwdProp(agent_series[agent.ID], nRecurr+1);
-  input->prepare(traj, nRecurr+1, stepid-nRecurr, fakeThrID);
-  // if using relays, ask for previous actions, to be used for recurrencies
-  // why? because the past is the past.
-  if(relay not_eq nullptr) relay->prepare(traj, fakeThrID, ACT);
-  assert(act.size() >= nRecurr+1);
-  const Parameters* const W = opt->getWeights(wghtID);
-  //Advance recurr net with 0 initialized activations for nRecurr steps
-  for(Uint i=0, t=stepid-nRecurr; i<nRecurr; i++, t++)
-    net->predict(getInput(t,fakeThrID,wghtID), i? act[i-1]:nullptr, act[i], W);
-}
-
-Rvec Approximator::forward_agent(const Uint agentID) const {
-  // assume we already computed recurrencies
-  const std::vector<Activation*>& act = agent_series[agentID];
-  const int fakeThrID = nThreads + agentID, wghtID = agent_Wind[agentID];
-  const Uint stepid = agent_seq[agentID]->ndata();
-  const Uint nRecurr = bRecurrent ? std::min(nMaxBPTT, stepid) : 0;
-  if(act[nRecurr]->written) return act[nRecurr]->getOutput();
-  const Parameters* const W = opt->getWeights(wghtID);
-  const Rvec inp = getInput(stepid, fakeThrID, wghtID);
-  return net->predict(inp, nRecurr? act[nRecurr-1] : nullptr, act[nRecurr], W);
-}
-
-void Approximator::save(const string base, const bool bBackup) {
+void Approximator::save(const std::string base, const bool bBackup)
+{
   if(opt == nullptr) die("Attempted to save uninitialized net!");
   opt->save(base + name, bBackup);
 }
-void Approximator::restart(const string base) {
+void Approximator::restart(const std::string base)
+{
   if(opt == nullptr) die("Attempted to restart uninitialized net!");
   opt->restart(base+name);
 }
+
+void Approximator::gatherParameters(ParameterBlob& params) const
+{
+   params.add(net->weights->nParams, net->weights->params);
+}
+
+} // end namespace smarties
+
+
+/*
+Rvec forward(const Uint samp, const Uint thrID,
+  const int USE_WGT, const int USE_ACT, const int overwrite=0) const;
+inline Rvec forward(const Uint samp, const Uint thrID, int USE_ACT=0) const {
+  assert(USE_ACT>=0);
+  return forward(samp, thrID, thread_Wind[thrID], USE_ACT);
+}
+template<NET USE_A = CUR>
+inline Rvec forward_cur(const Uint samp, const Uint thrID) const {
+  const int indA = USE_A==CUR? 0 : -1;
+  return forward(samp, thrID, thread_Wind[thrID], indA);
+}
+template<NET USE_A = TGT>
+inline Rvec forward_tgt(const Uint samp, const Uint thrID) const {
+  const int indA = USE_A==CUR? 0 : -1;
+  return forward(samp, thrID, -1, indA);
+}
+// relay backprop requires gradients: no wID, no sorting based opt algos
+Rvec relay_backprop(const Rvec grad, const Uint samp, const Uint thrID,
+  const bool bUseTargetWeights = false) const;
+void backward(Rvec grad, const Uint samp, const Uint thrID, const int USE_ACT=0) const;
+void gradient(const Uint thrID, const int wID = 0) const;
+void prepareUpdate();
+void applyUpdate();
+bool ready2ApplyUpdate();
+*/

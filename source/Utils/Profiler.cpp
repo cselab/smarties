@@ -14,6 +14,9 @@
 #include <sstream>
 #include <iomanip>
 
+namespace smarties
+{
+
 Timer::Timer() {
   _start = std::chrono::time_point<std::chrono::high_resolution_clock>::min();
   _end   = std::chrono::time_point<std::chrono::high_resolution_clock>::min();
@@ -88,9 +91,9 @@ std::string Profiler::__printStatAndReset(Unit unit, std::string prefix)
   }
   longest = std::max(longest, (unsigned)6);
 
-  out << prefix << "Total time: " << std::fixed << std::setprecision(1) << total*factor << " " << suffix << std::endl;
+  out << prefix << "Total time: " << std::fixed << std::setprecision(1) << total*factor << " " << suffix << "\n";
   out << prefix << std::left << "[" << std::setw(longest) << "Kernel" << "]    " << std::setw(20)
-  << "Time, "+suffix << std::setw(20) << "Executions" << std::setw(20) << "Percentage" << std::endl;
+  << "Time, "+suffix << std::setw(20) << "Executions" << std::setw(20) << "Percentage\n";
 
   std::vector<std::pair<std::string, Timings>> v(timings.begin(), timings.end());
   std::sort(v.begin(), v.end(), [] (auto& a, auto& b) { return a.second.total > b.second.total; });
@@ -101,7 +104,7 @@ std::string Profiler::__printStatAndReset(Unit unit, std::string prefix)
     out << prefix << "[" << std::setw(longest) << tm.first << "]    "
     << std::fixed << std::setprecision(3) << std::setw(20) << tm.second.total * factor / tm.second.iterations
     <<  "x" << std::setw(19) << tm.second.iterations
-    << std::fixed << std::setprecision(1) << std::setw(20) << tm.second.total / total * 100.0 << std::endl;
+    << std::fixed << std::setprecision(1) << std::setw(20) << tm.second.total / total * 100.0 << "\n";
   }
 
   timings.clear();
@@ -179,3 +182,5 @@ void Profiler::reset()
 
 
 Profiler::Profiler() : ongoing(""), numStarted(0) {}
+
+}

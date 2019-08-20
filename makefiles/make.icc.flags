@@ -1,5 +1,5 @@
 CPPFLAGS+= -std=c++14 -qopenmp
-LIBS+= -qopenmp
+LDFLAGS+= -qopenmp
 
 CPPFLAGS+= -Wall -Warray-bounds -Wchar-subscripts -Wcomment -Wenum-compare
 CPPFLAGS+= -Wformat -Wuninitialized -Wmaybe-uninitialized -Wmain -Wnarrowing

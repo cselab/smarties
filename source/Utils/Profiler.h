@@ -6,11 +6,15 @@
 //  Created by Diego Rossinelli.
 //
 
-#pragma once
+#ifndef smarties_Profiler_h
+#define smarties_Profiler_h
 
 #include <string>
 #include <chrono>
 #include <unordered_map>
+
+namespace smarties
+{
 
 class Timer
 {
@@ -63,3 +67,6 @@ class Profiler
 
   void reset();
 };
+
+}
+#endif

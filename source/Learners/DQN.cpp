@@ -7,103 +7,198 @@
 //
 
 #include "DQN.h"
-#include "../Math/Utils.h"
-#include "../Network/Builder.h"
+#include "../Utils/StatsTracker.h"
+#include "../Network/Approximator.h"
+#include "../ReplayMemory/Collector.h"
+#include "../Utils/FunctionUtilities.h"
 
-DQN::DQN(Environment*const _env, Settings& _set) :
-Learner_offPolicy(_env, _set)
+#define DQN_USE_POLICY
+
+#ifdef DQN_USE_POLICY
+// use discrete policy but override positive definite mapping
+#define PosDefMapping_f Exp
+#include "../Math/Discrete_policy.h"
+#endif
+
+namespace smarties
 {
-  trainInfo = new TrainData("DQN", _set);
-  F.push_back(new Approximator("Q", _set, input, data));
-  Builder build_pol = F[0]->buildFromSettings(_set, env->aI.maxLabel);
-  F[0]->initializeNetwork(build_pol);
+
+DQN::DQN(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
+  Learner_approximator(MDP_, S_, D_)
+{
+  if(D_.world_rank == 0) {
+  printf(
+  "==========================================================================\n"
+  "                          DQN : Deep Q Networks                           \n"
+  "==========================================================================\n"
+  ); }
+
+  createEncoder();
+  assert(networks.size() <= 1);
+  if(networks.size()>0) {
+    networks[0]->rename("Q"); // not preprocessing, is is the main&only net
+  } else {
+    networks.push_back(new Approximator("Q", settings, distrib, data.get()));
+  }
+  networks[0]->setUseTargetNetworks();
+  networks[0]->buildFromSettings(nA + 1);
+  networks[0]->initializeNetwork();
+
+  trainInfo = new TrainData("DQN", distrib);
 }
 
 void DQN::select(Agent& agent)
 {
-  const Real anneal = annealingFactor();
-  const Real annealedEps = bTrain ? anneal + (1-anneal)*explNoise : explNoise;
-  Sequence* const traj = data_get->get(agent.ID);
   data_get->add_state(agent);
+  Sequence& EP = * data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(&EP);
 
-  if( agent.Status < TERM_COMM )
+  if( agent.agentStatus < TERM )
   {
     //Compute policy and value on most recent element of the sequence. If RNN
     // recurrent connection from last call from same agent will be reused
-    F[0]->prepare_agent(traj, agent);
-    Rvec output = F[0]->forward_agent(agent);
+    networks[0]->load(MB, agent);
+    auto outVec = networks[0]->forward(agent);
+    outVec.pop_back(); // remove state value
 
-    uniform_real_distribution<Real> dis(0.,1.);
-    if(dis(generators[nThreads+agent.ID]) < annealedEps)
-      agent.act(env->aI.maxLabel*dis(generators[nThreads+agent.ID]));
-    else agent.act(maxInd(output));
+    #ifdef DQN_USE_POLICY
+      Discrete_policy POL({0}, &aInfo, outVec);
+      Rvec MU = POL.getVector();
+      const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
+      Uint act = POL.finalize(bSamplePol, &generators[nThreads+agent.ID], MU);
+      agent.act(act);
+    #else
+      const Real anneal = annealingFactor(), explNoise = settings.explNoise;
+      const Real annealedEps = bTrain? anneal +(1-anneal)*explNoise : explNoise;
+      const Uint greedyAct = Utilities::maxInd(outVec);
 
-    Rvec mu(policyVecDim, annealedEps/env->aI.maxLabel);
-    mu[maxInd(output)] += 1-annealedEps;
+      std::uniform_real_distribution<Real> dis(0.0, 1.0);
+      if(dis(generators[nThreads+agent.ID]) < annealedEps)
+        agent.act(nA * dis(generators[nThreads+agent.ID]));
+      else agent.act(greedyAct);
 
-    data_get->add_action(agent, mu);
+      Rvec MU(policyVecDim, annealedEps/nA);
+      MU[greedyAct] += 1-annealedEps;
+    #endif
+
+    data_get->add_action(agent, MU);
   } else
     data_get->terminate_seq(agent);
 }
 
-void DQN::TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-  const Uint thrID) const
+void DQN::setupTasks(TaskQueue& tasks)
 {
-  Sequence* const traj = data->get(seq);
-  const Uint ndata = traj->tuples.size();
-  F[0]->prepare_seq(traj, thrID, wID);
-  if(thrID==0) profiler->stop_start("FWD");
+  if( not bTrain ) return;
 
-  for (Uint k=0; k<ndata-1; k++) { //state in k=[0:N-2]
-    const bool terminal = k+2==ndata && traj->ended;
-    const Rvec Qs = F[0]->forward_cur(k, thrID);
-    const Uint action = aInfo.actionToLabel(traj->tuples[k]->a);
+  // ALGORITHM DESCRIPTION
+  algoSubStepID = -1; // pre initialization
 
-    Real Vsnew = traj->tuples[k+1]->r;
-    if ( not terminal ) {
-      const Rvec Qhats = F[0]->forward_cur(k+1, thrID);
-      const Rvec Qtildes = F[0]->forward_tgt(k+1, thrID);
-      Vsnew += gamma * Qtildes[maxInd(Qhats)];
-    }
-    const Real error = Vsnew - Qs[action];
+  auto stepInit = [&]()
+  {
+    // conditions to start the initialization task:
+    if ( algoSubStepID >= 0 ) return; // we done with init
+    if ( data->readNData() < nObsB4StartTraining ) return; // not enough data to init
 
-    Rvec gradient(F[0]->nOutputs());
-    gradient[action] = error;
-    traj->setMseDklImpw(k, error*error, 0, 1, CmaxRet, CinvRet);
-    trainInfo->log(Qs[action], error, thrID);
-    F[0]->backward(gradient, k, thrID);
-  }
+    debugL("Initialize Learner");
+    initializeLearner();
+    algoSubStepID = 0;
+  };
+  tasks.add(stepInit);
 
-  if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->gradient(thrID);
+  auto stepMain = [&]()
+  {
+    // conditions to begin the update-compute task
+    if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
+    if ( blockGradientUpdates() ) return; // waiting for enough data
+
+    debugL("Sample the replay memory and compute the gradients");
+    spawnTrainTasks();
+    debugL("Gather gradient estimates from each thread and Learner MPI rank");
+    prepareGradient();
+    debugL("Search work to do in the Replay Memory");
+    processMemoryBuffer();
+    debugL("Compute state/rewards stats from the replay memory");
+    finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
+    logStats();
+    algoSubStepID = 1;
+  };
+  tasks.add(stepMain);
+
+  // these are all the tasks I can do before the optimizer does an allreduce
+  auto stepComplete = [&]()
+  {
+    if ( algoSubStepID not_eq 1 ) return;
+    if ( networks[0]->ready2ApplyUpdate() == false ) return;
+
+    debugL("Apply SGD update after reduction of gradients");
+    applyGradient();
+    algoSubStepID = 0; // rinse and repeat
+    globalGradCounterUpdate(); // step ++
+  };
+  tasks.add(stepComplete);
 }
 
-void DQN::Train(const Uint seq, const Uint samp, const Uint wID,
-  const Uint bID, const Uint thrID) const
+static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
+                                 const ActionInfo*const aI)
 {
-  Sequence* const traj = data->get(seq);
-  F[0]->prepare_one(traj, samp, thrID, wID);
+  assert( aI->dimDiscrete() == Qhats.size() );
+  assert( aI->dimDiscrete() + 1 == Qhats.size() );
+  #ifdef DQN_USE_POLICY
+    Discrete_policy pol({0}, aI, Qhats);
+    Real ret = 0;
+    for(Uint i=0; i<aI->dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
+    return ret;
+  #else
+    return Qtildes[ Utilities::maxInd(Qhats) ] + Qtildes.back();
+  #endif
+}
+
+void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
+{
+  Sequence& S = MB.getEpisode(bID);
+  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
+
   if(thrID==0) profiler->stop_start("FWD");
 
-  const Rvec Qs = F[0]->forward_cur(samp, thrID);
-  const bool terminal = samp+2 == traj->tuples.size() && traj->ended;
-  const Uint act = aInfo.actionToLabel(traj->tuples[samp]->a);
+  const Rvec Qs = networks[0]->forward(bID, t);
+  const Uint actt = aInfo.actionMessage2label(MB.action(bID,t));
+  assert(actt+1 < Qs.size()); // enough to store advantages and value
 
-  Real Vsnew = traj->tuples[samp+1]->r;
-  if (not terminal) {
+  Real Vsnew = MB.reward(bID, t);
+  if (not S.isTerminal(t+1)) {
     // find best action for sNew with moving wghts, evaluate it with tgt wgths:
     // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
-    const Rvec Qhats = F[0]->forward_cur(samp+1, thrID);
-    const Rvec Qtildes = F[0]->forward_tgt(samp+1, thrID);
-    Vsnew += gamma * Qtildes[maxInd(Qhats)];
+    Rvec Qhats         = networks[0]->forward    (bID, t+1);
+    Qhats.pop_back(); // remove state value
+    const Rvec Qtildes = networks[0]->forward_tgt(bID, t+1);
+    //v_s = r +gamma*( adv(greedy action)                + V(s'))
+    Vsnew += gamma * expectedValue(Qhats, Qtildes, & aInfo);
   }
-  const Real error = Vsnew - Qs[act];
-  Rvec gradient(F[0]->nOutputs(), 0);
-  gradient[act] = error;
+  const Real ERR = Vsnew - Qs[actt] - Qs.back();
 
-  traj->setMseDklImpw(samp, error*error, 0, 1, CmaxRet, CinvRet);
-  trainInfo->log(Qs[act], error, thrID);
-  if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->backward(gradient, samp, thrID);
-  F[0]->gradient(thrID);
+  Rvec gradient(nA+1, 0);
+  gradient[actt] = ERR; gradient.back() = ERR; // add error for state value
+
+  #ifdef DQN_USE_POLICY
+    Discrete_policy POL({0}, &aInfo, Qs);
+    POL.prepare(S.actions[t], S.policies[t]);
+    const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
+    const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
+
+    if(CmaxRet>1 && beta<1) { // then refer
+      if(isOff) gradient = Rvec(nA+1, 0); // grad clipping as if pol gradient
+      const Rvec penGrad = POL.finalize_grad(POL.div_kl_grad(S.policies[t],-1));
+      for(Uint i=0; i<nA; ++i)
+        gradient[i] = beta * gradient[i] + (1-beta) * penGrad[i];
+    }
+    S.setMseDklImpw(t, ERR*ERR, DKL, RHO, CmaxRet, CinvRet);
+    trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
+  #else
+    S.setMseDklImpw(t, ERR*ERR, 0, 1, CmaxRet, CinvRet);
+    trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
+  #endif
+
+  networks[0]->setGradient(gradient, bID, t);
+}
+
 }

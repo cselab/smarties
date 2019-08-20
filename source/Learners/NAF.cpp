@@ -6,60 +6,91 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#include "../StateAction.h"
-#include "../Network/Builder.h"
 #include "NAF.h"
+#include "../Utils/StatsTracker.h"
+#include "../Network/Approximator.h"
+#include "../ReplayMemory/Collector.h"
+#include "../Utils/FunctionUtilities.h"
 
+#ifdef NAF_ADV_GAUS
+#include "../Math/Gaus_advantage.h"
+#define Param_advantage Gaussian_advantage
+#else
 #include "../Math/Quadratic_advantage.h"
+#define Param_advantage Quadratic_advantage
+#endif
 
-static inline Quadratic_advantage prepare_advantage(const Rvec&O,
-  const ActionInfo*const aI, const vector<Uint>& net_inds)
+namespace smarties
 {
-  return Quadratic_advantage(vector<Uint>{net_inds[1], net_inds[2]}, aI, O);
+
+static inline Param_advantage prepare_advantage(const Rvec&O,
+  const ActionInfo*const aI, const std::vector<Uint>& net_inds)
+{
+  return Param_advantage(std::vector<Uint>{net_inds[1], net_inds[2]}, aI, O);
 }
 
-NAF::NAF(Environment*const _env, Settings & _set) :
-Learner_offPolicy(_env, _set)
+NAF::NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
+  Learner_approximator(MDP_, S_, D_),
+  nL( Param_advantage::compute_nL(& aInfo) ),
+  stdParam(Gaussian_policy::initial_Stdev(& aInfo, S_.explNoise)[0])
 {
-  _set.splitLayers = 0;
-  F.push_back(new Approximator("net", _set, input, data));
-  const Uint nOutp = 1 +aInfo.dim +Quadratic_advantage::compute_nL(&aInfo);
+  if(D_.world_rank == 0) {
+  printf(
+  "==========================================================================\n"
+  "                   NAF : Normalized Advantage Functions                   \n"
+  "==========================================================================\n"
+  ); }
+
+  createEncoder();
+  assert(networks.size() <= 1);
+  if(networks.size()>0) {
+    networks[0]->rename("net"); // not preprocessing, is is the main&only net
+  } else {
+    networks.push_back(new Approximator("net", settings, distrib, data.get()));
+  }
+
+  networks[0]->setUseTargetNetworks();
+  const Uint nOutp = 1 + aInfo.dim() + Param_advantage::compute_nL(&aInfo);
   assert(nOutp == net_outputs[0] + net_outputs[1] + net_outputs[2]);
-  Builder build_pol = F[0]->buildFromSettings(_set, nOutp);
-  F[0]->initializeNetwork(build_pol);
-  test();
-  printf("NAF\n");
-  trainInfo = new TrainData("NAF", _set, 0, "| beta | avgW ", 2);
+  networks[0]->buildFromSettings(nOutp);
+  networks[0]->initializeNetwork();
+
+  trainInfo = new TrainData("NAF", distrib, 0, "| beta | avgW ", 2);
+
+  {
+    Rvec out(networks[0]->nOutputs()), act(aInfo.dim());
+    std::uniform_real_distribution<Real> out_dis(-.5,.5);
+    std::uniform_real_distribution<Real> act_dis(-.5,.5);
+    const int thrID = omp_get_thread_num();
+    for(Uint i = 0; i<aInfo.dim(); ++i) act[i] = act_dis(generators[thrID]);
+    for(Uint i = 0; i<nOutp; ++i) out[i] = out_dis(generators[thrID]);
+    Param_advantage A = prepare_advantage(out, &aInfo, net_indices);
+    A.test(act, &generators[thrID]);
+  }
 }
 
 void NAF::select(Agent& agent)
 {
-  Sequence* const traj = data_get->get(agent.ID);
   data_get->add_state(agent);
+  Sequence& EP = * data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(&EP);
 
-  if( agent.Status < TERM_COMM ) // not last of a sequence
+  if( agent.agentStatus < TERM ) // not last of a sequence
   {
-    F[0]->prepare_agent(traj, agent);
+    networks[0]->load(MB, agent);
     //Compute policy and value on most recent element of the sequence.
-    const Rvec output = F[0]->forward_agent(agent);
-    //cout << print(output) << endl;
-    Rvec polvec = Rvec(&output[net_indices[2]], &output[net_indices[2]]+nA);
+    const Rvec output = networks[0]->forward(agent);
+    Rvec polvec = Rvec(&output[net_indices[2]], &output[net_indices[2]] + nA);
+    // add stdev to the policy vector representation:
+    polvec.resize(2*nA, stdParam);
+    Gaussian_policy POL({0, nA}, & aInfo, polvec);
 
-    #ifndef NDEBUG
-      const Quadratic_advantage advantage = prepare_advantage(output, &aInfo, net_indices);
-      Rvec polvec2 = advantage.getMean();
-      assert(polvec.size() == polvec2.size());
-      for(Uint i=0;i<nA;i++) assert(abs(polvec[i]-polvec2[i])<2e-16);
-    #endif
-
-    polvec.resize(policyVecDim, stdParam);
-    assert(polvec.size() == 2 * nA);
-    Gaussian_policy policy({0, nA}, &aInfo, polvec);
-    const Rvec MU = policy.getVector();
+    Rvec MU = POL.getVector();
+    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
     //cout << print(MU) << endl;
-    Rvec act = policy.finalize(explNoise>0, &generators[nThreads+agent.ID], MU);
+    Rvec act = POL.finalize(bSamplePolicy, &generators[nThreads+agent.ID], MU);
     if(OrUhDecay>0)
-      act = policy.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
+      act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
 
     agent.act(act);
     data_get->add_action(agent, MU);
@@ -69,66 +100,98 @@ void NAF::select(Agent& agent)
   }
 }
 
-void NAF::TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-  const Uint thrID) const
+void NAF::setupTasks(TaskQueue& tasks)
 {
-  die("");
+  if( not bTrain ) return;
+
+  // ALGORITHM DESCRIPTION
+  algoSubStepID = -1; // pre initialization
+
+  auto stepInit = [&]()
+  {
+    // conditions to start the initialization task:
+    if ( algoSubStepID >= 0 ) return; // we done with init
+    if ( data->readNData() < nObsB4StartTraining ) return; // not enough data to init
+
+    debugL("Initialize Learner");
+    initializeLearner();
+    algoSubStepID = 0;
+  };
+  tasks.add(stepInit);
+
+  auto stepMain = [&]()
+  {
+    // conditions to begin the update-compute task
+    if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
+    if ( blockGradientUpdates() ) return; // waiting for enough data
+
+    debugL("Sample the replay memory and compute the gradients");
+    spawnTrainTasks();
+    debugL("Gather gradient estimates from each thread and Learner MPI rank");
+    prepareGradient();
+    debugL("Search work to do in the Replay Memory");
+    processMemoryBuffer();
+    debugL("Compute state/rewards stats from the replay memory");
+    finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
+    logStats();
+    algoSubStepID = 1;
+  };
+  tasks.add(stepMain);
+
+  // these are all the tasks I can do before the optimizer does an allreduce
+  auto stepComplete = [&]()
+  {
+    if ( algoSubStepID not_eq 1 ) return;
+    if ( networks[0]->ready2ApplyUpdate() == false ) return;
+
+    debugL("Apply SGD update after reduction of gradients");
+    applyGradient();
+    algoSubStepID = 0; // rinse and repeat
+    globalGradCounterUpdate(); // step ++
+  };
+  tasks.add(stepComplete);
 }
 
-void NAF::Train(const Uint seq, const Uint samp, const Uint wID,
-  const Uint bID, const Uint thrID) const
+void NAF::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
+  Sequence& S = MB.getEpisode(bID);
+  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
+
   if(thrID==0) profiler->stop_start("FWD");
 
-  Sequence* const traj = data->get(seq);
-  F[0]->prepare_one(traj, samp, thrID, wID);
-
-  const Rvec output = F[0]->forward(samp, thrID);
+  const Rvec output = networks[0]->forward(bID, t);
 
   if(thrID==0) profiler->stop_start("CMP");
   // prepare advantage and policy
-  const Quadratic_advantage ADV = prepare_advantage(output, &aInfo,net_indices);
-  Rvec polvec = ADV.getMean();            assert(polvec.size() == nA);
-  polvec.resize(policyVecDim, stdParam);
-  assert(polvec.size() == 2 * nA);
+  const auto ADV = prepare_advantage(output, &aInfo, net_indices);
+  Rvec polvec = ADV.getMean();           assert(polvec.size() == 1 * nA);
+  polvec.resize(policyVecDim, stdParam); assert(polvec.size() == 2 * nA);
   Gaussian_policy POL({0, nA}, &aInfo, polvec);
-  POL.prepare(traj->tuples[samp]->a, traj->tuples[samp]->mu);
+  POL.prepare(MB.action(bID,t), MB.mu(bID,t));
+  const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
   //cout << POL.sampImpWeight << " " << POL.sampKLdiv << " " << CmaxRet << endl;
 
-  const Real Qsold = output[net_indices[0]] + ADV.computeAdvantage(POL.sampAct);
-  const bool isOff= dropRule==1? false :
-                     traj->isFarPolicy(samp, POL.sampImpWeight,CmaxRet,CinvRet);
+  const Real Qs = output[net_indices[0]] + ADV.computeAdvantage(POL.sampAct);
+  const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
 
-  Real Vsnew = data->scaledReward(traj, samp+1);
-  if (not traj->isTerminal(samp+1) && not isOff) {
-    const Rvec target = F[0]->forward_tgt(samp+1, thrID);
-    Vsnew += gamma*target[net_indices[0]];
-  }
-  const Real error = isOff? 0 : Vsnew - Qsold;
-  Rvec grad(F[0]->nOutputs());
+  Real target = MB.reward(bID, t);
+  if (not S.isTerminal(t+1) && not isOff)
+    target += gamma * networks[0]->forward_tgt(bID, t+1) [net_indices[0]];
+  const Real error = isOff? 0 : target - Qs;
+  Rvec grad(networks[0]->nOutputs());
   grad[net_indices[0]] = error;
   ADV.grad(POL.sampAct, error, grad);
-  if(CmaxRet>1 && beta<1 && dropRule!=2) { // then ReFER
-    const Rvec penG = POL.div_kl_grad(traj->tuples[samp]->mu, -1);
-    for(Uint i=0; i<nA; i++)
+  if(CmaxRet>1 && beta<1) { // then ReFER
+    const Rvec penG = POL.div_kl_grad(MB.mu(bID,t), -1);
+    for(Uint i=0; i<nA; ++i)
       grad[net_indices[2]+i] = beta*grad[net_indices[2]+i] + (1-beta)*penG[i];
   }
 
-  trainInfo->log(Qsold, error, {beta, POL.sampImpWeight}, thrID);
-  traj->setMseDklImpw(samp, error*error, POL.sampKLdiv, POL.sampImpWeight, CmaxRet, CinvRet);
+  trainInfo->log(Qs, error, {beta, RHO}, thrID);
+  S.setMseDklImpw(t, error*error, DKL, RHO, CmaxRet, CinvRet);
+
   if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->backward(grad, samp, thrID);
-  F[0]->gradient(thrID);
+  networks[0]->setGradient(grad, bID, t);
 }
 
-void NAF::test()
-{
-  Rvec out(F[0]->nOutputs()), act(aInfo.dim);
-  uniform_real_distribution<Real> out_dis(-.5,.5);
-  uniform_real_distribution<Real> act_dis(-.5,.5);
-  const int thrID = omp_get_thread_num();
-  for(Uint i = 0; i<aInfo.dim; i++) act[i] = act_dis(generators[thrID]);
-  for(Uint i = 0; i<F[0]->nOutputs(); i++) out[i] = out_dis(generators[thrID]);
-  Quadratic_advantage A = prepare_advantage(out, &aInfo, net_indices);
-  A.test(act, &generators[thrID]);
 }

@@ -6,39 +6,35 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#pragma once
-#include "Learner_offPolicy.h"
-#include "../Math/Utils.h"
+#ifndef smarties_NAF_h
+#define smarties_NAF_h
 
-class NAF : public Learner_offPolicy
+#include "Learner_approximator.h"
+
+namespace smarties
 {
+
+class NAF : public Learner_approximator
+{
+  const Uint nA = aInfo.dim(), nL;
   //Network produces a vector. The two following vectors specify:
   // - the sizes of the elements that compose the vector
   // - the starting indices along the output vector of each
-  const vector<Uint> net_outputs = {1, compute_nL(aInfo.dim), aInfo.dim};
-  const vector<Uint> net_indices = {0, 1, 1+compute_nL(aInfo.dim)};
-  #ifdef EXTRACT_COVAR
-    const Real stdParam = noiseMap_inverse(explNoise*explNoise);
-  #else
-    const Real stdParam = noiseMap_inverse(explNoise);
-  #endif
-
-  const Uint nA = env->aI.dim;
-  const Real OrUhDecay = CmaxPol<=0? .85 : 0;
+  const std::vector<Uint> net_outputs = {1, nL, nA}, net_indices = {0, 1, 1+nL};
+  const Real stdParam, OrUhDecay = CmaxPol<=0? .85 : 0;
   //const Real OrUhDecay = 0; // as in original
-  vector<Rvec> OrUhState = vector<Rvec>( nAgents, Rvec(nA, 0) );
+  std::vector<Rvec> OrUhState = std::vector<Rvec>( nAgents, Rvec(nA, 0) );
 
-  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-    const Uint thrID) const override;
-  void Train(const Uint seq, const Uint t, const Uint wID,
-    const Uint bID, const Uint thrID) const override;
+  void Train(const MiniBatch&MB, const Uint wID,const Uint bID) const override;
 
 public:
-  NAF(Environment*const env, Settings & settings);
+  NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_);
+
+  void setupTasks(TaskQueue& tasks) override;
   void select(Agent& agent) override;
+
   void test();
-  static inline Uint compute_nL(const Uint NA)
-  {
-    return (NA*NA + NA)/2;
-  }
 };
+
+}
+#endif

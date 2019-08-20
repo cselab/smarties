@@ -1,8 +1,5 @@
-CC=mpic++
+MPICXX=mpic++
 LD=mpic++
-ifeq "$(compiler)" "intel"
-CPPFLAGS+= -DUSE_MKL
-LIBS+= -lmkl_core -lmkl_sequential -lmkl_intel_lp64
-else
+
 LIBS+= -lopenblas
-endif
+CPPFLAGS+= -DUSE_OPENBLAS

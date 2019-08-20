@@ -6,19 +6,17 @@
 #
 #  Created by Guido Novati (novatig@ethz.ch).
 #
-EXECNAME=rl
-RUNFOLDER=$1
 
-if [ $# -lt 3 ] ; then
-echo "Usage: ./launch_openai.sh RUNFOLDER APP SETTINGS_PATH (for other optional params see launch_base.sh)"
-exit 1
-fi
+RUNNAME=$1
 
-MYNAME=`whoami`
 HOST=`hostname`
 if [ ${HOST:0:5} == 'euler' ] || [ ${HOST:0:3} == 'eu-' ] ; then
-	export BASEPATH="/cluster/scratch/${MYNAME}/smarties/"
+export BASEPATH="${SCRATCH}/smarties/"
+elif [ ${HOST:0:5} == 'daint' ] ; then
+export BASEPATH="${SCRATCH}/smarties/"
 else
 export BASEPATH="../runs/"
 fi
-mkdir -p ${BASEPATH}${RUNFOLDER}
+
+export RUNDIR=${BASEPATH}${RUNNAME}
+mkdir -p ${RUNDIR}

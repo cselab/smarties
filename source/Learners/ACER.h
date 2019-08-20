@@ -6,40 +6,43 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#pragma once
-#include "Learner_offPolicy.h"
-class Aggregator;
-class Gaussian_policy;
+#ifndef smarties_ACER_h
+#define smarties_ACER_h
 
-class ACER : public Learner_offPolicy
+#include "Learner_approximator.h"
+
+namespace smarties
 {
- protected:
-  const Uint nA = aInfo.dim;
+
+class ACER : public Learner_approximator
+{
+protected:
+  const Uint nA = aInfo.dim();
+  const Real explNoise = settings.explNoise;
   const Real acerTrickPow = 1. / std::sqrt(nA);
   //const Real acerTrickPow = 1. / nA;
   static constexpr Uint nAexpectation = 5;
-  static constexpr Real facExpect = 1./nAexpectation;
+  Approximator * encoder = nullptr;
+  Approximator * actor = nullptr;
+  Approximator * value = nullptr;
+  Approximator * advtg = nullptr;
 
-  Aggregator* relay = nullptr;
+  void Train(const MiniBatch& MB, const Uint wID, const Uint bID) const override;
 
-  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-    const Uint thrID) const override;
-
-  void Train(const Uint seq, const Uint samp, const Uint wID,
-    const Uint bID, const Uint thrID) const override;
-
-  Rvec policyGradient(const Tuple*const _t, const Gaussian_policy& POL,
-    const Gaussian_policy& TGT, const Real ARET, const Real APol,
-    const Rvec& pol_samp) const;
-
- public:
-  void select(Agent& agent) override;
+public:
 
   static Uint getnDimPolicy(const ActionInfo*const aI)
   {
-    return 2*aI->dim;
+    return 2*aI->dim();
   }
 
-  ACER(Environment*const _env, Settings&_set);
-  ~ACER() { }
+  void select(Agent& agent) override;
+  void setupTasks(TaskQueue& tasks) override;
+
+  ACER(MDPdescriptor&, Settings&, DistributionInfo&);
+  ~ACER() override { };
 };
+
+}
+
+#endif // smarties_ACER_h

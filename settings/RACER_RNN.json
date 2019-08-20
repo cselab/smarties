@@ -1,0 +1,14 @@
+{
+  "learner": "RACER",
+  "nnLayerSizes": [32, 32],
+  "gamma": 0.99,
+  "epsAnneal": 0,
+  "nnLambda": 1e-6,
+  "penalTol": 0.1,
+  "clipImpWeight": 4,
+  "maxTotObsNum": 262144,
+  "nnType": "LSTM",
+  "explNoise": 0.1,
+  "batchSize": 128,
+  "learnrate": 0.0001
+}

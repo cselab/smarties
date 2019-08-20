@@ -1,0 +1,15 @@
+{
+  "learner": "ACER",
+  "batchSize": 24,
+  "clipImpWeight": 5,
+  "encoderLayerSizes": [128],
+  "epsAnneal": 5e-7,
+  "explNoise": 0.4472135955,
+  "gamma": 0.995,
+  "klDivConstraint": 1,
+  "learnrate": 0.00001,
+  "maxTotObsNum": 131072,
+  "minTotObsNum": 131072,
+  "nnLayerSizes": [128],
+  "targetDelay": 0.001
+}

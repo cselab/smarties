@@ -6,24 +6,33 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#pragma once
-#include "Learner_offPolicy.h"
-class Aggregator;
+#ifndef smarties_DPG_h
+#define smarties_DPG_h
 
-class DPG : public Learner_offPolicy
+#include "Learner_approximator.h"
+
+namespace smarties
 {
-  Aggregator* relay;
-  const Uint nA = env->aI.dim;
+
+class DPG : public Learner_approximator
+{
+  const Uint nA = aInfo.dim();
+  const Real explNoise = settings.explNoise;
   const Real OrUhDecay = CmaxPol<=0? .85 : 0; // as in original
   //const Real OrUhDecay = 0; // no correlated noise
-  vector<Rvec> OrUhState = vector<Rvec>(nAgents,Rvec(nA,0));
+  std::vector<Rvec> OrUhState = std::vector<Rvec>(nAgents, Rvec(nA,0));
+  Approximator* actor;
+  Approximator* critc;
 
-  void TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-    const Uint thrID) const override;
-  void Train(const Uint seq, const Uint t, const Uint wID,
-    const Uint bID, const Uint thrID) const override;
+  void Train(const MiniBatch& MB, const Uint wID, const Uint bID) const override;
 
 public:
-  DPG(Environment*const env, Settings & settings);
+  DPG(MDPdescriptor&, Settings&, DistributionInfo&);
+
   void select(Agent& agent) override;
+  void setupTasks(TaskQueue& tasks) override;
 };
+
+}
+
+#endif // smarties_DPG_h

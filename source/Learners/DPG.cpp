@@ -5,143 +5,257 @@
 //
 //  Created by Guido Novati (novatig@ethz.ch).
 //
-#include "../StateAction.h"
-#include "../Network/Builder.h"
-#include "../Network/Aggregator.h"
-#include "../Math/Gaussian_policy.h"
 #include "DPG.h"
-//#define DKL_filter
 
-static inline Gaussian_policy prepare_policy(const Rvec&out,
-  const ActionInfo*const aI, const Tuple*const t = nullptr) {
-  Gaussian_policy pol({0, aI->dim}, aI, out);
-  if(t not_eq nullptr) pol.prepare(t->a, t->mu);
+#include "../Network/Builder.h"
+#include "../Utils/StatsTracker.h"
+#include "../Math/Gaussian_policy.h"
+#include "../Network/Approximator.h"
+#include "../ReplayMemory/Collector.h"
+#include "../Utils/SstreamUtilities.h"
+
+//#define DKL_filter
+namespace smarties
+{
+
+static inline Gaussian_policy prepare_policy(const Rvec & out,
+                                             const ActionInfo * const aInfo,
+                                             const Rvec ACT = Rvec(),
+                                             const Rvec MU  = Rvec())
+{
+  Gaussian_policy pol({0, aInfo->dim()}, aInfo, out);
+  if(ACT.size()) {
+    assert(MU.size());
+    pol.prepare(ACT, MU);
+  }
   return pol;
 }
 
-void DPG::TrainBySequences(const Uint seq, const Uint wID, const Uint bID,
-  const Uint thrID) const
+void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
-  die("");
-}
+  Sequence& S = MB.getEpisode(bID);
+  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
 
-void DPG::Train(const Uint seq, const Uint t, const Uint wID,
-  const Uint bID, const Uint thrID) const
-{
   if(thrID==0) profiler->stop_start("FWD");
-  Sequence* const traj = data->get(seq);
-  F[0]->prepare_one(traj, t, thrID, wID);
-  F[1]->prepare_one(traj, t, thrID, wID);
+  const Rvec pvec = actor->forward(bID, t); // network compute
+  const auto POL = prepare_policy(pvec, &aInfo, MB.action(bID,t), MB.mu(bID,t));
+  const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
+  const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
 
-  const Rvec polVec = F[0]->forward_cur(t, thrID);
-  const Gaussian_policy POL = prepare_policy(polVec, &aInfo, traj->tuples[t]);
-  const Real DKL = POL.sampKLdiv, rho = POL.sampImpWeight;
-  //if(!thrID) cout<<"tpol "<<print(polVec)<<" act: "<<print(POL.sampAct)<<endl;
-  const bool isOff= dropRule==1? false:traj->isFarPolicy(t,rho,CmaxRet,CinvRet);
+  critc->setAddedInputType(ACTION, bID, t);
+  const Rvec qval = critc->forward(bID, t); // network compute
 
-  relay->prepare(traj, thrID, ACT);
-  const Rvec q_curr = F[1]->forward_cur(t, thrID); // inp here is {s,a}
+  critc->setAddedInputType(NETWORK, bID, t, -1); //-1 flags to write on separate
+  const Rvec pval = critc->forward(bID, t, -1); //net alloc, with target wegiths
 
-  relay->prepare(traj, thrID, NET); // relay to pass policy (output of F[0])
-  const Rvec v_curr = F[1]->forward_cur<TGT>(t, thrID); //here is {s,pi}
-  const Rvec detPolG = isOff? Rvec(nA,0) : F[1]->relay_backprop({1}, t, thrID);
+  #ifdef DPG_RETRACE_TGT
+    if( S.isTruncated(t+1) ) {
+      actor->forward(bID, t+1);
+      critc->setAddedInputType(NETWORK, bID, t+1); // retrace : skip tgt weights
+      const Rvec v_next = critc->forward(bID, t+1); // value with state+policy
+      updateRetrace(S, t+1, 0, v_next[0], 0);
+    }
+    const Real dAdv = updateRetrace(S, t, q_curr[0]-v_curr[0], v_curr[0], RHO);
+    const Real target = S.Q_RET[t];
+  #else
+    Real target = MB.reward(bID, t);
+    if (not S.isTerminal(t+1) && not isOff) {
+      actor->forward_tgt(bID, t+1); // policy at next step, with tgt weights
+      critc->setAddedInputType(NETWORK, bID, t+1, -1);
+      const Rvec v_next = critc->forward_tgt(bID, t+1); //target value s_next
+      target += gamma * v_next[0];
+    }
+  #endif
+
+  //code to compute deterministic policy grad:
+  Rvec polGrad = isOff? Rvec(nA,0) : critc->oneStepBackProp({1}, bID, t, -1);
+  assert(polGrad.size() == nA); polGrad.resize(2*nA, 0); // space for stdev
+  // In order to enable learning stdev on request, stdev is part of actor output
+  #ifdef DPG_LEARN_STDEV
+    const Rvec SPG = POL.policy_grad(target * std::min(CmaxRet,RHO));
+    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = isOff? 0 : DPG[i+nA];
+  #else
+    // Next line keeps stdev at user's value, else NN penal might cause drift.
+    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = explNoise - POL.stdev[i];
+  #endif
+
   //if(!thrID) cout << "G "<<print(detPolG) << endl;
+  const Rvec penGrad = POL.div_kl_grad(S.policies[t], -1);
+  Rvec finalG = Rvec(actor->nOutputs(), 0);
+  POL.finalize_grad(Utilities::weightSum2Grads(polGrad, penGrad, beta), finalG);
+  actor->setGradient(finalG, bID, t);
 
-  Real target = data->scaledReward(traj, t+1);
-  if (not traj->isTerminal(t+1) && not isOff) {
-    const Rvec pol_next = F[0]->forward_tgt(t+1, thrID);
-    relay->prepare(traj, thrID, NET); // relay to pass policy (output of F[0])
-    //if(!thrID) cout << "nterm pol "<<print(pol_next) << endl;
-    const Rvec v_next = F[1]->forward_tgt(t+1, thrID);//here is {s,pi}_+1
-    target += gamma * v_next[0];
-  }
-
-  //code to compute policy grad:
-  Rvec polG(2*nA, 0);
-  for (Uint i=0; i<nA; i++) polG[i] = isOff? 0 : detPolG[i];
-  for (Uint i=0; i<nA; i++) polG[i+nA] = explNoise - POL.stdev[i];
-  // this is an experimental change to update stdev using policy gradient
-  // not fully analyzed therefore should be turned off by default
-  //Real a_curr = target - v_curr[0];
-  //if(a_curr > 0 && POL.sampImpWeight >  2) a_curr = 0;
-  //if(a_curr < 0 && POL.sampImpWeight < .5) a_curr = 0;
-  //Rvec sPG = POL.policy_grad(POL.sampAct, POL.sampImpWeight*a_curr);
-
-  const Rvec penG = POL.div_kl_grad(traj->tuples[t]->mu, -1);
-  // if beta=1 (which is inevitable for CmaxPol=0) this will be equal to polG
-  Rvec finalG(F[0]->nOutputs(), 0);
-  if(dropRule==2) POL.finalize_grad(polG, finalG);
-  else POL.finalize_grad(weightSum2Grads(polG, penG, beta), finalG);
-
-  //#pragma omp critical //"O:"<<print(polVec)<<
-  //if(!thrID) cout<<"G:"<<print(polG)<<" D:"<<print(penG)<<endl;
-  F[0]->backward(finalG, t, thrID);
-
-
-  //code to compute value grad:
-  const Rvec grad_val = {isOff ? 0 : (target-q_curr[0])};
-  F[1]->backward(grad_val, t, thrID);
+  const Rvec valueG = { isOff ? 0 : ( target - qval[0] ) };
+  critc->setGradient(valueG, bID, t);
 
   //bookkeeping:
-  trainInfo->log(q_curr[0], grad_val[0], polG, penG, {beta,rho}, thrID);
-  traj->setMseDklImpw(t, grad_val[0]*grad_val[0], DKL, rho, CmaxRet, CinvRet);
+  S.setMseDklImpw(t, std::pow(target-qval[0], 2), DKL, RHO, CmaxRet, CinvRet);
+  trainInfo->log(qval[0], valueG[0], polGrad, penGrad, {beta, RHO}, thrID);
+  //trainInfo->log(q_curr[0],grad_val[0], polG, penG, {beta,dAdv,rho}, thrID);
   if(thrID==0)  profiler->stop_start("BCK");
-  F[0]->gradient(thrID);
-  F[1]->gradient(thrID);
 }
 
 void DPG::select(Agent& agent)
 {
-  Sequence* const traj = data_get->get(agent.ID);
   data_get->add_state(agent);
-  if( agent.Status < TERM_COMM ) { // not last of a sequence
-    //Compute policy and value on most recent element of the sequence. If RNN
-    // recurrent connection from last call from same agent will be reused
-    F[0]->prepare_agent(traj, agent);
-    Rvec pol = F[0]->forward_agent(agent);
-    Gaussian_policy policy = prepare_policy(pol, &aInfo);
-    Rvec MU = policy.getVector();
-    Rvec act = policy.finalize(explNoise>0, &generators[nThreads+agent.ID], MU);
+  Sequence& EP = * data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(&EP);
+  for (const auto & net : networks ) net->load(MB, agent, 0);
+  #ifdef DPG_RETRACE_TGT
+    const Uint currStep = EP.nsteps() - 1; assert(EP.nsteps()>0);
+  #endif
+
+  if( agent.agentStatus < TERM ) // not end of sequence
+  {
+    //Compute policy and value on most recent element of the sequence.
+    Gaussian_policy POL = prepare_policy(actor->forward(agent), &aInfo);
+    Rvec MU = POL.getVector(); // vector-form current policy for storage
+
+    // if explNoise is 0, we just act according to policy
+    // since explNoise is initial value of diagonal std vectors
+    // this should only be used for evaluating a learned policy
+    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
+    auto act = POL.finalize(bSamplePolicy, &generators[nThreads+agent.ID], MU);
     if(OrUhDecay>0)
-      act = policy.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
+      act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
     agent.act(act);
     data_get->add_action(agent, MU);
-    //if(nStep)cout << print(MU) << " " << print(act) << endl;
-  } else {
-    OrUhState[agent.ID] = Rvec(nA, 0);
+
+    #ifdef DPG_RETRACE_TGT
+      //careful! act may be scaled to agent's action space, mean/sampAct aren't
+      critc->setAddedInput(POL.sampAct,   agent, currStep);
+      const Rvec qval = F[1]->forward(agent);
+      critc->setAddedInput(POL.getMean(), agent, currStep);
+      const Rvec sval = F[1]->forward(agent, true); // overwrite = true
+      EP.action_adv.push_back(qval[0]-sval[0]);
+      EP.state_vals.push_back(sval[0]);
+    #endif
+  }
+  else // either terminal or truncation state
+  {
+    #ifdef DPG_RETRACE_TGT
+      if( agent.agentStatus == TRNC ) {
+        const Rvec polMean = actor->forward(agent).resize(nA); // grab pol mean
+        critc->setAddedInput(polMean, agent, currStep);
+        const Rvec sval = critc->forward(agent);
+        EP.state_vals.push_back(sval[0]); // not a terminal state
+      } else {
+        EP.state_vals.push_back(0); //value of terminal state is 0
+      }
+      //whether seq is truncated or terminated, act adv is undefined:
+      EP.action_adv.push_back(0);
+      const Uint N = EP.nsteps();
+      // compute initial Qret for whole trajectory:
+      assert(N == EP.action_adv.size() && N == EP.state_vals.size());
+      assert(0 == EP.Q_RET.size());
+      //within Retrace, we use the Q_RET vector to write the Adv retrace values
+      EP.Q_RET.resize(N, 0);
+      EP.offPolicImpW.resize(N, 1);
+      for(Uint i=EP.ndata(); i>0; --i) backPropRetrace(EP, i);
+    #endif
+
+    OrUhState[agent.ID] = Rvec(nA, 0); //reset temp. corr. noise
     data_get->terminate_seq(agent);
   }
 }
 
-DPG::DPG(Environment*const _env, Settings& _set): Learner_offPolicy(_env,_set)
+void DPG::setupTasks(TaskQueue& tasks)
 {
-  _set.splitLayers = 0;
-  #if 0
-    createSharedEncoder();
-  #endif
+  if( not bTrain ) return;
 
-  F.push_back(new Approximator("policy", _set, input, data));
-  Builder build_pol = F[0]->buildFromSettings(_set, nA);
-  #ifdef EXTRACT_COVAR
-    const Real stdParam = noiseMap_inverse(explNoise*explNoise);
-  #else
-    const Real stdParam = noiseMap_inverse(explNoise);
-  #endif
-  //F[0]->blockInpGrad = true; // this line must happen b4 initialize
-  build_pol.addParamLayer(nA, "Linear", stdParam);
-  F[0]->initializeNetwork(build_pol);
+  // ALGORITHM DESCRIPTION
+  algoSubStepID = -1; // pre initialization
 
-  relay = new Aggregator(_set, data, nA, F[0]);
-  F.push_back(new Approximator("critic", _set, input, data, relay));
+  auto stepInit = [&]()
+  {
+    // conditions to start the initialization task:
+    if ( algoSubStepID >= 0 ) return; // we done with init
+    if ( data->readNData() < nObsB4StartTraining ) return; // not enough data to init
 
-  _set.nnLambda = 1e-4; // also wants L2 penl coef
-  _set.learnrate *= 10; // DPG wants critic faster than actor
-  _set.nnOutputFunc = "Linear"; // critic must be linear
-  // we want initial Q to be approx equal to 0 everywhere.
-  // if LRelu we need to make initialization multiplier smaller:
-  Builder build_val = F[1]->buildFromSettings(_set, 1 );
-  F[1]->initializeNetwork(build_val);
+    debugL("Initialize Learner");
+    initializeLearner();
+    algoSubStepID = 0;
+  };
+  tasks.add(stepInit);
+
+  auto stepMain = [&]()
+  {
+    // conditions to begin the update-compute task
+    if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
+    if ( blockGradientUpdates() ) return; // waiting for enough data
+
+    debugL("Sample the replay memory and compute the gradients");
+    spawnTrainTasks();
+    debugL("Gather gradient estimates from each thread and Learner MPI rank");
+    prepareGradient();
+    debugL("Search work to do in the Replay Memory");
+    processMemoryBuffer(); // find old eps, update avg quantities ...
+    #ifdef DPG_RETRACE_TGT
+    debugL("Update Retrace est. for episodes sampled in prev. grad update");
+    updateRetraceEstimates();
+    #endif
+    debugL("Compute state/rewards stats from the replay memory");
+    finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
+    logStats();
+    algoSubStepID = 1;
+  };
+  tasks.add(stepMain);
+
+  // these are all the tasks I can do before the optimizer does an allreduce
+  auto stepComplete = [&]()
+  {
+    if ( algoSubStepID not_eq 1 ) return;
+    if ( networks[0]->ready2ApplyUpdate() == false ) return;
+
+    debugL("Apply SGD update after reduction of gradients");
+    applyGradient();
+    algoSubStepID = 0; // rinse and repeat
+    globalGradCounterUpdate(); // step ++
+  };
+  tasks.add(stepComplete);
+}
+
+DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
+  Learner_approximator(MDP_, S_, D_)
+{
+  if(MPICommRank(distrib.world_comm) == 0) printf(
+  "==========================================================================\n"
+  "                DDPG : Deep Deterministic Policy Gradients                \n"
+  "==========================================================================\n"
+  );
+
+  const bool bCreatedEncorder = createEncoder();
+  assert(networks.size() == bCreatedEncorder? 1 : 0);
+  const Approximator* const encoder = bCreatedEncorder? networks[0] : nullptr;
+
+  networks.push_back(
+    new Approximator("policy", settings, distrib, data.get(), encoder)
+  );
+  actor = networks.back();
+  actor->buildFromSettings(nA);
+  actor->setUseTargetNetworks();
+  const Rvec stdParam = Gaussian_policy::initial_Stdev(&aInfo, explNoise);
+  actor->getBuilder().addParamLayer(nA, "Linear", stdParam);
+  actor->initializeNetwork();
+
+  networks.push_back(
+    new Approximator("critic", settings, distrib, data.get(), encoder, actor)
+  );
+  critc = networks.back();
+  critc->setAddedInput(NETWORK, nA);
+  critc->setUseTargetNetworks();
+  // update settings that are going to be read by critic:
+  settings.learnrate *= 10; // DPG wants critic faster than actor
+  settings.nnLambda = 1e-4; // also wants L2 penl coef
+  settings.nnOutputFunc = "Linear"; // critic must be linear
+  critc->buildFromSettings(1);
+  critc->initializeNetwork();
   printf("DPG\n");
 
-  trainInfo = new TrainData("DPG", _set, 1, "| beta | avgW ", 2);
+  trainInfo = new TrainData("DPG", distrib, 1, "| beta | avgW ", 2);
+  #ifdef DPG_RETRACE_TGT
+    computeQretrace = true;
+  #endif
+}
+
 }

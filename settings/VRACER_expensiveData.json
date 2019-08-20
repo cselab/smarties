@@ -1,0 +1,16 @@
+{
+  "learner": "VRACER",
+  "batchSize": 128,
+  "clipImpWeight": 4,
+  "epsAnneal": 0,
+  "explNoise": 0.2,
+  "gamma": 0.99,
+  "learnrate": 0.0001,
+  "minTotObsNum": 16384,
+  "maxTotObsNum": 32768,
+  "nnLayerSizes": [32, 32],
+  "nnType": "LSTM",
+  "obsPerStep": 1,
+  "outWeightsPrefac": 0.01
+}
+
