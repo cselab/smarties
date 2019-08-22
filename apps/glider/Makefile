@@ -21,8 +21,8 @@ ifeq "$(smart)" "1"
 CPPFLAGS+= -DUSE_SMARTIES
 endif
 
-LIBS+= -L${SMARTIES_LIB} -lsmarties
-CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_INCLUDE}
+LIBS+= -L${SMARTIES_ROOT}/lib -lsmarties
+CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_ROOT}/include
 
 .DEFAULT_GOAL := glider
 

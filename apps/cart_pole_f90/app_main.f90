@@ -1,23 +1,26 @@
+!==============================================================================
 !
-!  cart_pole.f90
-!  cart-pole
+! app_main.f90
+! Part of the cart_pole_f90 example.
 !
-!  Created by Jacopo Canton on 31/01/19
-!  Copyright (c) 2019 Jacopo Canton. All rights reserved.
+! This file contains the 'app_main' function, called by Smarties, where the
+! training takes place.
 !
-!  This file contains the cart pole test case for Smarties in Fortran.
-!   - The first module, `class_cartPole`, defines the environment and the
-!   simulation parameters.
-!   - The second module, `fortran_smarties`, contains the interface to the C++
-!   code as well as the main function `fortran_app_main` called by Smarties.
+! For clarity:
+!
+! C++     Interface        Fortran
+! double  real(c_double)   double precision = real*8 = real(kind=8)
+! bool    logical(c_bool)  logical
+! int     integer(c_int)   integer
+! *       type(c_ptr)      Fortran does not really like explicit pointers
+!
+!
+! Copyright (c) 2019 CSE-Lab, ETH Zurich, Switzerland. All rights reserved.
+! Distributed under the terms of the MIT license.
 !
 !==============================================================================
 
-
-!==============================================================================
-
-module fortran_smarties
-  ! Module interfacing with Smarties
+module app_main_module
   
   implicit none
 
@@ -27,28 +30,30 @@ module fortran_smarties
   integer, parameter :: NUM_ACTIONS = 1
   integer, parameter :: STATE_SIZE  = 6
 
-  ! Just to be clear on our intention for this procedure to be called from
-  ! outside the module.
-  public fortran_app_main
+  ! 'app_main' is called from the outside (by the interface function
+  ! 'app_main_interface' located in 'main.cpp')
+  public app_main
 
 contains
 
-  function fortran_app_main(rlcomm, f_mpicomm) result(result_value) &
-    bind(c, name='fortran_app_main')
+  function app_main(smarties_comm, f_mpicomm) result(result_value) &
+    bind(c, name='app_main')
     ! This is the main function called from Smarties when the training starts.
   
     use, intrinsic :: iso_c_binding
-    use class_cartPole
+    use smarties
+    use cart_pole
     implicit none
   
-    type(c_ptr), intent(in), value :: rlcomm ! this is the pointer to the Smarties communicator
-    integer,     intent(in), value :: f_mpicomm ! this is the MPI_COMM_WORLD handle initialized by Smarties
+    type(c_ptr),    intent(in), value :: smarties_comm ! this is the pointer to the Smarties communicator
+    integer(c_int), intent(in), value :: f_mpicomm ! this is the MPI_COMM_WORLD handle initialized by Smarties
     !
-    integer :: result_value
+    integer(c_int) :: result_value
     !
     type(cartPole) :: env ! define one instance of the environment class
+    !                     ! in this example, the cartPole class is defined in 'cart_pole.f90'
     !
-    ! definition of the parameters used with Smarties
+    ! definition of the parameters used by Smarties
     logical(c_bool) :: bounded
     real(c_double),  dimension(NUM_ACTIONS), target :: upper_action_bound, lower_action_bound
     logical(c_bool), dimension(STATE_SIZE),  target :: b_observable
@@ -70,23 +75,25 @@ contains
 
 
     ! inform Smarties about the size of the state and the number of actions it can take
-    call rlcomm_update_state_action_dims(rlcomm, STATE_SIZE, NUM_ACTIONS)
+    call smarties_set_state_action_dims(smarties_comm, STATE_SIZE, NUM_ACTIONS)
   
     ! OPTIONAL: aciton bounds
     bounded = .true.
     upper_action_bound = (/ 10/)
     lower_action_bound = (/-10/)
-    call rlcomm_set_action_scales(rlcomm, c_loc(upper_action_bound), c_loc(lower_action_bound), NUM_ACTIONS, bounded)
+    call smarties_set_action_scales(smarties_comm, &
+        c_loc(upper_action_bound), c_loc(lower_action_bound), &
+        bounded, NUM_ACTIONS)
   
     ! OPTIONAL: hide state variables.
     ! e.g. show cosine/sine but not angle
     b_observable = (/.true., .true., .true., .false., .true., .true./)
-    call rlcomm_set_state_observable(rlcomm, c_loc(b_observable), STATE_SIZE)
+    call smarties_set_state_observable(smarties_comm, c_loc(b_observable), STATE_SIZE)
   
     ! OPTIONAL: set space bounds
     upper_state_bound = (/ 1,  1,  1,  1,  1,  1/)
     lower_state_bound = (/-1, -1, -1, -1, -1, -1/)
-    call rlcomm_set_state_scales(rlcomm, c_loc(upper_state_bound), c_loc(lower_state_bound), STATE_SIZE)
+    call smarties_set_state_scales(smarties_comm, c_loc(upper_state_bound), c_loc(lower_state_bound), STATE_SIZE)
   
     ! train loop
     do while (.true.)
@@ -96,13 +103,13 @@ contains
       
       ! send initial state to Smarties
       state = env%getState()
-      call rlcomm_sendInitState(rlcomm, c_loc(state), STATE_SIZE)
+      call smarties_sendInitState(smarties_comm, c_loc(state), STATE_SIZE)
   
       ! simulation loop
       do while (.true.)
   
         ! get the action
-        call rlcomm_recvAction(rlcomm, c_loc(action), NUM_ACTIONS)
+        call smarties_recvAction(smarties_comm, c_loc(action), NUM_ACTIONS)
   
         ! advance the simulation
         terminated = env%advance(action)
@@ -113,10 +120,10 @@ contains
   
         if (terminated) then
           ! tell Smarties that this is a terminal state
-          call rlcomm_sendTermState(rlcomm, c_loc(state), STATE_SIZE, reward)
+          call smarties_sendTermState(smarties_comm, c_loc(state), STATE_SIZE, reward)
           exit
         else
-          call rlcomm_sendState(rlcomm, c_loc(state), STATE_SIZE, reward)
+          call smarties_sendState(smarties_comm, c_loc(state), STATE_SIZE, reward)
         end if
   
       end do ! simulation loop
@@ -127,6 +134,6 @@ contains
     result_value = 0
     write(*,*) 'Fortran side ends'
 
-  end function fortran_app_main
+  end function app_main
 
-end module fortran_smarties
+end module app_main_module

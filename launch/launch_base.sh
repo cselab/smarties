@@ -111,8 +111,8 @@ export MV2_ENABLE_AFFINITY=0 #MVAPICH
 export OMP_NUM_THREADS=${NTHREADS}
 export OPENBLAS_NUM_THREADS=1
 export CRAY_CUDA_MPS=1
-export PYTHONPATH=${PYTHONPATH}:${SMARTIES_LIB}
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${SMARTIES_LIB}
+export PYTHONPATH=${PYTHONPATH}:${SMARTIES_ROOT}/lib
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${SMARTIES_ROOT}/lib
 #export PATH=`pwd`/../extern/build/mpich-3.3/bin/:$PATH
 #export LD_LIBRARY_PATH=`pwd`/../extern/build/mpich-3.3/lib/:$LD_LIBRARY_PATH
 ################################################################################

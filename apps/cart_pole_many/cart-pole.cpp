@@ -15,6 +15,7 @@ inline int app_main(
   smarties::Communicator*const comm, int argc, char**argv
 )
 {
+  comm->set_num_agents(2);
   comm->set_state_action_dims(6, 1);
   const std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
   comm->set_action_scales(upper_action_bound, lower_action_bound, true);

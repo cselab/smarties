@@ -1,9 +1,9 @@
 CXX = g++
 
 OBJ_FILES = boatNav.o odeSolve.o
-LIBS+= -L${SMARTIES_LIB} -lsmarties
-CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_INCLUDE}
-#CPPFLAGS+=-std=c++14 -Wall -O0 -I${SMARTIES_INCLUDE}
+LIBS+= -L${SMARTIES_ROOT}/lib -lsmarties
+CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_ROOT}/include
+#CPPFLAGS+=-std=c++14 -Wall -O0 -I${SMARTIES_ROOT}/include
 
 CPPFLAGS+= -Wextra -Wfloat-equal -Wundef -Wcast-align
 CPPFLAGS+= -Wwrite-strings -Wlogical-op -Wmissing-declarations -Wredundant-decls

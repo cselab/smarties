@@ -28,6 +28,9 @@ To cite this repository, reference the paper::
 
 Install
 ======
+
+Regardless of OS, smarties relies on pybind11 for the Python interface. Therefore, to enable compilation of smarties with Python environment simulation codebases:
+
 Unix
 ------
 
@@ -48,7 +51,7 @@ Installation on Mac OS is a bit more laborious due to to the LLVM compiler provi
 
 .. code:: shell
 
-    brew install llvm open-mpi openblas
+    brew install llvm libomp open-mpi openblas
 
 Now, we have to switch from Apple's LLVM compiler to the most recent LLVM compiler as default for the user's shell:
 
@@ -114,8 +117,8 @@ For compilation, the following flags should be set in order for the compiler to 
 
 .. code:: shell
 
-    LDFLAGS="-L${SMARTIES_LIB} -lsmarties"
-    CPPFLAGS="-I${SMARTIES_INCLUDE}"
+    LDFLAGS="-L${SMARTIES_ROOT}/lib -lsmarties"
+    CPPFLAGS="-I${SMARTIES_ROOT}/include"
 
 
 Python  

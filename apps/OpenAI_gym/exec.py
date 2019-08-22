@@ -24,7 +24,7 @@ def getAction(comm, env):
   else: assert(False)
   return action
 
-def constructCommunicator(env):
+def setupSmarties(comm, env):
   # first figure out dimensionality of state
   dimState = 1
   if hasattr(env.observation_space, 'shape'):
@@ -35,21 +35,20 @@ def constructCommunicator(env):
   else: assert(False)
 
   # then figure out action dims and details
-  comm = None
   if hasattr(env.action_space, 'spaces'):
     dimAction = len(env.action_space.spaces)
-    comm = Communicator(dimState, dimAction, 1) # 1 agent
-    control_options = dimAction * [0] 
+    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
+    control_options = dimAction * [0]
     for i in range(dimAction):
       control_options[i] = env.action_space.spaces[i].n
     comm.set_action_options(control_options, 0) # agent 0
   elif hasattr(env.action_space, 'n'):
     dimAction = 1
-    comm = Communicator(dimState, dimAction, 1) # 1 agent
+    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
     comm.set_action_options(env.action_space.n, 0) # agent 0
   elif hasattr(env.action_space, 'shape'):
     dimAction = env.action_space.shape[0]
-    comm = Communicator(dimState, dimAction, 1) # 1 agent
+    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
     upprScale = dimAction * [0.0]
     lowrScale = dimAction * [0.0]
     isBounded = dimAction * [False]
@@ -66,13 +65,11 @@ def constructCommunicator(env):
     comm.set_action_scales(upprScale, lowrScale, isBounded, 0)
   else: assert(False)
 
-  return comm
-
 
 def app_main(comm):
   print("openAI environment: ", sys.argv[1])
   env = gym.make(sys.argv[1])
-  comm = constructCommunicator(env) # create communicator with smarties
+  setupSmarties(comm, env) # create communicator with smarties
 
   #fig = plt.figure()
   while True: #training loop
