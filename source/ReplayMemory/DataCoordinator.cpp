@@ -135,7 +135,7 @@ void DataCoordinator::mastersRecvEpisodes()
     } else return Fvec();
   };
 
-  if(sharingComm == MPI_COMM_NULL)
+  if(sharingComm not_eq MPI_COMM_NULL)
   {
     const Fvec sharedEP = recvEp(sharingComm, status);
     if(sharedEP.size()) {
