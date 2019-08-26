@@ -14,10 +14,18 @@ if [ $# -lt 2 ] ; then
 fi
 HOST=`hostname`
 
-if [ $# -gt 2 ] ; then export SETTINGSNAME=$3
+if [ $# -gt 2 ] ; then
+  if [ -f ${3} ]; then
+    export SETTINGSNAME=$3
+  else
+    export SETTINGSNAME=${SMARTIES_ROOT}/settings/$3
+  fi
 else export SETTINGSNAME=${SMARTIES_ROOT}/settings/VRACER.json
 fi
-
+if [ ! -f ${SETTINGSNAME} ]; then
+echo "Could not find settings file" ${SETTINGSNAME}
+exit 1
+fi
 ################################################################################
 ########### FIRST, read cores per node and available number of nodes ###########
 ################################################################################

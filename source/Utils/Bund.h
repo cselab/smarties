@@ -111,5 +111,9 @@ namespace smarties
 static constexpr int simdWidth = VEC_WIDTH / sizeof(nnReal);
 static constexpr nnReal nnEPS = std::numeric_limits<float>::epsilon();
 
+// Define this if your MPI implementatio is recent and for sure supports
+// MULTIPLE threads safety. Speeds up code a bit, for free.
+//#define REQUIRE_MPI_MULTIPLE
+
 } // end namespace smarties
 #endif // smarties_Bund_h

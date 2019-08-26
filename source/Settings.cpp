@@ -57,8 +57,11 @@ DistributionInfo::DistributionInfo(const MPI_Comm & initialiazed_mpi_comm,
 void DistributionInfo::commonInit()
 {
   getcwd(initial_runDir, 1024);
-
+  #ifdef REQUIRE_MPI_MULTIPLE
+  if (threadSafety < MPI_THREAD_MULTIPLE)
+  #else
   if (threadSafety < MPI_THREAD_SERIALIZED)
+  #endif
     die("The MPI implementation does not have required thread support");
   // this value will determine if we can use asynchronous mpi calls:
   bAsyncMPI = threadSafety >= MPI_THREAD_MULTIPLE;

@@ -18,6 +18,19 @@
 namespace smarties
 {
 
+static inline void sendRecvVectorFunc(
+  const std::function<void(void*, size_t)>& sendRecvFunc, std::vector<bool>&vec)
+{
+  Uint vecSize = vec.size();
+  sendRecvFunc(&vecSize, 1 * sizeof(Uint) );
+  if(vec.size() not_eq vecSize) vec.resize(vecSize);
+  //else assert( vecSize == (Uint) vec.size() );
+  std::vector<int> intvec(vec.begin(), vec.end());
+  sendRecvFunc( intvec.data(), vecSize * sizeof(int) );
+  std::copy(intvec.begin(), intvec.end(), vec.begin());
+}
+
+
 template<typename T>
 static inline void sendRecvVectorFunc(
   const std::function<void(void*, size_t)>& sendRecvFunc, std::vector<T>& vec )
@@ -41,7 +54,7 @@ struct MDPdescriptor
   // Number of state dimensions and number of state dims observable to learner:
   Uint dimState = 0, dimStateObserved = 0;
   // vector specifying whether a state component is observable to the learner:
-  std::vector<int> bStateVarObserved;
+  std::vector<bool> bStateVarObserved;
   // mean and scale of state variables: will be computed from replay memory:
   std::vector<nnReal> stateMean, stateStdDev, stateScale;
   nnReal rewardsStdDev=1, rewardsScale=1;
@@ -61,7 +74,7 @@ struct MDPdescriptor
 
   // whether action have a lower && upper bounded (bool)
   // if true scaled action = tanh ( unscaled action )
-  std::vector<int> bActionSpaceBounded; // TODO 2 bools for semibounded
+  std::vector<bool> bActionSpaceBounded; // TODO 2 bools for semibounded
   // these values are used for scaling or, in case of bounded spaces, as bounds:
   Rvec upperActionValue, lowerActionValue;
 
@@ -102,7 +115,7 @@ struct MDPdescriptor
 
     // by default agent can observe all components of state vector
     if(bStateVarObserved.size() == 0)
-      bStateVarObserved = std::vector<int> (dimState, 1);
+      bStateVarObserved = std::vector<bool> (dimState, 1);
     sendRecvVectorFunc(sendRecvFunc, bStateVarObserved);
     if( bStateVarObserved.size() not_eq (size_t) dimState)
       die("Application error in setup of bStateVarObserved.");
@@ -136,7 +149,7 @@ struct MDPdescriptor
 
     // by default agent's action space is unbounded
     if(bActionSpaceBounded.size() == 0)
-      bActionSpaceBounded = std::vector<int> (dimAction, 0);
+      bActionSpaceBounded = std::vector<bool> (dimAction, 0);
     sendRecvVectorFunc(sendRecvFunc, bActionSpaceBounded);
     if( bActionSpaceBounded.size() not_eq (size_t) dimAction)
       die("Application error in setup of bActionSpaceBounded.");

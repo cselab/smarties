@@ -68,6 +68,8 @@ public:
 
   VISIBLE void setAreLearnersOnWorkers(const bool learnersOnWorkers);
 
+  VISIBLE void setRedirectAppScreenOutput(const bool redirect = true);
+
 private:
   DistributionInfo * const distrib;
 

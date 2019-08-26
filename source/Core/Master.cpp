@@ -41,6 +41,12 @@ void Master<CommType, Request_t>::run()
   synchronizeEnvironments();
   spawnCallsHandlers(); // fills worker_replies threads
   runTraining();
+}
+
+template<typename CommType, typename Request_t>
+Master<CommType, Request_t>::~Master()
+{
+  bExit = true;
   for(auto& thread : worker_replies) thread.join();
 }
 

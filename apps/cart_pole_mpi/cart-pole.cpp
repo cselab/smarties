@@ -8,17 +8,20 @@
 
 #include "smarties.h"
 #include "../cart_pole_cpp/cart-pole.h"
+//#include "../../source/Utils/Profiler.h"
 
 #include <iostream>
 #include <cstdio>
 
-inline int app_main(smarties::Communicator*const comm, // communicator with smarties
+inline void app_main(smarties::Communicator*const comm, // communicator with smarties
                     MPI_Comm mpicom,         // mpi_comm that mpi-based apps can use
                     int argc, char**argv    // arguments read from app's runtime settings file
 )
 {
   comm->set_state_action_dims(6, 1);
-  
+  //smarties::Profiler prof;
+  //int wrank;
+  //MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
   //OPTIONAL: action bounds
   bool bounded = true;
   std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
@@ -44,40 +47,48 @@ inline int app_main(smarties::Communicator*const comm, // communicator with smar
   // Here for simplicity we have two environments
   // But real application is to env with two competing/collaborating agents
   CartPole env;
-  
+  int sim_id = 0;
   while(true) //train loop
   {
-    //reset environment:
+    sim_id ++;
+    //prof.start("env");
     env.reset(comm->getPRNG()); //comm contains rng with different seed on each rank
-    
-    comm->sendInitState(env.getState()); //send initial state
-    if(comm->terminateTraining()) return 0; // exit program
-    
+    const auto S0 = env.getState();
+    //prof.stop_start("smarties");
+    comm->sendInitState(S0); //send initial state
+    if(comm->terminateTraining()) return; // exit program
+
     while (true) //simulation loop
     {
       std::vector<double> action = comm->recvAction();
-      
-      //advance the simulation:
-      bool terminated = env.advance(action);
-      
-      std::vector<double> state = env.getState();
-      double reward = env.getReward();
-      
-      if(terminated)  //tell smarties that this is a terminal state
+
+      //prof.stop_start("env");
+      const bool terminated = env.advance(action);
+      const std::vector<double> state = env.getState();
+      const double reward = env.getReward();
+
+      //prof.stop_start("smarties");
+      if(terminated) { //tell smarties that this is a terminal state
         comm->sendTermState(state, reward);
-      else comm->sendState(state, reward);
-      
-      if(comm->terminateTraining()) return 0; // exit program
+        //prof.stop();
+        //break;
+      } else comm->sendState(state, reward);
+
+      if(comm->terminateTraining()) return; // exit program
       if(terminated) break; // go back up to reset
     }
+    //if(sim_id % 100 == 0)
+    //  printf("Rank %d\n%s\n", wrank, prof.printStatAndReset().c_str() );
   }
-  return 0;
+  return;
 }
 
 int main(int argc, char**argv)
 {
   smarties::Engine e(argc, argv);
   if( e.parse() ) return 1;
+  //e.setRedirectAppScreenOutput(false);
+  //e.setAreLearnersOnWorkers(false);
   e.run( app_main );
   return 0;
 }

@@ -69,7 +69,7 @@ void Communicator::set_action_scales(const std::vector<double> upper,
   ENV.descriptors[agentID]->lowerActionValue =
                 Rvec(lower.begin(), lower.end());
   ENV.descriptors[agentID]->bActionSpaceBounded =
-    std::vector<int>(bound.begin(), bound.end());
+    std::vector<bool>(bound.begin(), bound.end());
 }
 
 void Communicator::set_action_options(const int options,
@@ -110,7 +110,7 @@ void Communicator::set_state_observable(const std::vector<bool> observable,
   }
 
   ENV.descriptors[agentID]->bStateVarObserved =
-    std::vector<int>(observable.begin(), observable.end());
+    std::vector<bool>(observable.begin(), observable.end());
 }
 
 void Communicator::set_state_scales(const std::vector<double> upper,

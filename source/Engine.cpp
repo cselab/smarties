@@ -78,6 +78,10 @@ void Engine::setAreLearnersOnWorkers(const bool learnersOnWorkers) {
   distrib->learnersOnWorkers = learnersOnWorkers;
 }
 
+void Engine::setRedirectAppScreenOutput(const bool redirect) {
+  distrib->redirectAppStdoutToFile = redirect;
+}
+
 void Engine::init()
 {
   distrib->initialzePRNG();

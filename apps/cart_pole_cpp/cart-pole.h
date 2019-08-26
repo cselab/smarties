@@ -65,6 +65,8 @@ struct CartPole
   const double g = 9.81;
   const double dt = 4e-4;
   const int nsteps = 50;
+  // const double dt = 1e-6;   // emulate expensive application
+  // const int nsteps = 20000; //
   int step=0;
   Vec4 u;
   double F=0, t=0;

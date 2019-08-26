@@ -29,7 +29,7 @@ protected:
 
 public:
   Master(DistributionInfo& );
-  virtual ~Master() {};
+  virtual ~Master();
   void run();
   void spawnCallsHandlers();
 };
