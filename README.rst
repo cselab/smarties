@@ -189,7 +189,7 @@ Examples of solved problems
 
 .. raw:: html
 
-    <a href="https://www.youtube.com/watch?v=606mb2skaLI"><img src="https://img.youtube.com/vi/606mb2skaLI/0.jpg" alt="V-RACER trained on OpenAI gym's Humanoid-v2"></a>
+    <a href="https://www.youtube.com/watch?v=H9xL9nNQJnc"><img src="https://img.youtube.com/vi/H9xL9nNQJnc/0.jpg" alt="V-RACER trained on OpenAI gym's Humanoid-v2"></a>
 
 .. raw:: html
 
