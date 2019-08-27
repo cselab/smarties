@@ -72,8 +72,8 @@ Then we are ready to get and install smarties:
     make -j
 
 
-Examples
-========
+User code samples
+=================
 
 C++
 -----
@@ -153,7 +153,7 @@ smarties uses pybind11 for seamless compatibility with python. The structure of 
       e.run( app_main )
 
 
-Other examples
+Code examples
 --------------
 The ``apps`` folder contains a number of examples showing the various use-cases of smarties. Each folder contains the files required to define and run a different application. While it is generally possible to run each case as ``./exec`` or ``./exec.py``, smarties will create a number of log files, simulation folders and restart files. Therefore it is recommended to manually create a run directory or use the launch scripts contained in the ``launch`` directory.
 
@@ -181,7 +181,31 @@ The applications that are already included are:
 
 - ``apps/OpenAI_gym_atari``: code to run the Atari games, which automatically creates the required convolutional pre-processing  
 
-- ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems  
+- ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
+
+
+Examples of solved problems
+---------------------------
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=606mb2skaLI"><img src="https://img.youtube.com/vi/606mb2skaLI/0.jpg" alt="V-RACER trained on OpenAI gym's Humanoid-v2"></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=5mK9HoCDIYQ"><img src="https://img.youtube.com/vi/5mK9HoCDIYQ/0.jpg" alt="Smart ellipse behind a D-section cylinder. Trained with V-RACER."></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=GiS9mxQ4m0I"><img src="https://img.youtube.com/vi/GiS9mxQ4m0I/0.jpg" alt="Fish behind a  D-section cylinder"></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=NEOhS0kPrSk"><img src="https://img.youtube.com/vi/NEOhS0kPrSk/0.jpg" alt="Smart swimmer following an erratic leader to minimize swimming effort."></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=8pKhMgPm5p0"><img src="https://img.youtube.com/vi/8pKhMgPm5p0/0.jpg" alt="3D fish schooling"></a>
 
 Launching
 =========
