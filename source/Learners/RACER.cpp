@@ -48,7 +48,7 @@ select(Agent& agent)
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
+    const bool bSamplePolicy = distrib.bTrain && agent.trackSequence;
     auto act = pol.finalize(bSamplePolicy, &generators[nThreads+agent.ID], mu);
     const auto adv = prepare_advantage<Advantage_t>(output, &pol);
     const Real advantage = adv.computeAdvantage(pol.sampAct);

@@ -72,7 +72,7 @@ struct DistributionInfo
   std::string nStepPappSett = "0";
   std::string appSettings = "";
   std::string setupFolder = "";
-  std::string restart = "none";
+  std::string restart = ".";
 
   bool bTrain = true;
   bool logAllSamples = true;

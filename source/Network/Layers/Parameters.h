@@ -135,7 +135,7 @@ struct Parameters
     float* const tmp = Utilities::allocate_ptr<float>(nParams);
     std::copy(params, params + nParams, tmp);
     fwrite(tmp, sizeof(float), nParams, wFile);
-    fflush(wFile); fclose(wFile); delete tmp;
+    fflush(wFile); fclose(wFile); free(tmp);
   }
   int restart(const std::string fname) const
   {
@@ -150,7 +150,7 @@ struct Parameters
     float* const tmp = Utilities::allocate_ptr<float>(nParams);
     size_t wsize = fread(tmp, sizeof(float), nParams, wFile);
     std::copy(tmp, tmp + nParams, params);
-    fclose(wFile);
+    fclose(wFile); free(tmp);
     if(wsize not_eq nParams)
       _die("Mismatch in restarted file %s; contains:%lu read:%lu.",
         fname.c_str(), wsize, nParams);

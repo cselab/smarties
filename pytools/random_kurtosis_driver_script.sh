@@ -1,4 +1,4 @@
-#/usr/bin/env python
+#!/bin/bash
 #
 #  smarties
 #  Copyright (c) 2018 CSE-Lab, ETH Zurich, Switzerland. All rights reserved.
