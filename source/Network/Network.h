@@ -217,6 +217,12 @@ public:
   }
 
   void checkGrads();
+
+  void save(const Parameters * const W,
+            const std::string fname,
+            const bool isBackup = false) const;
+  int restart(const Parameters * const W,
+              const std::string fname) const;
   //void dump(const int agentID);
 };
 

@@ -19,8 +19,10 @@ source create_rundir.sh
 export INTERNALAPP=false
 export EXECNAME="exec.py $APP"
 
+cp ../apps/OpenAI_gym/HumanoidWrapper.py ${BASEPATH}${RUNFOLDER}/
 cp ../apps/OpenAI_gym/exec.py ${BASEPATH}${RUNFOLDER}/exec.py
-#UNCOMMENT FOR EVALUATING LEARNED POLICY, TODO CLEANUP
+
+#UNCOMMENT BOTH LINES FOR EVALUATING LEARNED POLICY, TODO CLEANUP:
 #cp ../apps/OpenAI_gym/exec_eval.py ${BASEPATH}${RUNFOLDER}/exec.py
 #export INTERNALAPP=true
 

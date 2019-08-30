@@ -36,13 +36,15 @@ void MemoryBuffer::save(const std::string base, const Uint nStep, const bool bBa
     fwrite(V.data(), sizeof(double), 2, wFile);
   };
 
-  FILE * wFile = fopen((base+"scaling.raw").c_str(), "wb");
+  const std::string name = base + "scaling.raw";
+  const std::string backname = base + "scaling_backup.raw";
+  FILE * wFile = fopen((bBackup? name : backname).c_str(), "wb");
   write2file(wFile); fflush(wFile); fclose(wFile);
 
   if(bBackup) {
     char fName[256]; sprintf(fName, "%sscaling_%09lu.raw", base.c_str(), nStep);
     wFile = fopen(fName, "wb"); write2file(wFile); fflush(wFile); fclose(wFile);
-  }
+  } else Utilities::copyFile(backname, name);
 }
 
 void MemoryBuffer::restart(const std::string base)

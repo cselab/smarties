@@ -42,7 +42,7 @@ inline int SOCKET_Test(int& completed, SOCKET_REQ& req)
   const int bytes = req.type == SOCKET_SEND
                   ? send(req.client, todo_buffer, req.todo, 0)
                   : recv(req.client, todo_buffer, req.todo, 0);
-  if(bytes >= 0) {
+  if(bytes > 0) {
     assert((unsigned) bytes <= req.todo);
     req.todo -= bytes;
     completed = req.todo == 0;
@@ -63,7 +63,7 @@ inline int SOCKET_Wait(SOCKET_REQ& req)
     const int bytes = req.type == SOCKET_SEND
                     ? send(req.client, todo_buffer, req.todo, 0)
                     : recv(req.client, todo_buffer, req.todo, 0);
-    if( bytes >= 0 ) {
+    if( bytes > 0 ) {
       assert((unsigned) bytes <= req.todo);
       req.todo -= bytes;
       todo_buffer += bytes;
@@ -108,7 +108,8 @@ inline int SOCKET_Brecv(void* const buffer,
   char* pos = (char*) buffer;
   while (bytes_to_receive > 0) {
     const int bytes = recv(socketid, pos, bytes_to_receive, 0);
-    if( bytes >= 0 ) {
+    //printf("recv %d bytes out of %d\n", bytes, bytes_to_receive);
+    if( bytes > 0 ) {
       assert((unsigned) bytes <= bytes_to_receive);
       bytes_to_receive -= bytes;
       pos += bytes;
@@ -129,7 +130,8 @@ inline int SOCKET_Bsend(const void* const buffer,
   const char* pos = (const char*) buffer;
   while ( bytes_to_send > 0 ) {
     const int bytes = send(socketid, pos, bytes_to_send, 0);
-    if( bytes >= 0 ) {
+    //printf("sent %d bytes out of %d\n", bytes, bytes_to_send);
+    if( bytes > 0 ) {
       assert((unsigned) bytes <= bytes_to_send);
       bytes_to_send -= bytes;
       pos += bytes;
@@ -153,10 +155,13 @@ inline int SOCKET_clientConnect()
   {
     printf("SOCKET_clientConnect::socket failed"); fflush(0); abort();
   }
-  int _TRU = 1;
-  if( setsockopt(serverAddr, SOL_SOCKET, SO_REUSEADDR, &_TRU, sizeof(int)) < 0 )
+
   {
-    printf("SOCKET_clientConnect::setsockopt failed\n"); fflush(0); abort();
+    int _TRU = 1;
+    if(setsockopt(serverAddr, SOL_SOCKET, SO_REUSEADDR, &_TRU, sizeof(int))<0)
+    {
+      printf("SOCKET_clientConnect::setsockopt failed\n"); fflush(0); abort();
+    }
   }
 
   // Specify the server

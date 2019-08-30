@@ -81,12 +81,13 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   if(WR>0)
   {
    long double varR = Rsum2Rdx.get<0>(bInit)/count;
-   if(varR < std::numeric_limits<long double>::epsilon()) varR = 1;
-   if( settings.ESpopSize > 1e7 ) {
-     const Real gamma = settings.gamma;
-     const auto Rscal = (std::sqrt(varR)+EPS) * (1-gamma>EPS ? 1/(1-gamma) : 1);
-     invstd_reward = (1-WR)*invstd_reward +WR/Rscal;
-   } else invstd_reward = (1-WR)*invstd_reward + WR / ( std::sqrt(varR) + EPS );
+   if(varR < 0) varR = 0;
+   //if( settings.ESpopSize > 1e7 ) {
+   //  const Real gamma = settings.gamma;
+   //  const auto Rscal = (std::sqrt(varR)+EPS) * (1-gamma>EPS? 1/(1-gamma) :1);
+   //  invstd_reward = (1-WR)*invstd_reward +WR/Rscal;
+   //} else
+   invstd_reward = (1-WR)*invstd_reward + WR / ( std::sqrt(varR) + EPS );
   }
 
   if(WS>0)
@@ -102,7 +103,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
       // if WS==1 then varS is exact, otherwise update second moment
       // centered around current mean[k] (ie. E[(Sk-mean[k])^2])
       long double varS = SSum2[k]/count - MmM*MmM*(2*WS-WS*WS);
-      if(varS < std::numeric_limits<long double>::epsilon()) varS = 1;
+      if(varS < 0) varS = 0;
       std[k] = (1-WS) * std[k] + WS * std::sqrt(varS);
       invstd[k] = 1/(std[k]+EPS);
     }

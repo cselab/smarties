@@ -169,29 +169,31 @@ void CMA_Optimizer::apply_update()
   MPI(Wait, &weightsMPIrequests[0], MPI_STATUS_IGNORE);
 }
 
-void CMA_Optimizer::save(const std::string fname, const bool backup)
+void CMA_Optimizer::save(const NetSaveF_t& saveFunc,
+                         const std::string fname,
+                         const bool backup)
 {
-  weights->save(fname+"_weights");
-  pathCov->save(fname+"_pathCov");
-  diagCov->save(fname+"_diagCov");
+  saveFunc(weights.get(), fname+"_weights", backup);
+  saveFunc(pathCov.get(), fname+"_pathCov", backup);
+  saveFunc(diagCov.get(), fname+"_diagCov", backup);
 
   if(backup) {
     std::ostringstream ss; ss << std::setw(9) << std::setfill('0') << nStep;
-    weights->save(fname+"_"+ss.str()+"_weights");
-    pathCov->save(fname+"_"+ss.str()+"_pathCov");
-    diagCov->save(fname+"_"+ss.str()+"_diagCov");
+    saveFunc(weights.get(), fname+"_"+ss.str()+"_weights", false);
+    saveFunc(pathCov.get(), fname+"_"+ss.str()+"_pathCov", false);
+    saveFunc(diagCov.get(), fname+"_"+ss.str()+"_diagCov", false);
   }
 }
 
-int CMA_Optimizer::restart(const std::string fname)
+int CMA_Optimizer::restart(const NetLoadF_t& loadFunc, const std::string fname)
 {
   char currDirectory[512];
   getcwd(currDirectory, 512);
   chdir(distrib.initial_runDir);
 
-  pathCov->restart(fname+"_pathCov");
-  diagCov->restart(fname+"_diagCov");
-  int ret = weights->restart(fname+"_weights");
+  int ret = loadFunc(weights.get(), fname+"_weights");
+  loadFunc(pathCov.get(), fname+"_pathCov");
+  loadFunc(diagCov.get(), fname+"_diagCov");
 
   chdir(currDirectory);
   return ret;

@@ -158,14 +158,15 @@ void Learner::setupDataCollectionTasks(TaskQueue& tasks)
 void Learner::logStats()
 {
   const Uint currStep = nGradSteps()+1;
-  if(currStep%(freqPrint*PRFL_DMPFRQ)==0 && learn_rank==0)
-  {
-    printf("%s\n", profiler->printStatAndReset().c_str() );
-    save();
-  }
+  const Uint fProfl = freqPrint * PRFL_DMPFRQ;
+  const Uint fBackup = std::ceil(settings.saveFreq / (Real)fProfl) * fProfl;
 
-  if(currStep%freqPrint ==0)
-  {
+  if(currStep % fProfl == 0 && learn_rank == 0)
+    printf("%s\n", profiler->printStatAndReset().c_str() );
+
+  if(currStep % fBackup == 0 && learn_rank == 0) save();
+
+  if(currStep % freqPrint == 0) {
     profiler->stop_start("STAT");
     processStats();
   }
@@ -226,6 +227,7 @@ void Learner::getMetrics(std::ostringstream& buf) const
   Utilities::real2SS(buf, alpha, 6, 1);
   Utilities::real2SS(buf, beta, 6, 1);
 }
+
 void Learner::getHeaders(std::ostringstream& buf) const
 {
   if(not computeQretrace) return;
@@ -303,17 +305,14 @@ void Learner::restart()
 void Learner::save()
 {
   const Uint currStep = nGradSteps()+1;
-  const Real freqSave = freqPrint * PRFL_DMPFRQ;
-  const Uint freqBackup = std::ceil(settings.saveFreq / freqSave)*freqSave;
-  const bool bBackup = currStep % freqBackup == 0;
+  const bool bBackup = false; // ;
   data->save(learner_name, currStep, bBackup);
 
-  if(not bBackup) return;
+  //if(not bBackup) return;
 
-  std::ostringstream ss;
-  ss<<learner_name<<"rank_"<<std::setfill('0')<<std::setw(3)<<learn_rank
-    <<"_"<<std::setw(9)<<currStep<<"_learner.raw";
-  FILE * f = fopen( ss.str().c_str(), "wb" );
+  const std::string name = learner_name + "_learner.raw";
+  const std::string backname = learner_name + "_learner_backup.raw";
+  FILE * f = fopen(backname.c_str(), "wb");
 
   const Uint nObs=data->readNData(), tObs=data->readNSeen_loc();
   const Uint nSeqs=data->readNSeq(), tSeqs=data->readNSeenSeq_loc();
@@ -328,6 +327,8 @@ void Learner::save()
 
   for(Uint i = 0; i <nSeqs; ++i)
     data->get(i)->save(f, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol() );
+
+  Utilities::copyFile(backname, name);
 }
 
 }

@@ -191,6 +191,10 @@ class Layer
   // Initialize the weights and biases. Probably by sampling.
   virtual void initialize(std::mt19937& G, const Parameters*const W,
                           Real initializationFac) const = 0;
+  virtual size_t   save(const Parameters * const para,
+                                   float * tmp) const = 0;
+  virtual size_t restart(const Parameters * const para,
+                             const float * tmp) const = 0;
 };
 
 class InputLayer: public Layer
@@ -229,6 +233,10 @@ class InputLayer: public Layer
 
   void initialize(std::mt19937& G, const Parameters*const W,
                   Real initializationFac) const override { }
+  size_t   save(const Parameters * const para,
+                           float * tmp) const override { return 0; }
+  size_t restart(const Parameters * const para,
+                      const float * tmp) const override { return 0; }
 };
 
 class JoinLayer: public Layer
@@ -289,6 +297,10 @@ class JoinLayer: public Layer
 
   void initialize(std::mt19937& G, const Parameters*const W,
                   Real initializationFac) const override { }
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override { return 0; }
+  size_t restart(const Parameters * const para,
+                    const float * tmp) const override { return 0; }
 };
 
 
@@ -344,6 +356,10 @@ class ResidualLayer: public Layer
 
   void initialize(std::mt19937& G, const Parameters*const W,
                   Real initializationFac) const override { }
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override { return 0; }
+  size_t restart(const Parameters * const para,
+                    const float * tmp) const override { return 0; }
 };
 
 class ParamLayer: public Layer
@@ -411,6 +427,20 @@ class ParamLayer: public Layer
   {
     nnReal* const biases = W->B(ID);
     for(Uint o=0; o<size; ++o) biases[o] = func->inverse(initVals[o]);
+  }
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override
+  {
+    const nnReal* const bias = para->B(ID);
+    for (Uint n=0; n<size; ++n) tmp[n] = (float) bias[n];
+    return size;
+  }
+  size_t restart(const Parameters * const para,
+                      const float * tmp) const override
+  {
+    nnReal* const bias = para->B(ID);
+    for (Uint n=0; n<size; ++n) bias[n] = (nnReal) tmp[n];
+    return size;
   }
 };
 

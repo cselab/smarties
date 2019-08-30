@@ -7,10 +7,10 @@
 ##  Created by Guido Novati (novatig@ethz.ch).
 ##
 
-import gym, sys, os, numpy as np, cv2
-from gym import wrappers
+import gym, sys, os, numpy as np
 os.environ['MUJOCO_PY_FORCE_CPU'] = '1'
 import smarties as rl
+from HumanoidWrapper import HumanoidWrapper
 
 def getAction(comm, env):
   buf = comm.recvAction()
@@ -18,13 +18,16 @@ def getAction(comm, env):
     action = int(buf[0])
   elif hasattr(env.action_space, 'spaces'):
     action = [int(buf[0])]
-    for i in range(1, comm.nActions): action = action+[int(buf[i])]
+    for i in range(1, comm.nActions): action = action + [int(buf[i])]
   elif hasattr(env.action_space, 'shape'):
     action = buf
   else: assert(False)
   return action
 
-def setupSmarties(comm, env):
+def setupSmartiesCommon(comm, task):
+  env = gym.make(task)
+
+  ## setup MDP properties:
   # first figure out dimensionality of state
   dimState = 1
   if hasattr(env.observation_space, 'shape'):
@@ -65,12 +68,17 @@ def setupSmarties(comm, env):
     comm.set_action_scales(upprScale, lowrScale, isBounded, 0)
   else: assert(False)
 
+  return env
 
 def app_main(comm):
   import matplotlib.pyplot as plt
-  print("openAI environment: ", sys.argv[1])
-  env = gym.make(sys.argv[1])
-  setupSmarties(comm, env) # create communicator with smarties
+  task = sys.argv[1]
+  print("openAI environment: ", task)
+  if task == 'Humanoid-v2' or task == 'HumanoidStandup-v2':
+    env = HumanoidWrapper(comm, task)
+  else:
+    env = setupSmartiesCommon(comm, task)
+
   sim = 0
   fig = plt.figure()
   while True: #training loop

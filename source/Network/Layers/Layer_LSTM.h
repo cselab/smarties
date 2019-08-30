@@ -186,6 +186,24 @@ class LSTMLayer: public Layer
      for(Uint w=0; w<4*nCells*(nInputs+nCells); ++w) weight[w] = dis(G);
     }
   }
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override
+  {
+    const nnReal* const bias = para->B(ID);
+    const nnReal* const weight = para->W(ID);
+    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n) *(tmp++) = (float) weight[n];
+    for (Uint n=0; n<4*nCells; ++n) *(tmp++) = (float) bias[n];
+    return 4*nCells * (nInputs+nCells + 1);
+  }
+  size_t restart(const Parameters * const para,
+                    const float * tmp) const override
+  {
+    nnReal* const bias = para->B(ID);
+    nnReal* const weight = para->W(ID);
+    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n) weight[n] = (nnReal) *(tmp++);
+    for (Uint n=0; n<4*nCells; ++n) bias[n] = (nnReal) *(tmp++);
+    return 4*nCells * (nInputs+nCells + 1);
+  }
 };
 
 } // end namespace smarties

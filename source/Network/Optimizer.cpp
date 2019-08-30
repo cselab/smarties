@@ -178,34 +178,39 @@ void AdamOptimizer::apply_update()
   }
 }
 
-void AdamOptimizer::save(const std::string fname, const bool backup)
+void AdamOptimizer::save(const NetSaveF_t& saveFunc,
+                         const std::string fname,
+                         const bool backup)
 {
-  weights->save(fname+"_weights");
-  if(target_weights) target_weights->save(fname+"_tgt_weights");
-  _1stMom->save(fname+"_1stMom");
-  _2ndMom->save(fname+"_2ndMom");
+  saveFunc(weights.get(), fname+"_weights", backup);
+  saveFunc(_1stMom.get(), fname+"_1stMom", backup);
+  saveFunc(_2ndMom.get(), fname+"_2ndMom", backup);
+
+  if(target_weights)
+    saveFunc(target_weights.get(), fname+"_tgt_weights", backup);
 
   if(backup) {
     std::ostringstream ss; ss << std::setw(9) << std::setfill('0') << nStep;
-    weights->save(fname+"_"+ss.str()+"_weights");
-    _1stMom->save(fname+"_"+ss.str()+"_1stMom" );
-    _2ndMom->save(fname+"_"+ss.str()+"_2ndMom" );
+    saveFunc(weights.get(), fname+"_"+ss.str()+"_weights", false);
+    saveFunc(_1stMom.get(), fname+"_"+ss.str()+"_1stMom", false);
+    saveFunc(_2ndMom.get(), fname+"_"+ss.str()+"_2ndMom", false);
   }
 }
-int AdamOptimizer::restart(const std::string fname)
+
+int AdamOptimizer::restart(const NetLoadF_t& loadFunc, const std::string fname)
 {
   int ret = 0;
   char currDirectory[512];
   getcwd(currDirectory, 512);
   chdir(distrib.initial_runDir);
 
-  ret = weights->restart(fname+"_weights");
+  ret = loadFunc(weights.get(), fname+"_weights");
   if(target_weights) {
-    int missing_tgt = target_weights->restart(fname+"_tgt_weights");
+    int missing_tgt =  loadFunc(target_weights.get(), fname+"_tgt_weights");
     if (missing_tgt) target_weights->copy(weights);
   }
-  _1stMom->restart(fname+"_1stMom");
-  _2ndMom->restart(fname+"_2ndMom");
+  loadFunc(_1stMom.get(), fname+"_1stMom");
+  loadFunc(_2ndMom.get(), fname+"_2ndMom");
 
   chdir(currDirectory);
   return ret;
@@ -234,24 +239,6 @@ AdamOptimizer::AdamOptimizer(const Settings& S, const DistributionInfo& D,
                              const std::vector<std::shared_ptr<Parameters>> & G,
                              const Real beta1, const Real beta2) :
 Optimizer(S,D,W), beta_1(beta1), beta_2(beta2), gradients(G) {}
-
-const Parameters * Optimizer::getWeights(const Sint weightsIndex)
-{
-  if(weightsIndex == 0) return weights.get();
-  if(weightsIndex <  0) return target_weights.get();
-  assert((Uint) weightsIndex < sampled_weights.size());
-  assert(weightsMPIrequests.size() == sampled_weights.size());
-  if(weightsMPIrequests[weightsIndex] == MPI_REQUEST_NULL)
-    return sampled_weights[weightsIndex].get();
-
-  std::lock_guard<std::mutex> lockW(samples_mutex);
-  if(weightsMPIrequests[weightsIndex] != MPI_REQUEST_NULL)
-  {
-    MPI(Wait, & weightsMPIrequests[weightsIndex], MPI_STATUS_IGNORE);
-    weightsMPIrequests[weightsIndex] = MPI_REQUEST_NULL;
-  }
-  return sampled_weights[weightsIndex].get();
-}
 
 Optimizer::~Optimizer()
 {

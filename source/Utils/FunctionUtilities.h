@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cmath> // log, exp, ...
 #include <cstring> // memset, memcpy, ...
+#include <string>
 
 namespace smarties
 {
@@ -266,6 +267,20 @@ inline Uint maxInd(const Rvec& pol, const Uint start, const Uint N)
 inline Real minAbsValue(const Real v, const Real w)
 {
   return std::fabs(v)<std::fabs(w) ? v : w;
+}
+
+inline void copyFile(const std::string& fileFrom, const std::string& fileTo)
+{
+  FILE* sorc = fopen(fileFrom.c_str(), "rb");
+  FILE* dest = fopen(fileTo.c_str(), "wb");
+  static constexpr size_t BUFSIZE = 4096;
+  char buf[BUFSIZE];
+  while (true) {
+    const size_t size = fread(buf, 1, BUFSIZE, sorc);
+    fwrite(buf, 1, size, dest);
+    if(size < BUFSIZE) break;
+  }
+  fflush(dest); fclose(dest); fclose(sorc);
 }
 
 template <typename T>

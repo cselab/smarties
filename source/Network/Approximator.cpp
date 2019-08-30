@@ -282,18 +282,25 @@ void Approximator::getMetrics(std::ostringstream& buff) const
 
 void Approximator::save(const std::string base, const bool bBackup)
 {
+  const auto F = [&](const Parameters*const W,
+                           const std::string fname, const bool bBack) {
+    net->save(W, fname, bBack);
+  };
   if(opt == nullptr) die("Attempted to save uninitialized net!");
-  opt->save(base + name, bBackup);
+  opt->save(F, base + name, bBackup);
 }
 void Approximator::restart(const std::string base)
 {
+  const auto F = [&](const Parameters*const W, const std::string fname) {
+    return net->restart(W, fname);
+  };
   if(opt == nullptr) die("Attempted to restart uninitialized net!");
-  opt->restart(base+name);
+  opt->restart(F, base+name);
 }
 
 void Approximator::gatherParameters(ParameterBlob& params) const
 {
-   params.add(net->weights->nParams, net->weights->params);
+  params.add(net->weights->nParams, net->weights->params);
 }
 
 } // end namespace smarties

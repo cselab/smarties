@@ -129,34 +129,6 @@ struct Parameters
     for(Uint j=0; j<nParams; ++j) params[j] = val;
   }
 
-  void save(const std::string fname) const
-  {
-    FILE * wFile = fopen((fname+".raw").c_str(), "wb");
-    float* const tmp = Utilities::allocate_ptr<float>(nParams);
-    std::copy(params, params + nParams, tmp);
-    fwrite(tmp, sizeof(float), nParams, wFile);
-    fflush(wFile); fclose(wFile); free(tmp);
-  }
-  int restart(const std::string fname) const
-  {
-    FILE * const wFile = fopen((fname+".raw").c_str(), "rb");
-    if(wFile == NULL) {
-      printf("Parameters restart file %s not found.\n", (fname+".raw").c_str());
-      return 1;
-    } else {
-      printf("Restarting from file %s.\n", (fname+".raw").c_str());
-      fflush(0);
-    }
-    float* const tmp = Utilities::allocate_ptr<float>(nParams);
-    size_t wsize = fread(tmp, sizeof(float), nParams, wFile);
-    std::copy(tmp, tmp + nParams, params);
-    fclose(wFile); free(tmp);
-    if(wsize not_eq nParams)
-      _die("Mismatch in restarted file %s; contains:%lu read:%lu.",
-        fname.c_str(), wsize, nParams);
-    return 0;
-  }
-
   nnReal* W(const Uint layerID) const {
     assert(layerID < nLayers);
     return params + indWeights[layerID];

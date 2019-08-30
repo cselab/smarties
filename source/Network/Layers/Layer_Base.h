@@ -139,6 +139,31 @@ class BaseLayer: public Layer
           weight[o +nOut_simd*i] = dis(G);
     }
   }
+
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override
+  {
+    const nnReal* const bias = para->B(ID);
+    const nnReal* const weight = para->W(ID);
+    for(Uint i=0; i<nInputs + bRecurrent*nNeurons; ++i)
+      for(Uint o=0; o<nNeurons; ++o)
+        *(tmp++) = (float) weight[o + nOut_simd * i];
+    for (Uint n=0; n<nNeurons; ++n) *(tmp++) = (float) bias[n];
+    return nNeurons * (nInputs + bRecurrent*nNeurons + 1);
+  }
+  size_t restart(const Parameters * const para,
+                      const float * tmp) const override
+  {
+    nnReal* const bias = para->B(ID);
+    nnReal* const weight = para->W(ID);
+    // restart weights and recurrent weights if any
+    for(Uint i=0; i<nInputs + bRecurrent*nNeurons; ++i)
+      for(Uint o=0; o<nNeurons; ++o)
+        weight[o + nOut_simd * i] = (nnReal) *(tmp++);
+    // restart bias
+    for (Uint n=0; n<nNeurons; ++n) bias[n] = (nnReal) *(tmp++);
+    return nNeurons * (nInputs + bRecurrent*nNeurons + 1);
+  }
 };
 
 } // end namespace smarties

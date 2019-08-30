@@ -36,6 +36,10 @@ protected:
 
   std::vector<MPI_Request> weightsMPIrequests = std::vector<MPI_Request>(populationSize, MPI_REQUEST_NULL);
 
+  using NetSaveF_t = std::function<void(const Parameters*const,
+                                        const std::string, const bool)>;
+  using NetLoadF_t = std::function<int(const Parameters*const,
+                                       const std::string)>;
 public:
   bool bAnnealLearnRate = true;
   const Real eta_init = settings.learnrate;
@@ -50,8 +54,11 @@ public:
             const std::shared_ptr<Parameters>& W);
 
   virtual ~Optimizer();
-  virtual void save(const std::string fname, const bool bBackup) = 0;
-  virtual int restart(const std::string fname) = 0;
+  virtual void save(const NetSaveF_t& F,
+                    const std::string fname,
+                    const bool bBackup) = 0;
+  virtual int restart(const NetLoadF_t& F,
+                      const std::string fname) = 0;
 
   virtual void prepare_update(const Rvec&L) = 0;
   virtual void apply_update() = 0;
@@ -60,7 +67,23 @@ public:
   virtual void getHeaders(std::ostringstream&buff,const std::string nnName) = 0;
   virtual bool ready2UpdateWeights() = 0;
 
-  const Parameters * getWeights(const Sint weightsIndex);
+  const Parameters * getWeights(const Sint weightsIndex)
+  {
+    if(weightsIndex == 0) return weights.get();
+    if(weightsIndex <  0) return target_weights.get();
+    assert((Uint) weightsIndex < sampled_weights.size());
+    assert(weightsMPIrequests.size() == sampled_weights.size());
+    if(weightsMPIrequests[weightsIndex] == MPI_REQUEST_NULL)
+      return sampled_weights[weightsIndex].get();
+
+    std::lock_guard<std::mutex> lockW(samples_mutex);
+    if(weightsMPIrequests[weightsIndex] != MPI_REQUEST_NULL)
+    {
+      MPI(Wait, & weightsMPIrequests[weightsIndex], MPI_STATUS_IGNORE);
+      weightsMPIrequests[weightsIndex] = MPI_REQUEST_NULL;
+    }
+    return sampled_weights[weightsIndex].get();
+  }
 };
 
 class AdamOptimizer : public Optimizer
@@ -92,8 +115,10 @@ public:
   }
   void apply_update() override;
 
-  void save(const std::string fname, const bool bBackup) override;
-  int restart(const std::string fname) override;
+  void save(const NetSaveF_t& F,
+            const std::string fname,
+            const bool bBackup) override;
+  int restart(const NetLoadF_t& F, const std::string fname) override;
   void getMetrics(std::ostringstream& buff) override;
   void getHeaders(std::ostringstream& buff, const std::string nnName) override;
 };

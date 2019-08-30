@@ -151,6 +151,9 @@ struct Glider
     Jerk=0; Torque=0; oldDistance=0; oldTorque=0;
     oldAngle=0; oldEnergySpent=0; time=0;
     #ifdef PARAM_NOISE // mean 1 and variance PARAM_NOISE
+      // 1 = exp(p1 + p2*p2 / 2) -> p1 + p2*p2 / 2 = 0
+      // therefore variance simplifies to (ref.  eg. wikipedia):
+      // PARAM_NOISE^2 = exp(p2*p2) -1 -> p2 = sqrt(log(1+PARAM_NOISE^2))
       const double p1 =           -std::log(1+PARAM_NOISE*PARAM_NOISE)/2;
       const double p2 =  std::sqrt(std::log(1+PARAM_NOISE*PARAM_NOISE));
       std::lognormal_distribution<double> dist(p1, p2);

@@ -54,8 +54,10 @@ public:
   void prepare_update(const Rvec& L) override;
   void apply_update() override;
 
-  void save(const std::string fname, const bool bBackup) override;
-  int restart(const std::string fname) override;
+  void save(const NetSaveF_t& F,
+            const std::string fname,
+            const bool bBackup) override;
+  int restart(const NetLoadF_t& F, const std::string fname) override;
 
  protected:
   static inline std::vector<nnReal> initializePopWeights(const Uint popSize)

@@ -183,6 +183,25 @@ struct Conv2DLayer: public Layer
     for(Uint o=0; o < W->NB(ID); ++o) biases[o] = dis(G);
     for(Uint o=0; o < W->NW(ID); ++o) weight[o] = dis(G);
   }
+
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override
+  {
+    const nnReal* const bias = para->B(ID);
+    const nnReal* const weight = para->W(ID);
+    for (Uint n=0; n<para->NW(ID); ++n) *(tmp++) = (float) weight[n];
+    for (Uint n=0; n<para->NB(ID); ++n) *(tmp++) = (float) bias[n];
+    return para->NB(ID) + para->NW(ID);
+  }
+  size_t restart(const Parameters * const para,
+                      const float * tmp) const override
+  {
+    nnReal* const bias = para->B(ID);
+    nnReal* const weight = para->W(ID);
+    for (Uint n=0; n<para->NW(ID); ++n) weight[n] = (nnReal) *(tmp++);
+    for (Uint n=0; n<para->NB(ID); ++n) bias[n] = (nnReal) *(tmp++);
+    return para->NB(ID) + para->NW(ID);
+  }
 };
 
 // Im2MatLayer gets as input an image of sizes InX * InY * InC
@@ -281,6 +300,10 @@ struct Mat2ImLayer: public Layer
 
   void initialize(std::mt19937& G, const Parameters*const W,
                   Real initializationFac) const override { }
+  size_t   save(const Parameters * const para,
+                           float * tmp) const override { return 0; }
+  size_t restart(const Parameters * const para,
+                      const float * tmp) const override { return 0; }
 };
 
 #undef ALIGNSPEC
