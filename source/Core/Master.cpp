@@ -19,6 +19,9 @@ Master<MasterSockets, SOCKET_REQ>(D) { }
 MasterMPI::MasterMPI(DistributionInfo& D) :
 Master<MasterMPI, MPI_Request>(D) { }
 
+MasterSockets::~MasterSockets() {}
+MasterMPI::~MasterMPI() {}
+
 template<typename CommType, typename Request_t>
 Master<CommType, Request_t>::Master(DistributionInfo&D) : Worker(D) {}
 

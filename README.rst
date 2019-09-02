@@ -31,7 +31,20 @@ Install
 
 Regardless of OS, smarties relies on pybind11 for the Python interface. Therefore, to enable compilation of smarties with Python environment simulation codebases:
 
-Unix
+.. code:: shell
+
+    pip3 install pybind11 --user
+
+Moreover, after the compilation steps for either Linux or Mac OS, add the path to the smarties library directory to your dynamic loader:
+
+.. code:: shell
+
+    echo 'export SMARTIES_ROOT=/path/to/smarties/folder/' >> ~/.bash_profile
+    echo 'export LD_LIBRARY_PATH=${SMARTIES_ROOT}/lib:${LD_LIBRARY_PATH}' >> ~/.bash_profile
+
+The environment variable 'SMARTIES_ROOT' is used to compile most of the applications in the 'apps' folder.
+
+Linux
 ------
 
 Smarties requires gcc version 6.1 or greater, a thread-safe (at least `MPI_THREAD_SERIALIZED`) implementation of MPI, and a serial BLAS implementation with CBLAS interface. Furthermore, in order to test on the benchmark problems, OpenAI gym or the DeepMind Control Suite with python>=3.5. MPI and OpenBLAS can be installed by running the ``install_dependencies.sh`` script.
@@ -183,6 +196,7 @@ The applications that are already included are:
 
 - ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
 
+- ``apps/CUP2D_2fish``: and similarly named applications require `CubismUP 2D <https://github.com/novatig/CubismUP_2D>`_.
 
 Examples of solved problems
 ---------------------------

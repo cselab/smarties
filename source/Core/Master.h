@@ -57,7 +57,7 @@ public:
   }
 
   MasterSockets( DistributionInfo& );
-  ~MasterSockets(){}
+  ~MasterSockets() override;
 
   void run(const environment_callback_t& callback);
 };
@@ -87,7 +87,7 @@ public:
   }
 
   MasterMPI( DistributionInfo& );
-  ~MasterMPI(){}
+  ~MasterMPI() override;
 
   void run();
 };
