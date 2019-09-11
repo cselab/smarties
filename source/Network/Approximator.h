@@ -53,7 +53,7 @@ struct Approximator
   void setNgradSteps(const Uint iter) const { opt->nStep = iter; }
   void updateGradStats(const std::string& base, const Uint iter) const
   {
-    gradStats->reduce_stats(base+name, iter);
+    gradStats->reduce_stats(base+"_"+name, iter);
   }
 
   Approximator(std::string name_, const Settings&S, const DistributionInfo&D,

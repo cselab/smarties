@@ -9,7 +9,7 @@
 #ifndef smarties_MemoryBuffer_h
 #define smarties_MemoryBuffer_h
 
-#include "Sequences.h"
+#include "MiniBatch.h"
 #include "../Core/Agent.h"
 #include "../Settings.h"
 #include <memory>

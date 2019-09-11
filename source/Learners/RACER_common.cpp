@@ -16,7 +16,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::prepareCMALoss()
 {
   if(ESpopSize<=1) return;
 
-  profiler->stop_start("LOSS");
+  profiler->start("LOSS");
   std::vector<Real> aR(batchSize, 0), aA(batchSize, 0);
 
   #pragma omp parallel for schedule(static)
@@ -42,6 +42,8 @@ void RACER<Advantage_t, Policy_t, Action_t>::prepareCMALoss()
     networks[0]->ESloss(w) += alpha*(costAdv + costDkl) + (1-alpha)*costVal;
   }
   networks[0]->nAddedGradients = ESpopSize * batchSize;
+
+  profiler->stop();
 }
 
 template<typename Advantage_t, typename Policy_t, typename Action_t>

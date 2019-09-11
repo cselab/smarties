@@ -83,7 +83,8 @@ select(Agent& agent)
     //within Retrace, we use the Q_RET vector to write the Adv retrace values
     EP.Q_RET.resize(N, 0);
     EP.offPolicImpW.resize(N, 1);
-    for(Uint i=EP.ndata(); i>0; --i) backPropRetrace(EP, i);
+    for(Uint i=EP.ndata(); i>0; --i)
+        EP.propagateRetrace(i, gamma, data->scaledReward(EP, i));
 
     OrUhState[agent.ID] = Rvec(nA, 0); //reset temp. corr. noise
     data_get->terminate_seq(agent);
@@ -107,6 +108,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     debugL("Initialize Learner");
     initializeLearner();
     algoSubStepID = 0;
+    profiler->start("DATA");
   };
   tasks.add(stepInit);
 
@@ -116,6 +118,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
     if ( blockGradientUpdates() ) return; // waiting for enough data
 
+    profiler->stop();
     debugL("Sample the replay memory and compute the gradients");
     spawnTrainTasks();
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
@@ -128,6 +131,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
     logStats();
     algoSubStepID = 1;
+    profiler->start("MPI");
   };
   tasks.add(stepMain);
 
@@ -137,10 +141,12 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 1 ) return;
     if ( networks[0]->ready2ApplyUpdate() == false ) return;
 
+    profiler->stop();
     debugL("Apply SGD update after reduction of gradients");
     applyGradient();
-    algoSubStepID = 0; // rinse and repeat
     globalGradCounterUpdate(); // step ++
+    algoSubStepID = 0; // rinse and repeat
+    profiler->start("DATA");
   };
   tasks.add(stepComplete);
 }

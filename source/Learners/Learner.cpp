@@ -45,7 +45,7 @@ void Learner::initializeLearner()
   }
 
   debugL("Compute state/rewards stats from the replay memory");
-  profiler->stop_start("PRE");
+  profiler->start("PRE");
   data_proc->updateRewardsStats(1, 1, true);
   // shift counters after initial data is gathered and sync is concluded
   nDataGatheredB4Startup = data->readNSeen_loc();
@@ -55,7 +55,10 @@ void Learner::initializeLearner()
 
   data->initialize();
 
-  if( not computeQretrace ) return;
+  if( not computeQretrace ) {
+    profiler->stop();
+    return;
+  }
   // Rewards second moment is computed right before actual training begins
   // therefore we need to recompute (rescaled) Retrace values for all obss
   // seen before this point.
@@ -65,15 +68,17 @@ void Learner::initializeLearner()
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i=0; i<setSize; ++i) {
     Sequence& SEQ = * data->get(i);
-    for(Uint j = SEQ.ndata(); j>0; --j) backPropRetrace(SEQ, j);
+    for(Uint j = SEQ.ndata(); j>0; --j)
+        SEQ.propagateRetrace(j, gamma, data->scaledReward(SEQ, j));
   }
+  profiler->stop();
 }
 
 void Learner::processMemoryBuffer()
 {
   const Uint currStep = nGradSteps()+1; //base class will advance this
 
-  profiler->stop_start("PRNE");
+  profiler->start("PRNE");
   //shift data / gradient counters to maintain grad stepping to sample
   // collection ratio prescirbed by obsPerStep
 
@@ -98,13 +103,16 @@ void Learner::processMemoryBuffer()
   else beta = 1e-4 +(1-1e-4)*beta; //fixed point iter converge to 1
   if(std::fabs(ReFtol-fracOffPol)<0.001) alpha = (1-1e-4)*alpha;
   else alpha = 1e-4 + (1-1e-4)*alpha;
+
+  profiler->stop();
 }
 
 void Learner::updateRetraceEstimates()
 {
-  profiler->stop_start("QRET");
+  profiler->start("QRET");
   const std::vector<Uint>& sampled = data->lastSampledEpisodes();
   const Uint setSize = sampled.size();
+
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i = 0; i < setSize; ++i) {
     Sequence& SEQ = * data->get(sampled[i]);
@@ -112,19 +120,22 @@ void Learner::updateRetraceEstimates()
     assert(std::fabs(SEQ.action_adv[SEQ.ndata()]) < 1e-16);
     if( SEQ.isTerminal(SEQ.ndata()) )
       assert(std::fabs(SEQ.state_vals[SEQ.ndata()]) < 1e-16);
-    for(Sint j=SEQ.just_sampled-1; j>0; --j) backPropRetrace(SEQ, j);
+    for(Sint j = SEQ.just_sampled-1; j>0; --j)
+        SEQ.propagateRetrace(j, gamma, data->scaledReward(SEQ, j));
   }
+  profiler->stop();
 }
 
 void Learner::finalizeMemoryProcessing()
 {
   const Uint currStep = nGradSteps()+1; //base class will advance this
-  profiler->stop_start("FIND");
+  profiler->start("FIND");
   data_proc->finalize();
 
   profiler->stop_start("PRE");
   if(currStep%1000==0) // update state mean/std with net's learning rate
     data_proc->updateRewardsStats(1, 1e-3*(OFFPOL_ADAPT_STSCALE>0));
+  profiler->stop();
 }
 
 bool Learner::blockDataAcquisition() const
@@ -167,8 +178,9 @@ void Learner::logStats()
   if(currStep % fBackup == 0 && learn_rank == 0) save();
 
   if(currStep % freqPrint == 0) {
-    profiler->stop_start("STAT");
+    profiler->start("STAT");
     processStats();
+    profiler->stop();
   }
 }
 
@@ -188,10 +200,10 @@ void Learner::processStats()
 
   #ifndef PRINT_ALL_RANKS
     if(learn_rank) return;
-    FILE* fout = fopen ((learner_name+"stats.txt").c_str(),"a");
+    FILE* fout = fopen ((learner_name+"_stats.txt").c_str(),"a");
   #else
-    FILE* fout = fopen (
-      (learner_name+std::to_string(learn_rank)+"stats.txt").c_str(), "a");
+    FILE* fout = fopen ((learner_name+
+      "_rank"+std::to_string(learn_rank)+"_stats.txt").c_str(), "a");
   #endif
 
   std::ostringstream head;
@@ -243,63 +255,61 @@ void Learner::restart()
 
   data->save("restarted_"+learner_name, 0, false);
 
+  char currDirectory[512];
+  getcwd(currDirectory, 512);
+  chdir(distrib.initial_runDir);
+
+  char baseName[512];
+  sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
+  const std::string dumpName(baseName);
+  FILE * fstat = fopen((dumpName+"_status.raw").c_str(), "r");
+  FILE * fdata = fopen((dumpName+"_data.raw").c_str(), "rb");
+
+  if(fstat == NULL || fdata == NULL)
   {
-    char currDirectory[512];
-    getcwd(currDirectory, 512);
-    chdir(distrib.initial_runDir);
+    if(fstat == NULL)
+      _warn("Learner status restart file %s not found\n", dumpName.c_str());
+    else fclose(fstat);
 
-    std::ostringstream ss;
-    ss<<"rank_"<<std::setfill('0')<<std::setw(3)<<learn_rank<<"_learner.raw";
-    FILE * f = fopen((learner_name+ss.str()).c_str(), "rb");
-
-    if(f == NULL) {
-      _warn("Learner restart file %s not found\n",
-            (learner_name+ss.str()).c_str());
-      return;
-    }
-
-    Uint nSeqs;
-    if(fread(&nSeqs,sizeof(Uint),1,f) != 1) die("");
-    data->setNSeq(nSeqs);
-
-    {
-      Uint nObs;
-      if(fread(&nObs, sizeof(Uint),1,f) != 1) die("");
-      data->setNData(nObs);
-    }
-    {
-      Uint tObs;
-      if(fread(&tObs, sizeof(Uint),1,f) != 1) die("");
-      data->setNSeen_loc(tObs);
-    }
-    {
-      Uint tSeqs;
-      if(fread(&tSeqs,sizeof(Uint),1,f) != 1) die("");
-      data->setNSeenSeq_loc(tSeqs);
-    }
-    {
-      long tB4;
-      if(fread(&tB4, sizeof(long), 1, f) != 1) die("");
-      nDataGatheredB4Startup = tB4;
-    }
-    {
-      long int currStep;
-      if(fread(&currStep, sizeof(long int), 1, f) != 1) die("");
-      _nGradSteps = currStep;
-    }
-    if(fread(&beta, sizeof(Real), 1, f) != 1) die("");
-    if(fread(&CmaxRet, sizeof(Real), 1, f) != 1) die("");
-
-    for(Uint i = 0; i < nSeqs; ++i) {
-      assert(data->get(i) == nullptr);
-      Sequence* const S = new Sequence();
-      if( S->restart(f, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol()) )
-        _die("Unable to find sequence %u\n", i);
-      data->set(S, i);
-    }
+    if(fdata == NULL)
+      _warn("Learner data restart file %s not found\n", dumpName.c_str());
+    else fclose(fdata);
 
     chdir(currDirectory);
+    return;
   }
+
+  Uint nStoredEps, nStoredObs, nLocalSeenEps, nLocalSeenObs;
+  long nInitialData, doneGradSteps;
+  Uint pass = 1;
+  pass = pass && 1 == fscanf(fstat, "nStoredEps: %lu\n",    & nStoredEps);
+  pass = pass && 1 == fscanf(fstat, "nStoredObs: %lu\n",    & nStoredObs);
+  pass = pass && 1 == fscanf(fstat, "nLocalSeenEps: %lu\n", & nLocalSeenEps);
+  pass = pass && 1 == fscanf(fstat, "nLocalSeenObs: %lu\n", & nLocalSeenObs);
+  pass = pass && 1 == fscanf(fstat, "nInitialData: %ld\n",  & nInitialData);
+  pass = pass && 1 == fscanf(fstat, "nGradSteps: %ld\n",    & doneGradSteps);
+  pass = pass && 1 == fscanf(fstat, "CmaxReFER: %le\n",     & CmaxRet);
+  pass = pass && 1 == fscanf(fstat, "beta: %le\n",          & beta);
+  assert(doneGradSteps >= 0 && pass == 1);
+  fclose(fstat);
+  data->setNSeq(nStoredEps);
+  data->setNData(nStoredObs);
+  data->setNSeen_loc(nLocalSeenObs);
+  data->setNSeenSeq_loc(nLocalSeenEps);
+  nDataGatheredB4Startup = nInitialData;
+  _nGradSteps = doneGradSteps;
+
+  for(Uint i = 0; i < nStoredEps; ++i)
+  {
+    assert(data->get(i) == nullptr);
+    Sequence* const S = new Sequence();
+    if( S->restart(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol()) )
+      _die("Unable to find sequence %u\n", i);
+    data->set(S, i);
+  }
+  fclose(fdata);
+
+  chdir(currDirectory);
 }
 
 void Learner::save()
@@ -308,27 +318,35 @@ void Learner::save()
   const bool bBackup = false; // ;
   data->save(learner_name, currStep, bBackup);
 
-  //if(not bBackup) return;
+  char baseName[512];
+  sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
+  const std::string dumpName(baseName);
+  FILE * fstat = fopen((dumpName + "status_backup.raw").c_str(), "w");
+  FILE * fdata = fopen((dumpName + "data_backup.raw").c_str(), "wb");
 
-  const std::string name = learner_name + "_learner.raw";
-  const std::string backname = learner_name + "_learner_backup.raw";
-  FILE * f = fopen(backname.c_str(), "wb");
+  const long doneGradSteps = _nGradSteps;
+  const Uint nStoredEps = data->readNSeq();
+  const Uint nStoredObs = data->readNData();
+  const Uint nLocalSeenObs = data->readNSeen_loc();
+  const Uint nLocalSeenEps = data->readNSeenSeq_loc();
+  assert(fstat != NULL);
+  fprintf(fstat, "nStoredEps: %lu\n",    nStoredEps);
+  fprintf(fstat, "nStoredObs: %lu\n",    nStoredObs);
+  fprintf(fstat, "nLocalSeenEps: %lu\n", nLocalSeenEps);
+  fprintf(fstat, "nLocalSeenObs: %lu\n", nLocalSeenObs);
+  fprintf(fstat, "nInitialData: %ld\n",  nDataGatheredB4Startup);
+  fprintf(fstat, "nGradSteps: %ld\n",    doneGradSteps);
+  fprintf(fstat, "CmaxReFER: %le\n",     CmaxRet);
+  fprintf(fstat, "beta: %le\n",          beta);
+  fflush(fstat); fclose(fstat);
 
-  const Uint nObs=data->readNData(), tObs=data->readNSeen_loc();
-  const Uint nSeqs=data->readNSeq(), tSeqs=data->readNSeenSeq_loc();
-  fwrite(&nSeqs, sizeof(Uint), 1, f);
-  fwrite(&nObs, sizeof(Uint), 1, f);
-  fwrite(&tObs, sizeof(Uint), 1, f);
-  fwrite(&tSeqs, sizeof(Uint), 1, f);
-  fwrite(&nDataGatheredB4Startup, sizeof(long), 1, f);
-  fwrite(&currStep, sizeof(long int), 1, f);
-  fwrite(&beta, sizeof(Real), 1, f);
-  fwrite(&CmaxRet, sizeof(Real), 1, f);
+  assert(fdata != NULL);
+  for(Uint i = 0; i <nStoredEps; ++i)
+    data->get(i)->save(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol() );
+  fflush(fdata); fclose(fdata);
 
-  for(Uint i = 0; i <nSeqs; ++i)
-    data->get(i)->save(f, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol() );
-
-  Utilities::copyFile(backname, name);
+  Utilities::copyFile(dumpName + "status_backup.raw", dumpName + "status.raw");
+  Utilities::copyFile(dumpName + "data_backup.raw", dumpName + "data.raw");
 }
 
 }

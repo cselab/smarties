@@ -297,6 +297,7 @@ void DistributionInfo::figureOutWorkersPattern()
           MPI_Comm dummy; // no need to free this
           MPI_Comm_split(master_workers_comm, MPI_UNDEFINED, 0, &dummy);
         }
+        environment_app_comm = MPI_COMM_NULL;
       }
       else
       {
@@ -345,6 +346,7 @@ void DistributionInfo::figureOutWorkersPattern()
           die("Cannot have 0 worker ranks with an internally linked app: "
               "increase the number of worker mpi processes.");
       master_workers_comm = MPI_COMM_NULL;
+      environment_app_comm = MPI_COMM_SELF;
       learners_train_comm = world_comm;
       if(nWorkers < nMasters) // then i need to share data
            workerless_masters_comm = MPICommDup(learners_train_comm);
@@ -389,7 +391,7 @@ std::string Settings::printArgComments()
   json j;
   j["learner"] =
     "Chosen learning algorithm. One of: "
-    "'RACER', 'VRACER', 'PPO', 'DPG', 'ACER', 'NAF', 'DQN', 'CMA'.";
+    "'RACER', 'VRACER', 'PPO', 'DPG', 'ACER', 'NAF', 'DQN', 'CMA', 'PYTORCH'.";
   //
   j["explNoise"] =
     "Noise added to policy. For discrete policies it may be the probability of "

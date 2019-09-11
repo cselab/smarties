@@ -89,12 +89,6 @@ class RACER : public Learner_approximator
 
   void Train(const MiniBatch&MB, const Uint wID,const Uint bID) const override;
 
-  Rvec compute(Sequence& S, const Uint samp,
-    const Rvec& outVec, const Policy_t& POL, const Uint thrID) const;
-
-  Rvec offPolCorrUpdate(Sequence& S, const Uint t,
-    const Rvec output, const Policy_t& pol, const Uint thrID) const;
-
   Rvec policyGradient(const Rvec& MU, const Policy_t& POL,
     const Advantage_t& ADV, const Real A_RET, const Uint thrID) const;
 

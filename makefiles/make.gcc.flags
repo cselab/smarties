@@ -37,3 +37,9 @@ CPPFLAGS+= -falign-functions=32 #-DBOOST_UBLAS_NDEBUG
 NOWARNP11= -Wno-cast-function-type -Wno-redundant-decls \
 	-Wno-deprecated-declarations -Wno-cast-function-type \
 	-Wno-shadow -Wno-missing-declarations -Wno-float-equal
+
+ifeq ($(shell uname -s),Darwin)
+PYBINDLD= -undefined dynamic_lookup
+endif
+
+

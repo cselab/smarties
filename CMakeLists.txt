@@ -12,7 +12,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 set(ROOT_FOLDER ${CMAKE_CURRENT_LIST_DIR})
 
 option(COMPILE_SO "Compile shared library" ON)
-option(COMPILE_PY_SO "Compile Python bindings" OFF)
+option(COMPILE_PY_SO "Compile Python bindings" ON)
 
 ################################################################################
 # Pybind11.
@@ -80,7 +80,7 @@ set(COMMON_SOURCES
 
     ${ROOT_FOLDER}/source/ReplayMemory/Sampling.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/Collector.cpp
-    ${ROOT_FOLDER}/source/ReplayMemory/Sequences.cpp
+    ${ROOT_FOLDER}/source/ReplayMemory/Sequence.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/MemoryBuffer.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/DataCoordinator.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/MemoryProcessing.cpp
@@ -125,14 +125,15 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}
 
 # OpenBLAS
 find_package(BLAS REQUIRED)
-#include_directories(${BLAS_INCLUDE_DIRS})
+include_directories(${BLAS_INCLUDE_DIRS})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_OPENBLAS")
 
 # Targets.
 if (COMPILE_SO)
     set(SHARED_LIB "libsmarties.so")
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${ROOT_FOLDER}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${ROOT_FOLDER}/lib)
     add_library(${SHARED_LIB} SHARED ${COMMON_SOURCES} )
-    target_link_libraries(${SHARED_LIB}) # ${BLAS_LIBRARIES})
+    target_link_libraries(${SHARED_LIB} ${BLAS_LIBRARIES})
 endif()
 
 if (COMPILE_PY_SO)
@@ -140,8 +141,8 @@ if (COMPILE_PY_SO)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${ROOT_FOLDER}/lib)
     add_library(${PY_SO} SHARED ${COMMON_SOURCES} )
     target_compile_options(${PY_SO} PRIVATE ${PYBIND11_FLAGS})
-    target_link_libraries(${PY_SO} ${PYTHON_LIBRARIES})
-    target_link_libraries(${PY_SO}) # ${BLAS_LIBRARIES})
+    #target_link_libraries(${PY_SO} ${PYTHON_LIBRARIES})
+    target_link_libraries(${PY_SO} ${BLAS_LIBRARIES})
 endif()
 
 

@@ -50,6 +50,7 @@ void Worker::run(const environment_callback_t & callback)
 
 void Worker::runTraining()
 {
+
   const int learn_rank = MPICommRank(learners_train_comm);
   //////////////////////////////////////////////////////////////////////////////
   ////// FIRST SETUP SIMPLE FUNCTIONS TO DETECT START AND END OF TRAINING //////

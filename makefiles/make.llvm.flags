@@ -18,8 +18,7 @@ CPPFLAGS+= -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic \
 
 NOWARNP11= -Wno-shadow-field-in-constructor -Wno-documentation-unknown-command \
   -Wno-shadow-uncaptured-local -Wno-shadow-field -Wno-range-loop-analysis \
-  -Wno-missing-prototypes -Wno-undefined-reinterpret-cast -Wno-float-equal \
-  -undefined dynamic_lookup
+  -Wno-missing-prototypes -Wno-undefined-reinterpret-cast -Wno-float-equal
 
 ifeq "$(config)" "debug"
 CPPFLAGS+= -g -O0
@@ -36,4 +35,8 @@ endif
 
 ifeq "$(config)" "prod"
 CPPFLAGS+= -DNDEBUG -O3
+endif
+
+ifeq ($(shell uname -s),Darwin)
+PYBINDLD= -Wl,-undefined,dynamic_lookup
 endif

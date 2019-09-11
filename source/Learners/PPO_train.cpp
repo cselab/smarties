@@ -56,18 +56,17 @@ template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::
 Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
-  Sequence& S = MB.getEpisode(bID);
-  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
-  if(thrID==0)  profiler->stop_start("FWD");
+  const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
+  if(thrID==0)  profiler->start("FWD");
 
   const Rvec pVec = actor->forward(bID, t); // network compute
   const Rvec sVal = critc->forward(bID, t); // network compute
 
   if(thrID==0)  profiler->stop_start("CMP");
 
-  const auto POL = prepare_policy(pVec, S.actions[t], S.policies[t]);
+  const auto POL = prepare_policy(pVec, MB.action(bID,t), MB.mu(bID,t) );
   const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
-  const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
+  const bool isOff = isFarPolicyPPO(RHO, CmaxPol);
 
   penalUpdateCount = penalUpdateCount + 1.0;
   if(DKL < DKL_target / 1.5)
@@ -75,16 +74,16 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   if(DKL > 1.5 * DKL_target)
     penalUpdateDelta = penalUpdateDelta + penalCoef; //double
 
-  Real gain = RHO * S.action_adv[t];
+  Real gain = RHO * MB.advantage(bID, t);
   #ifdef PPO_CLIPPED
-    if(S.action_adv[t] > 0 && RHO > 1+CmaxPol) gain = 0;
-    if(S.action_adv[t] < 0 && RHO < 1-CmaxPol) gain = 0;
+    if(MB.advantage(bID, t) > 0 && RHO > 1+CmaxPol) gain = 0;
+    if(MB.advantage(bID, t) < 0 && RHO < 1-CmaxPol) gain = 0;
     updateDKL_target(isOff, RHO);
   #endif
 
   #ifdef PPO_PENALKL //*nonZero(gain)
     const Rvec polG = POL.policy_grad(gain);
-    const Rvec penG = POL.div_kl_grad(S.policies[t], - penalCoef);
+    const Rvec penG = POL.div_kl_grad(MB.mu(bID,t), - penalCoef);
     const Rvec totG = Utilities::weightSum2Grads(polG, penG, 1);
   #else //we still learn the penal coef, for simplicity, but no effect
     const Rvec totG = POL.policy_grad(gain), penG = Rvec(policy_grad.size(), 0);
@@ -96,15 +95,14 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   POL.finalize_grad(totG, grad);
 
   //bookkeeping:
-  const Real verr = S.Q_RET[t] - sVal[0]; // Q_ret actually stores V_gae here
+  const Real verr = MB.Q_RET(bID, t) - sVal[0]; // Q_ret actually stores V_gae here
   #ifdef PPO_learnDKLt
   trainInfo->log(sVal[0],verr,polG,penG, {penalCoef,DKL,RHO,DKL_target}, thrID);
   #else
   trainInfo->log(sVal[0],verr,polG,penG, {penalCoef,DKL,RHO}, thrID);
   #endif
-  S.setMseDklImpw(t, verr*verr, DKL, RHO, 1+CmaxPol, 1-CmaxPol);
+  MB.setMseDklImpw(bID, t, verr*verr, DKL, RHO, 1+CmaxPol, 1-CmaxPol);
 
-  if(thrID==0)  profiler->stop_start("BCK");
   actor->setGradient(totG, bID, t);
   critc->setGradient({ verr * ( isOff? 1 : 0 ) }, bID, t);
 }

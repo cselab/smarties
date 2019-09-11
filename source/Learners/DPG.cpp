@@ -33,14 +33,13 @@ static inline Gaussian_policy prepare_policy(const Rvec & out,
 
 void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
-  Sequence& S = MB.getEpisode(bID);
-  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
+  const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
 
-  if(thrID==0) profiler->stop_start("FWD");
+  if(thrID==0) profiler->start("FWD");
   const Rvec pvec = actor->forward(bID, t); // network compute
   const auto POL = prepare_policy(pvec, &aInfo, MB.action(bID,t), MB.mu(bID,t));
   const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
-  const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
+  const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
   critc->setAddedInputType(ACTION, bID, t);
   const Rvec qval = critc->forward(bID, t); // network compute
@@ -49,17 +48,17 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const Rvec pval = critc->forward(bID, t, -1); //net alloc, with target wegiths
 
   #ifdef DPG_RETRACE_TGT
-    if( S.isTruncated(t+1) ) {
+    if( MB.isTruncated(bID, t+1) ) {
       actor->forward(bID, t+1);
       critc->setAddedInputType(NETWORK, bID, t+1); // retrace : skip tgt weights
       const Rvec v_next = critc->forward(bID, t+1); // value with state+policy
-      updateRetrace(S, t+1, 0, v_next[0], 0);
+      MB.updateRetrace(bID, t+1, 0, v_next[0], 0);
     }
-    const Real dAdv = updateRetrace(S, t, q_curr[0]-v_curr[0], v_curr[0], RHO);
-    const Real target = S.Q_RET[t];
+    const Real target = MB.Q_RET(bID, t), advantage = q_curr[0]-v_curr[0];
+    const Real dQRET = MB.updateRetrace(bID, t, advantage, v_curr[0], RHO);
   #else
     Real target = MB.reward(bID, t);
-    if (not S.isTerminal(t+1) && not isOff) {
+    if (not MB.isTerminal(bID, t+1) && not isOff) {
       actor->forward_tgt(bID, t+1); // policy at next step, with tgt weights
       critc->setAddedInputType(NETWORK, bID, t+1, -1);
       const Rvec v_next = critc->forward_tgt(bID, t+1); //target value s_next
@@ -80,7 +79,7 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   #endif
 
   //if(!thrID) cout << "G "<<print(detPolG) << endl;
-  const Rvec penGrad = POL.div_kl_grad(S.policies[t], -1);
+  const Rvec penGrad = POL.div_kl_grad(MB.mu(bID,t), -1);
   Rvec finalG = Rvec(actor->nOutputs(), 0);
   POL.finalize_grad(Utilities::weightSum2Grads(polGrad, penGrad, beta), finalG);
   actor->setGradient(finalG, bID, t);
@@ -89,10 +88,12 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   critc->setGradient(valueG, bID, t);
 
   //bookkeeping:
-  S.setMseDklImpw(t, std::pow(target-qval[0], 2), DKL, RHO, CmaxRet, CinvRet);
-  trainInfo->log(qval[0], valueG[0], polGrad, penGrad, {beta, RHO}, thrID);
-  //trainInfo->log(q_curr[0],grad_val[0], polG, penG, {beta,dAdv,rho}, thrID);
-  if(thrID==0)  profiler->stop_start("BCK");
+  MB.setMseDklImpw(bID, t, std::pow(target-qval[0],2), DKL,RHO,CmaxRet,CinvRet);
+  #ifdef DPG_RETRACE_TGT
+    trainInfo->log(q_curr[0],grad_val[0], polG, penG, {beta,dQRET,rho}, thrID);
+  #else
+    trainInfo->log(qval[0], valueG[0], polGrad, penGrad, {beta, RHO}, thrID);
+  #endif
 }
 
 void DPG::select(Agent& agent)
@@ -151,7 +152,8 @@ void DPG::select(Agent& agent)
       //within Retrace, we use the Q_RET vector to write the Adv retrace values
       EP.Q_RET.resize(N, 0);
       EP.offPolicImpW.resize(N, 1);
-      for(Uint i=EP.ndata(); i>0; --i) backPropRetrace(EP, i);
+      for(Uint i=EP.ndata(); i>0; --i)
+        EP.propagateRetrace(i, gamma, data->scaledReward(EP, i));
     #endif
 
     OrUhState[agent.ID] = Rvec(nA, 0); //reset temp. corr. noise
@@ -175,6 +177,7 @@ void DPG::setupTasks(TaskQueue& tasks)
     debugL("Initialize Learner");
     initializeLearner();
     algoSubStepID = 0;
+    profiler->start("DATA");
   };
   tasks.add(stepInit);
 
@@ -184,6 +187,7 @@ void DPG::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
     if ( blockGradientUpdates() ) return; // waiting for enough data
 
+    profiler->stop();
     debugL("Sample the replay memory and compute the gradients");
     spawnTrainTasks();
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
@@ -197,6 +201,8 @@ void DPG::setupTasks(TaskQueue& tasks)
     debugL("Compute state/rewards stats from the replay memory");
     finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
     logStats();
+    profiler->start("MPI");
+
     algoSubStepID = 1;
   };
   tasks.add(stepMain);
@@ -207,10 +213,12 @@ void DPG::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 1 ) return;
     if ( networks[0]->ready2ApplyUpdate() == false ) return;
 
+    profiler->stop();
     debugL("Apply SGD update after reduction of gradients");
     applyGradient();
     algoSubStepID = 0; // rinse and repeat
     globalGradCounterUpdate(); // step ++
+    profiler->start("DATA");
   };
   tasks.add(stepComplete);
 }

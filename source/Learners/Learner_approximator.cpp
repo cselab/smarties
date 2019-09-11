@@ -39,21 +39,24 @@ void Learner_approximator::spawnTrainTasks()
   if(settings.bSampleSequences && data->readNSeq() < (long) settings.batchSize)
     die("Parameter minTotObsNum is too low for given problem");
 
-  profiler->stop_start("SAMP");
-
+  profiler->start("SAMP");
   const Uint batchSize=settings.batchSize_local, ESpopSize=settings.ESpopSize;
   const Uint nThr = distrib.nThreads, CS =  batchSize / nThr;
   const MiniBatch MB = data->sampleMinibatch(batchSize, nGradSteps() );
+  profiler->stop();
 
   if(settings.bSampleSequences)
   {
     #pragma omp parallel for collapse(2) schedule(dynamic,1) num_threads(nThr)
     for (Uint wID=0; wID<ESpopSize; ++wID)
     for (Uint bID=0; bID<batchSize; ++bID) {
+      const Uint thrID = omp_get_thread_num();
       for (const auto & net : networks ) net->load(MB, bID, wID);
       Train(MB, wID, bID);
       // backprop, from last net to first for dependencies in gradients:
+      if(thrID==0) profiler->stop_start("BCK");
       for (const auto & net : Utilities::reverse(networks) ) net->backProp(bID);
+      if(thrID==0) profiler->stop();
     }
   }
   else
@@ -61,10 +64,13 @@ void Learner_approximator::spawnTrainTasks()
     #pragma omp parallel for collapse(2) schedule(static,CS) num_threads(nThr)
     for (Uint wID=0; wID<ESpopSize; ++wID)
     for (Uint bID=0; bID<batchSize; ++bID) {
+      const Uint thrID = omp_get_thread_num();
       for (const auto & net : networks ) net->load(MB, bID, wID);
       Train(MB, wID, bID);
       // backprop, from last net to first for dependencies in gradients:
+      if(thrID==0) profiler->stop_start("BCK");
       for (const auto & net : Utilities::reverse(networks) ) net->backProp(bID);
+      if(thrID==0) profiler->stop();
     }
   }
 }
@@ -73,17 +79,19 @@ void Learner_approximator::prepareGradient()
 {
   const Uint currStep = nGradSteps()+1;
 
-  profiler->stop_start("ADDW");
+  profiler->start("ADDW");
   for(const auto & net : networks) {
     net->prepareUpdate();
     net->updateGradStats(learner_name, currStep-1);
   }
+  profiler->stop();
 }
 
 void Learner_approximator::applyGradient()
 {
-  profiler->stop_start("GRAD");
+  profiler->start("GRAD");
   for(const auto & net : networks) net->applyUpdate();
+  profiler->stop();
 }
 
 void Learner_approximator::getMetrics(std::ostringstream& buf) const

@@ -35,8 +35,7 @@ static inline Gaussian_policy prepare_policy(const Rvec & out,
 
 void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
-  Sequence& S = MB.getEpisode(bID);
-  const Sint ndata = S.ndata(), thrID = omp_get_thread_num();
+  const Sint ndata = MB.nDataSteps(bID), thrID = omp_get_thread_num();
 
   std::uniform_int_distribution<Sint> dStart(0, ndata-1);
   const Sint tst_samp = dStart(generators[thrID]);
@@ -51,9 +50,10 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   policies.reserve(nsteps);
   std::vector<Rvec> advantages(nsteps, Rvec(2+nAexpectation, 0));
 
-  if(thrID==0) profiler->stop_start("FWD");
+  if(thrID==0) profiler->start("FWD");
 
-  for(Sint step=tstart, i=0; step < tend; ++step, ++i) {
+  for(Sint step=tstart, i=0; step < tend; ++step, ++i)
+  {
     policies.push_back( prepare_policy(actor->forward(bID, step), aInfo,
                                        MB.action(bID,step), MB.mu(bID,step)) );
     assert((Sint) policies.size() == i+1);
@@ -76,8 +76,8 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
     }
   }
 
-  Real Q_RET = data->scaledReward(S, tend);
-  if ( ! S.isTerminal(tend) ) Q_RET += gamma * value->forward(bID, tend)[0];
+  Real Q_RET = MB.reward(bID, tend);
+  if (not MB.isTerminal(bID,tend)) Q_RET += gamma * value->forward(bID,tend)[0];
   Real Q_OPC = Q_RET;
 
   if(thrID==0)  profiler->stop_start("POL");
@@ -92,7 +92,7 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
     const Real RHO = policies[i].sampImpWeight, DKL = policies[i].sampKLdiv;
     const Real W = std::min((Real)1, RHO), C = std::pow(W, acerTrickPow);
-    const Real R = data->scaledReward(S, step), A_OPC = Q_OPC - Vstates[i];
+    const Real R = MB.reward(bID, step), A_OPC = Q_OPC - Vstates[i];
 
     const Real polProbBehavior = policies[i].evalBehavior(policy_samples[i],
                                                           MB.mu(bID, step));
@@ -118,11 +118,9 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
     Q_OPC = R + gamma*(     (Q_OPC - QTheta) + Vstates[i]); // as paper, but bad
     //Q_OPC = R + gamma*(     (Q_OPC - QTheta) + Vstates[i]); // as ret, better
     const Rvec penalBehavior = policies[i].div_kl_grad(MB.mu(bID, step), -1);
-    S.setMseDklImpw(step, Q_err*Q_err, DKL, RHO, CmaxRet, CinvRet);
+    MB.setMseDklImpw(bID, step, Q_err*Q_err, DKL, RHO, CmaxRet, CinvRet);
     trainInfo->log(QTheta, Q_err, pGrad, penalBehavior, {RHO}, thrID);
   }
-
-  if(thrID==0)  profiler->stop_start("BCK");
 }
 
 void ACER::select(Agent& agent)
@@ -166,6 +164,7 @@ void ACER::setupTasks(TaskQueue& tasks)
     debugL("Initialize Learner");
     initializeLearner();
     algoSubStepID = 0;
+    profiler->start("DATA");
   };
   tasks.add(stepInit);
 
@@ -175,6 +174,7 @@ void ACER::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
     if ( blockGradientUpdates() ) return; // waiting for enough data
 
+    profiler->stop();
     debugL("Sample the replay memory and compute the gradients");
     spawnTrainTasks();
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
@@ -185,6 +185,7 @@ void ACER::setupTasks(TaskQueue& tasks)
     finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
     logStats();
     algoSubStepID = 1;
+    profiler->start("MPI");
   };
   tasks.add(stepMain);
 
@@ -194,10 +195,12 @@ void ACER::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 1 ) return;
     if ( networks[0]->ready2ApplyUpdate() == false ) return;
 
+    profiler->stop();
     debugL("Apply SGD update after reduction of gradients");
     applyGradient();
     algoSubStepID = 0; // rinse and repeat
     globalGradCounterUpdate(); // step ++
+    profiler->start("DATA");
   };
   tasks.add(stepComplete);
 }

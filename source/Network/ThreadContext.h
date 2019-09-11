@@ -9,7 +9,7 @@
 #ifndef smarties_ThreadContext_h
 #define smarties_ThreadContext_h
 
-#include "../ReplayMemory/Sequences.h"
+#include "../ReplayMemory/MiniBatch.h"
 #include "Network.h"
 #include "../Core/Agent.h"
 
@@ -72,7 +72,7 @@ struct ThreadContext
     if(bHaveTargetW) weightIndex.back() = targetWeightIndex;
 
     for(Uint i=0; i < allSamplCnt; ++i)
-      NET->allocTimeSeries(activations[i], batch->getNumSteps(batchIndex));
+      NET->allocTimeSeries(activations[i], batch->sampledNumSteps(batchIndex));
   }
 
   void overwrite(const Uint t, const Sint sample) const
@@ -190,7 +190,7 @@ struct AgentContext
     assert(agent.ID == agentID);
     lastGradTstep = -1;
     weightIndex = weightID;
-    NET->allocTimeSeries(activations, batch->getNumSteps(0));
+    NET->allocTimeSeries(activations, batch->sampledNumSteps(0));
   }
 
   void overwrite(const Uint t, const Sint sample = -1) const

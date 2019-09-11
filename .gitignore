@@ -62,4 +62,6 @@ pp
 terminals.dat
 _deprecated*
 
+/source/Learners/Pytorch/__pycache__/
+
 *.swp

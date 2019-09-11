@@ -287,7 +287,7 @@ void Approximator::save(const std::string base, const bool bBackup)
     net->save(W, fname, bBack);
   };
   if(opt == nullptr) die("Attempted to save uninitialized net!");
-  opt->save(F, base + name, bBackup);
+  opt->save(F, base+"_"+name, bBackup);
 }
 void Approximator::restart(const std::string base)
 {
@@ -295,7 +295,7 @@ void Approximator::restart(const std::string base)
     return net->restart(W, fname);
   };
   if(opt == nullptr) die("Attempted to restart uninitialized net!");
-  opt->restart(F, base+name);
+  opt->restart(F, base+"_"+name);
 }
 
 void Approximator::gatherParameters(ParameterBlob& params) const

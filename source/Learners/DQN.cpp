@@ -102,6 +102,7 @@ void DQN::setupTasks(TaskQueue& tasks)
     debugL("Initialize Learner");
     initializeLearner();
     algoSubStepID = 0;
+    profiler->start("DATA");
   };
   tasks.add(stepInit);
 
@@ -111,6 +112,7 @@ void DQN::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
     if ( blockGradientUpdates() ) return; // waiting for enough data
 
+    profiler->stop();
     debugL("Sample the replay memory and compute the gradients");
     spawnTrainTasks();
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
@@ -120,6 +122,8 @@ void DQN::setupTasks(TaskQueue& tasks)
     debugL("Compute state/rewards stats from the replay memory");
     finalizeMemoryProcessing(); //remove old eps, compute state/rew mean/stdev
     logStats();
+    profiler->start("MPI");
+
     algoSubStepID = 1;
   };
   tasks.add(stepMain);
@@ -130,10 +134,12 @@ void DQN::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 1 ) return;
     if ( networks[0]->ready2ApplyUpdate() == false ) return;
 
+    profiler->stop();
     debugL("Apply SGD update after reduction of gradients");
     applyGradient();
     algoSubStepID = 0; // rinse and repeat
     globalGradCounterUpdate(); // step ++
+    profiler->start("DATA");
   };
   tasks.add(stepComplete);
 }
@@ -155,17 +161,16 @@ static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
 
 void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
-  Sequence& S = MB.getEpisode(bID);
-  const Uint t = MB.getTstep(bID), thrID = omp_get_thread_num();
+  const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
 
-  if(thrID==0) profiler->stop_start("FWD");
+  if(thrID==0) profiler->start("FWD");
 
   const Rvec Qs = networks[0]->forward(bID, t);
   const Uint actt = aInfo.actionMessage2label(MB.action(bID,t));
   assert(actt+1 < Qs.size()); // enough to store advantages and value
 
   Real Vsnew = MB.reward(bID, t);
-  if (not S.isTerminal(t+1)) {
+  if (not MB.isTerminal(bID, t+1)) {
     // find best action for sNew with moving wghts, evaluate it with tgt wgths:
     // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
     Rvec Qhats         = networks[0]->forward    (bID, t+1);
@@ -181,20 +186,20 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   #ifdef DQN_USE_POLICY
     Discrete_policy POL({0}, &aInfo, Qs);
-    POL.prepare(S.actions[t], S.policies[t]);
+    POL.prepare(MB.action(bID,t), MB.mu(bID,t));
     const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
-    const bool isOff = S.isFarPolicy(t, RHO, CmaxRet, CinvRet);
+    const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
     if(CmaxRet>1 && beta<1) { // then refer
       if(isOff) gradient = Rvec(nA+1, 0); // grad clipping as if pol gradient
-      const Rvec penGrad = POL.finalize_grad(POL.div_kl_grad(S.policies[t],-1));
+      const Rvec penGrad = POL.finalize_grad(POL.div_kl_grad(MB.mu(bID,t), -1));
       for(Uint i=0; i<nA; ++i)
         gradient[i] = beta * gradient[i] + (1-beta) * penGrad[i];
     }
-    S.setMseDklImpw(t, ERR*ERR, DKL, RHO, CmaxRet, CinvRet);
+    MB.setMseDklImpw(bID, t, ERR*ERR, DKL, RHO, CmaxRet, CinvRet);
     trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
   #else
-    S.setMseDklImpw(t, ERR*ERR, 0, 1, CmaxRet, CinvRet);
+    MB.setMseDklImpw(bID, t, ERR*ERR, 0, 1, CmaxRet, CinvRet);
     trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
   #endif
 

@@ -10,9 +10,9 @@
 #include "Profiler.h"
 #include <vector>
 
-#include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <cassert>
 
 namespace smarties
 {
@@ -91,20 +91,24 @@ std::string Profiler::__printStatAndReset(Unit unit, std::string prefix)
   }
   longest = std::max(longest, (unsigned)6);
 
-  out << prefix << "Total time: " << std::fixed << std::setprecision(1) << total*factor << " " << suffix << "\n";
-  out << prefix << std::left << "[" << std::setw(longest) << "Kernel" << "]    " << std::setw(20)
-  << "Time, "+suffix << std::setw(20) << "Executions" << std::setw(20) << "Percentage\n";
-
-  std::vector<std::pair<std::string, Timings>> v(timings.begin(), timings.end());
-  std::sort(v.begin(), v.end(), [] (auto& a, auto& b) { return a.second.total > b.second.total; });
+  out<<prefix<<"Total time: "<<std::fixed<<std::setprecision(1)
+                             <<total*factor<<" "<<suffix<<"\n";
+  out<<prefix<<std::left<<"["<<std::setw(longest)<<"Kernel"<<"]    "<<std::setw(20)
+     <<"Time, "+suffix<<std::setw(20)<<"Executions"<<std::setw(20)<<"Percentage";
+  out<<"\n";
+  std::vector<std::pair<std::string,Timings>> v(timings.begin(),timings.end());
+  std::sort(v.begin(),v.end(),
+    [] (auto& a, auto& b) { return a.second.total > b.second.total; });
 
   for (auto &tm : v)
   {
     if(tm.second.total <= 1e-2 * total) continue;
-    out << prefix << "[" << std::setw(longest) << tm.first << "]    "
-    << std::fixed << std::setprecision(3) << std::setw(20) << tm.second.total * factor / tm.second.iterations
-    <<  "x" << std::setw(19) << tm.second.iterations
-    << std::fixed << std::setprecision(1) << std::setw(20) << tm.second.total / total * 100.0 << "\n";
+    out<<prefix<<"["<<std::setw(longest)<<tm.first<<"]    "
+        <<std::fixed<<std::setprecision(3)<<std::setw(20)
+                                 <<tm.second.total*factor / tm.second.iterations
+               <<"x"<<std::setw(19)<<tm.second.iterations
+        <<std::fixed<<std::setprecision(1)<<std::setw(20)
+                                 <<tm.second.total/total * 100.0 << "\n";
   }
 
   timings.clear();
@@ -114,33 +118,29 @@ std::string Profiler::__printStatAndReset(Unit unit, std::string prefix)
 
 void Profiler::start(std::string name)
 {
-  if (ongoing.length() == 0)
-  {
-    ongoing = name;
-    auto& tm = timings[name];
-    tm.started = true;
-    tm.timer.start();
-  }
+  assert (ongoing.length() == 0);
+  ongoing = name;
+  auto& tm = timings[name];
+  tm.started = true;
+  tm.timer.start();
 }
 
 void Profiler::stop()
 {
-    if (timings.find(ongoing) != timings.end())
-    {
-      Timings &tm = timings[ongoing];
-      if (tm.started)
-      {
-        tm.started = false;
-        tm.total += tm.timer.elapsedAndReset();
-        tm.iterations++;
-      }
-    }
-    ongoing = "";
+  assert(timings.find(ongoing) != timings.end());
+  Timings &tm = timings[ongoing];
+  if (tm.started)
+  {
+    tm.started = false;
+    tm.total += tm.timer.elapsedAndReset();
+    tm.iterations++;
+  }
+  ongoing = "";
 }
 
 void Profiler::stop_start(std::string name)
 {
-  stop();
+  if(ongoing not_eq "") stop();
   start(name);
 }
 

@@ -6,7 +6,7 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#include "Sequences.h"
+#include "Sequence.h"
 #include <cstring>
 #include <cmath>
 

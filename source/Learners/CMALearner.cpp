@@ -110,7 +110,7 @@ template<typename Action_t> void CMALearner<Action_t>::select(Agent& agent)
 
 template<typename Action_t> void CMALearner<Action_t>::prepareCMALoss()
 {
-  profiler->stop_start("LOSS");
+  profiler->start("LOSS");
   #pragma omp parallel for schedule(static)
   for (Uint w=0; w<ESpopSize; ++w) {
     for (Uint b=0; b<nOwnEnvs; ++b) networks[0]->ESloss(w) -= R[b][w];
@@ -123,6 +123,7 @@ template<typename Action_t> void CMALearner<Action_t>::prepareCMALoss()
   debugL("shift counters of epochs over the stored data");
   profiler->stop_start("PRE");
   data_proc->updateRewardsStats(0.001, 0.001);
+  profiler->stop();
 }
 
 template<typename Action_t>
@@ -132,6 +133,7 @@ void CMALearner<Action_t>::setupTasks(TaskQueue& tasks)
 
   // ALGORITHM DESCRIPTION
   algoSubStepID = 0; // no need to initialiaze
+  profiler->start("DATA");
 
   auto stepMain = [&]()
   {
@@ -139,10 +141,12 @@ void CMALearner<Action_t>::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 0 ) return; // some other op is in progress
     if ( blockGradientUpdates() ) return; // waiting for enough data
 
+    profiler->stop();
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
     prepareCMALoss();
     logStats();
     algoSubStepID = 1;
+    profiler->start("MPI");
   };
   tasks.add(stepMain);
 
@@ -152,11 +156,13 @@ void CMALearner<Action_t>::setupTasks(TaskQueue& tasks)
     if ( algoSubStepID not_eq 1 ) return;
     if ( networks[0]->ready2ApplyUpdate() == false ) return;
 
+    profiler->stop();
     debugL("Apply SGD update after reduction of gradients");
     applyGradient();
     data->clearAll();
     algoSubStepID = 0; // rinse and repeat
     globalGradCounterUpdate(); // step ++
+    profiler->start("DATA");
   };
   tasks.add(stepComplete);
 }

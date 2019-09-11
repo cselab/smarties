@@ -97,7 +97,7 @@ void Engine::init()
 
 void Engine::run(const std::function<void(Communicator*const)> & callback)
 {
-  distrib->forkableApplication = true;
+  assert(distrib->workerProcessesPerEnv == 1);
 
   const environment_callback_t fullcallback = [&](
     Communicator*const sc, const MPI_Comm mc, int argc, char**argv) {
@@ -110,7 +110,7 @@ void Engine::run(const std::function<void(Communicator*const)> & callback)
 void Engine::run(const std::function<void(Communicator*const,
                                           int, char **      )> & callback)
 {
-  distrib->forkableApplication = true;
+  assert(distrib->workerProcessesPerEnv == 1);
 
   const environment_callback_t fullcallback = [&](
     Communicator*const sc, const MPI_Comm mc, int argc, char**argv) {
@@ -135,6 +135,7 @@ void Engine::run(const std::function<void(Communicator*const,
                                           MPI_Comm,
                                           int, char **      )> & callback)
 {
+  distrib->forkableApplication = distrib->workerProcessesPerEnv == 1;
   init();
   if(distrib->bIsMaster)
   {
