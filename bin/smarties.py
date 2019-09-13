@@ -48,7 +48,6 @@ def copySettingsFiles(settings, absRunPath):
     else : dest = absRunPath + '/settings_%02d.json' % i
     shutil.copy(sett, dest)
 
-
 def applicationSetup(parsed, absRunPath):
   # will run application contained in the OpenAI gym library:
   if parsed.gymApp:
@@ -182,6 +181,7 @@ def setLaunchCommand(parsed):
         % (nProcesses, parsed.nTaskPerNode, parsed.execname, parsed.args)
 
   if isEuler() and parsed.interactive is False:
+    assert rundir is not None, "--runname option is required on Euler and Daint"
     if nThreads == 18:
       map_by = "--map-by ppr:2:node"
     elif nThreads == 36:
@@ -194,6 +194,7 @@ def setLaunchCommand(parsed):
              nProcesses, map_by, parsed.execname, parsed.args)
 
   elif isDaint() and parsed.interactive is False:
+    assert rundir is not None, "--runname option is required on Euler and Daint"
     sbatch = "#!/bin/bash -l \n" \
              "#SBATCH --account=s929 --time=%s:00:00 --job-name=%s \n" \
              "#SBATCH --output=%s_out_%%j.txt --error=%s_err_%%j.txt \n" \
@@ -221,36 +222,40 @@ if __name__ == '__main__':
       description = "Smarties launcher.")
 
   parser.add_argument('app', default='./', nargs='?',
-      help="Specifier of the task to train on. This can be:   \n" \
-           "    1) path to a directory containing the application executable. \n" \
-           "    2) name of a directory within SMARTIES_ROOT/apps/. \n" \
-           "    3) an environment of OpenAI gym if the --gym option is used. \n" \
-           "    4) an atari game (NoFrameskip-v4 will be added internally) \n" \
-           "       if the --atari option is used. " \
-           "    5) A Deepmind control suite env and task such as \n" \
-           "       \"acrobot swingup\"")
+      help='Specifier of the task to train on. This can be: ' \
+           '    1) path to a directory containing the application executable. ' \
+           '    2) name of a directory within SMARTIES_ROOT/apps/. ' \
+           '    3) an environment of OpenAI gym if the --gym option is used. ' \
+           '    4) an atari game (NoFrameskip-v4 will be added internally) ' \
+           '       if the --atari option is used. ' \
+           '    5) a Deepmind control suite env and task such as ' \
+           '       \"acrobot swingup\", if the --dmc option is used. ' \
+           '    The default value is \'./\' and smarties will look for a binary '
+           '    or Python executable in the current directory.')
 
   parser.add_argument('settings', default=['VRACER.json'], nargs='*',
-      help="(optional) path or name of the settings file specifying RL solver\n" \
+      help="(optional) path or name of the settings file specifying RL solver " \
            "and its hyper-parameters. The default setting file is set to VRACER.json")
 
-  parser.add_argument('--runname', default='./',
-      help="Name of the directory in which the learning process will be executed.")
+  parser.add_argument('--runname', default=None,
+      help="Name of the directory in which the learning process will be executed. " \
+           "If unset, execution will take place in the current directory.")
 
   parser.add_argument('--nThreads', type=int, default=nThreads,
-      help="(optional) Number of threads used by the learning processes.")
-  parser.add_argument('--nProcesses', type=int, default=0,
+      help="(optional) Number of threads used by the learning processes. " \
+           "The default value is the number of available CPU cores, here %d." \
+           % nThreads)
+  parser.add_argument('--nProcesses', type=int, default=0, # 0 tells me no expressed preference
       help="(optional) Number of processes available to run the training.")
-  parser.add_argument('--nLearners', type=int, default=0,
-      help="(optional) Number of processes dedicated to update the networks.")
-  parser.add_argument('--nEnvironments', type=int, default=0,
-      help="(optional) Number of concurrent environment simulations.")
-  parser.add_argument('--mpiProcsPerEnv', type=int, default=0,
-    help="(optional) MPI processes required by env simulation.\n" \
-         "This value can also be specified in application's setup.sh script\n" \
-         "by setting MPI_RANKS_PER_ENV variable.\n" \
-         "If unset, smarties assumes that application can be forked into\n" \
-         "its own process and communication with smarties occurs via sockets.")
+  parser.add_argument('--nLearners', type=int, default=0, # 0 tells me no expressed preference
+      help="(optional) Number of processes dedicated to update the networks. By default 1.")
+  parser.add_argument('--nEnvironments', type=int, default=0, # 0 tells me no expressed preference
+      help="(optional) Number of concurrent environment simulations. By default 1.")
+  parser.add_argument('--mpiProcsPerEnv', type=int, default=0, # 0 tells me no expressed preference
+    help="(optional) MPI processes required per env simulation. This value can also " \
+         "be specified in app's setup.sh script by setting the MPI_RANKS_PER_ENV " \
+         "shell variable. If unset or 0, smarties performs communication via " \
+         "sockets and avoids creating multiple MPI processes.")
 
   parser.add_argument('--netsOnlyOnLearners', dest='netsOnlyLearners', action='store_true',
     help="(optional) Forces network approximator to live only inside learning " \
@@ -265,12 +270,12 @@ if __name__ == '__main__':
   parser.set_defaults(printAppStdout=False)
 
   parser.add_argument('--restart', default=None,
-      help="Path to existing directory which contains smarties output files\n"
+      help="Path to existing directory which contains smarties output files "
            "needed to restart already trained agents.")
   parser.add_argument('--nTrainSteps', type=int, default=10000000,
       help="(optional) Total number of time steps before end of learning.")
   parser.add_argument('--nEvalSeqs', type=int, default=0,
-      help="(optional) Number of environment episodes to evaluate trained policy.\n" \
+      help="(optional) Number of environment episodes to evaluate trained policy. " \
            "This option automatically disables training.")
 
   parser.add_argument('--gym', dest='gymApp', action='store_true',
@@ -279,7 +284,7 @@ if __name__ == '__main__':
   parser.add_argument('--atari', dest='atariApp', action='store_true',
     help="(optional) Set if application is part of OpenAI gym's atari suite.")
   parser.set_defaults(atariApp=False)
-  parser.add_argument('--deepmind', dest='dmcApp', action='store_true',
+  parser.add_argument('--dmc', dest='dmcApp', action='store_true',
     help="(optional) Set if application is part of DeepMind control suite.")
   parser.set_defaults(dmcApp=False)
 
@@ -301,7 +306,10 @@ if __name__ == '__main__':
 
   parsed = parser.parse_args()
 
-  relRunPath = parsed.runprefix + '/' + parsed.runname
+  if parsed.runname is not None:
+    relRunPath = parsed.runprefix + '/' + parsed.runname
+  else:
+    relRunPath = './'
   # rundir overwriting is allowed (exist_ok could be parsed.isTraining==False):
   os.makedirs(relRunPath, exist_ok=True)
 
