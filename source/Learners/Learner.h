@@ -31,7 +31,6 @@ protected:
   DistributionInfo & distrib;
   Settings settings;
   MDPdescriptor & MDP;
-  ParameterBlob params;
 
 public:
   const MPI_Comm learnersComm = distrib.learners_train_comm;
@@ -60,6 +59,10 @@ public:
 
 protected:
   long nDataGatheredB4Startup = std::numeric_limits<long>::max();
+  std::atomic<long> _nGradSteps{0};
+
+  ParameterBlob params =
+                    ParameterBlob(distrib, nDataGatheredB4Startup, _nGradSteps);
   int algoSubStepID = -1;
 
   Real alpha = 0.5; // weight between critic and policy
@@ -67,8 +70,6 @@ protected:
   Real CmaxRet = 1 + CmaxPol;
   Real CinvRet = 1 / CmaxRet;
   bool computeQretrace = false;
-
-  std::atomic<long> _nGradSteps{0};
 
   std::vector<std::mt19937>& generators = distrib.generators;
 

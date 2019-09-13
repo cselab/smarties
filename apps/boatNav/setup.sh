@@ -1,6 +1,6 @@
-make -C ../apps/boatNav clean
-make -C ../apps/boatNav
+make clean
+make
 
-cp ../apps/boatNav/boatNav   ${RUNDIR}/exec
-cp -r ../apps/boatNav ${RUNDIR}/srcDir
+cp boatNav ${RUNDIR}/exec
+cp -r ../boatNav ${RUNDIR}/srcDir
 

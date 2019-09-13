@@ -87,8 +87,6 @@ int main(int argc, char**argv)
 {
   smarties::Engine e(argc, argv);
   if( e.parse() ) return 1;
-  //e.setRedirectAppScreenOutput(false);
-  //e.setAreLearnersOnWorkers(false);
   e.run( app_main );
   return 0;
 }

@@ -1,4 +1,3 @@
-export INTERNALAPP=false
+# no compile here because Makefile takes arguments
 
-cp ../apps/glider/glider       ${BASEPATH}${RUNFOLDER}/
-cp ../apps/glider/launchSim.sh ${BASEPATH}${RUNFOLDER}/
+cp glider       ${RUNDIR}/exec

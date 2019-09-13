@@ -38,8 +38,8 @@ void Engine::setNmasters(const Uint nMasters) {
   distrib->nMasters = nMasters;
 }
 
-void Engine::setNworkers(const Uint nWorkers) {
-  distrib->nWorkers = nWorkers;
+void Engine::setNenvironments(const Uint nEnvironments) {
+  distrib->nEnvironments = nEnvironments;
 }
 
 void Engine::setNworkersPerEnvironment(const Uint workerProcessesPerEnv) {

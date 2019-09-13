@@ -14,7 +14,7 @@
 
 namespace pybind11
 {
-class object;
+struct object;
 }
 
 namespace smarties

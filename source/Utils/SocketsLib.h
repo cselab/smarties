@@ -28,7 +28,6 @@ struct SOCKET_REQ
   unsigned size;
   unsigned todo;
   SOCKET_MSG_TYPE type;
-  int completed;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +84,8 @@ inline int SOCKET_Irecv(void* const buffer,
 ) {
   request.client = socketid; request.buffer = buffer;
   request.size = size; request.todo = size; request.type = SOCKET_RECV;
-  return SOCKET_Test(request.completed, request);
+  //return SOCKET_Test(request.completed, request);
+  return 0;
 }
 
 inline int SOCKET_Isend(void* const buffer,
@@ -95,7 +95,8 @@ inline int SOCKET_Isend(void* const buffer,
 ) {
   request.client = socketid; request.buffer = buffer;
   request.size = size; request.todo = size; request.type = SOCKET_SEND;
-  return SOCKET_Test(request.completed, request);
+  //return SOCKET_Test(request.completed, request);
+  return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

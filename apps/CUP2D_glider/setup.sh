@@ -17,14 +17,12 @@ cat <<EOF >${RUNDIR}/runArguments00.sh
 EOF
 
 #copy restart files:
-RESTARTDIR=${SMARTIES_ROOT}/apps/CUP2D_cylFollow/glider_timeopt_rho2_noise005
-cp ${RESTARTDIR}/agent* ${RUNDIR}/
+cp glider_timeopt_rho2_noise005/agent* ${RUNDIR}/
 
-# write file for launch_base.sh to read app-required settings:
-cat <<EOF >${RUNDIR}/appSettings.sh
-SETTINGS+=" --appSettings runArguments00.sh"
-SETTINGS+=" --nStepPappSett 0 "
-SETTINGS+=" --restart . "
-SETTINGS+=" --bTrain 0 "
-EOF
-chmod 755 ${RUNDIR}/appSettings.sh
+# command line args to find app-required settings, each to be used for fixed
+# number of steps so as to increase sim fidelity as training progresses
+export EXTRA_LINE_ARGS=" --nStepPappSett 0 --restart . --bTrain 0 \
+--appSettings runArguments00.sh "
+
+# heavy application, benefits from dedicated processes, here just eval:
+export MPI_RANKS_PER_ENV=0

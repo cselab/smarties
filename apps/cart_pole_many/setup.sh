@@ -1,9 +1,6 @@
-export INTERNALAPP=false
+make
 
-if [[ "${SKIPMAKE}" != "true" ]] ; then
-make -C ${SMARTIES_ROOT}/apps/cart_pole_many
-fi
+cp cart-pole ${RUNDIR}/exec
 
-cp ${SMARTIES_ROOT}/apps/cart_pole_many/cart-pole ${RUNDIR}/exec
 
 

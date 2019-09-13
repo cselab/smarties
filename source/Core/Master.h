@@ -49,8 +49,9 @@ public:
   }
 
   int TestComm(SOCKET_REQ& request) const {
-    SOCKET_Test(request.completed, request);
-    return request.completed;
+    int completed = 0;
+    SOCKET_Test(completed, request);
+    return completed;
   }
   void WaitComm(SOCKET_REQ& request) const {
     SOCKET_Wait(request);

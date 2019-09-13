@@ -28,23 +28,23 @@ Launcher::Launcher(Worker* const W, DistributionInfo& D) :
 bool Launcher::forkApplication(const environment_callback_t & callback)
 {
   //const Uint nThreads = distrib.nThreads;
-  const Uint nOwnWorkers = distrib.nOwnedEnvironments;
-  const Uint totNumWorkers = distrib.nWorkers;
+  const Uint nOwnEnvs = distrib.nOwnedEnvironments;
+  const Uint totNumEnvs = distrib.nEnvironments;
   const Uint totNumProcess = MPICommSize(distrib.world_comm);
 
   bool isChild = false;
   // TODO: reinstate the omp thread stuff for mpi implementations that do
   // process binding by default, avoiding pybind11 breaking.
   //#pragma omp parallel num_threads(nThreads)
-  for(int i = 0; i < (int) nOwnWorkers; ++i)
+  for(int i = 0; i < (int) nOwnEnvs; ++i)
   {
     //const int thrID = omp_get_thread_num(), thrN = omp_get_num_threads();
     const int thrID = 0, thrN = 1;
     const int tgtCPU =  ( ( (-1-i) % thrN ) + thrN ) % thrN;
-    const int workloadID = i + totNumWorkers * totNumProcess;
+    const int workloadID = i + totNumEnvs * totNumProcess;
     //assert(nThreads == (Uint) omp_get_num_threads());
-    if( thrID==tgtCPU )
-      #pragma omp critical
+    if( thrID==tgtCPU and isChild == false)
+      //#pragma omp critical
       {
         const int success = fork();
         if ( success == -1 ) die("Failed to fork.");
@@ -62,7 +62,7 @@ bool Launcher::forkApplication(const environment_callback_t & callback)
 
   if(not isChild) {
     //warn("entering SOCKET_serverConnect");
-    SOCKET_serverConnect(nOwnWorkers, SOCK.clients);
+    SOCKET_serverConnect(nOwnEnvs, SOCK.clients);
     //warn("exiting SOCKET_serverConnect");
   }
   return isChild;
@@ -98,9 +98,9 @@ void Launcher::launch(const environment_callback_t & callback,
     for(size_t i=0; i<argsFiles.size(); ++i)
       if(globalTstepCounter >= argFilesStepsLimits[i]) settInd = i;
 
-    assert(argFilesStepsLimits.size() > settInd+1 && distrib.nWorkers > 0);
+    assert(argFilesStepsLimits.size() > settInd+1 && distrib.nEnvironments > 0);
     Uint numTstepSett = argFilesStepsLimits[settInd+1] - globalTstepCounter;
-    numTstepSett = numTstepSett * appSize / distrib.nWorkers;
+    numTstepSett = numTstepSett * appSize / distrib.nEnvironments;
     std::vector<char*> args = readRunArgLst(argsFiles[settInd]);
 
     // process stdout file descriptor, so that we can revert:

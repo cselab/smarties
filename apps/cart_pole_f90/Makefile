@@ -30,7 +30,7 @@ main-build: pre-build
 	@$(MAKE) --no-print-directory cart_pole
 
 
-cart_pole: main.o app_main.o cart_pole.o smarties.o
+cart-pole: main.o app_main.o cart_pole.o smarties.o
 	$(CXX) $(extra) -o $@ $^ ${LIBS}
 
 app_main.o: cart_pole.o smarties.o
@@ -45,4 +45,4 @@ app_main.o: cart_pole.o smarties.o
 	$(CXX) $(extra) $(CPPFLAGS) -MD -c $<
 
 clean:
-	rm -f *.o *.s *.d *.mod smarties.f90 cart_pole
+	rm -f *.o *.s *.d *.mod smarties.f90 cart-pole

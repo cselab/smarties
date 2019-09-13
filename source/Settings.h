@@ -45,7 +45,6 @@ struct DistributionInfo
   bool bAsyncMPI;
   mutable std::mutex mpiMutex;
 
-  Uint nWorker_processes;
   Sint thisWorkerGroupID = -1;
   Uint nAgents;
 
@@ -65,6 +64,7 @@ struct DistributionInfo
   Uint nThreads = 1;
   Uint nMasters = 1;
   Uint nWorkers = 1;
+  Uint nEnvironments = 1;
   Uint workerProcessesPerEnv = 1;
   Uint randSeed = 0;
   Uint totNumSteps = 10000000; // total number of env time steps
@@ -76,7 +76,6 @@ struct DistributionInfo
 
   bool bTrain = true;
   bool logAllSamples = true;
-  bool runInternalApp = false;
   bool learnersOnWorkers = true;
   bool forkableApplication = false;
   bool redirectAppStdoutToFile = true;

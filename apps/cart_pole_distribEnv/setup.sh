@@ -1,8 +1,4 @@
-export INTERNALAPP=true
+make
 
-if [[ "${SKIPMAKE}" != "true" ]] ; then
-make -C ${SMARTIES_ROOT}/apps/cart_pole_distribEnv
-fi
-
-cp ${SMARTIES_ROOT}/apps/cart_pole_distribEnv/cart-pole ${RUNDIR}/exec
-
+cp cart-pole ${RUNDIR}/exec
+export MPI_RANKS_PER_ENV=2

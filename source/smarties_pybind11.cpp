@@ -40,9 +40,9 @@ PYBIND11_MODULE(smarties, m)
          & smarties::Engine::setNmasters, py::arg("nMasters"),
          "Sets the number of master processes.")
 
-    .def("setNworkers",
-         & smarties::Engine::setNworkers, py::arg("nWorkers"),
-         "Sets the number of worker processes.")
+    .def("setNenvironments",
+         & smarties::Engine::setNenvironments, py::arg("nEnvironments"),
+         "Sets the number of environment simulations.")
 
     .def("setNworkersPerEnvironment",
          & smarties::Engine::setNworkersPerEnvironment,

@@ -1,8 +1,6 @@
-export INTERNALAPP=false
-make -C ../apps/CMA/ clean
-make -C ../apps/CMA/
+make clean
+make
 
-cp ../apps/CMA/engine_cmaes ${BASEPATH}${RUNFOLDER}/
-cp ../apps/CMA/cmaes_initials.par ${BASEPATH}${RUNFOLDER}/
-cp ../apps/CMA/cmaes_signals.par ${BASEPATH}${RUNFOLDER}/
-cp ../apps/CMA/launch.sh ${BASEPATH}${RUNFOLDER}/launchSim.sh
+cp engine_cmaes ${RUNDIR}/
+cp cmaes_initials.par ${RUNDIR}/
+cp cmaes_signals.par ${RUNDIR}/

@@ -56,33 +56,57 @@ void Worker::runTraining()
   ////// FIRST SETUP SIMPLE FUNCTIONS TO DETECT START AND END OF TRAINING //////
   //////////////////////////////////////////////////////////////////////////////
   long minNdataB4Train = learners[0]->nObsB4StartTraining;
-  int firstLearnerStart = 0, isStarted = 0, percentageReady = -5;
+  int firstLearnerStart = 0, isTrainingStarted = 0, percentageReady = -5;
   for(Uint i=1; i<learners.size(); ++i)
     if(learners[i]->nObsB4StartTraining < minNdataB4Train) {
       minNdataB4Train = learners[i]->nObsB4StartTraining;
       firstLearnerStart = i;
     }
 
-  const auto isTrainingStarted = [&]() {
-    if(isStarted==0 && learn_rank==0) {
+  const std::function<bool()> isOverTraining = [&] ()
+  {
+    if(isTrainingStarted==0 && learn_rank==0) {
       const auto nCollected = learners[firstLearnerStart]->locDataSetSize();
-      const int currPerc = nCollected * 100./(Real) minNdataB4Train;
-      if(nCollected >= minNdataB4Train) isStarted = 1;
-      else if(currPerc >= percentageReady+5) {
-       percentageReady = currPerc;
-       printf("\rCollected %d%% of data required to begin training. ",currPerc);
+      const int perc = nCollected * 100.0/(Real) minNdataB4Train;
+      if(nCollected >= minNdataB4Train) isTrainingStarted = 1;
+      else if(perc >= percentageReady+5) {
+       percentageReady = perc;
+       printf("\rCollected %d%% of data required to begin training. ", perc);
        fflush(0);
       }
     }
+    if(isTrainingStarted==0) return false;
+
+    bool over = true;
+    const Real factor = learners.size()==1? 1.0/ENV.nAgentsPerEnvironment : 1;
+    for(const auto& L : learners)
+      over = over && L->nLocTimeStepsTrain() * factor >= distrib.totNumSteps;
+    return over;
   };
-  const auto isTrainingOver = [&](const Learner* const L) {
+  const std::function<bool()> isOverTesting = [&] ()
+  {
     // if agents share learning algo, return number of turns performed by env
     // instead of sum of timesteps performed by each agent
-    const Real factor = learners.size()==1? 1.0/ENV.nAgentsPerEnvironment : 1;
-    const long dataCounter = bTrain? L->nLocTimeStepsTrain() : L->nSeqsEval();
-    return dataCounter * factor >= distrib.totNumSteps;
+    const long factor = learners.size()==1? ENV.nAgentsPerEnvironment : 1;
+    long nEnvSeqs = std::numeric_limits<long>::max();
+    for(const auto& L : learners)
+      nEnvSeqs = std::min(nEnvSeqs, L->nSeqsEval() / factor);
+    const Real perc = 100.0 * nEnvSeqs / (Real) distrib.totNumSteps;
+    if(perc >= 100) {
+      printf("\rFinished collecting %ld environment episodes " \
+        "(option --totNumSteps) to evaluate restarted policies.\n", nEnvSeqs);
+      return true;
+    } else if(perc >= percentageReady+5) {
+      percentageReady = perc;
+      printf("\rCollected %ld environment episodes out of %lu " \
+        "(option --totNumSteps) environment sequences to evaluate " \
+        "restarted policies.", nEnvSeqs, distrib.totNumSteps);
+      fflush(0);
+    }
+    return false;
   };
 
+  const auto isOver = bTrain? isOverTraining : isOverTesting;
 
   //////////////////////////////////////////////////////////////////////////////
   /////////////////////////// START DATA COLLECTION ////////////////////////////
@@ -104,13 +128,8 @@ void Worker::runTraining()
   /////////////////////////////// TRAINING LOOP ////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
   while(1) {
-    isTrainingStarted();
-
     algoTasks.run();
-
-    bool over = true;
-    for(const auto& L : learners) over = over && isTrainingOver(L.get());
-    if (over) break;
+    if ( isOver() ) break;
   }
 
   // kill data gathering process
@@ -135,9 +154,9 @@ void Worker::answerStateAction(Agent& agent) const
   // Some logging and passing around of step id:
   const Real factor = learners.size()==1? 1.0/ENV.nAgentsPerEnvironment : 1;
   const Uint nSteps = std::max(algo.nLocTimeStepsTrain(), (long) 0);
-  agent.learnerStepID = factor * nSteps;
-  if(agent.agentStatus >= TERM) // localAgentID, bufferID
-    dumpCumulativeReward(agent, algo.nGradSteps(), nSteps);
+  agent.learnerTimeStepID = factor * nSteps;
+  agent.learnerGradStepID = algo.nGradSteps();
+  if(agent.agentStatus >= TERM) dumpCumulativeReward(agent);
   //debugS("Sent action to worker %d: [%s]", worker, print(actVec).c_str() );
 }
 
@@ -189,8 +208,7 @@ bool Worker::learnersBlockingDataAcquisition() const
   return lock;
 }
 
-void Worker::dumpCumulativeReward(const Agent& agent,
-  const Uint learnAlgoIter, const Uint totalAgentTstep) const
+void Worker::dumpCumulativeReward(const Agent& agent) const
 {
   //if (learnAlgoIter == 0 && bTrain) return;
   const int wrank = MPICommRank(distrib.world_comm);
@@ -200,7 +218,8 @@ void Worker::dumpCumulativeReward(const Agent& agent,
 
   std::lock_guard<std::mutex> lock(dump_mutex);
   FILE * pFile = fopen (path, "a");
-  fprintf (pFile, "%lu %lu %u %u %f\n", learnAlgoIter, totalAgentTstep,
+  fprintf (pFile, "%u %u %u %u %f\n",
+    agent.learnerGradStepID, agent.learnerTimeStepID,
     agent.workerID, agent.timeStepInEpisode, agent.cumulativeRewards);
   fflush (pFile);
   fclose (pFile);
@@ -287,7 +306,6 @@ void Worker::synchronizeEnvironments()
 
 void Worker::loopSocketsToMaster()
 {
-  bool bTerminate = false;
   const size_t nClients = COMM->SOCK.clients.size();
   std::vector<SOCKET_REQ> reqs = std::vector<SOCKET_REQ>(nClients);
   // worker's communication functions behave following mpi indexing
@@ -297,30 +315,40 @@ void Worker::loopSocketsToMaster()
     SOCKET_Irecv(B.dataStateBuf, B.sizeStateMsg, SID, reqs[i]);
   }
 
+  const auto sendKillMsgs = [&] (const int clientJustRecvd)
+  {
+    for(size_t i=0; i<nClients; ++i) {
+      if( (int) i == clientJustRecvd ) {
+        assert(reqs[i].todo == 0);
+        continue;
+      } else assert(reqs[i].todo not_eq 0);
+      SOCKET_Wait(reqs[i]);
+    }
+    // now all requests are completed and waiting to recv an 'action': terminate
+    for(size_t i=0; i<nClients; ++i) {
+      const auto& B = getCommBuffer(i+1);
+      Agent::messageLearnerStatus((char*) B.dataActionBuf) = KILL;
+      SOCKET_Bsend(B.dataActionBuf, B.sizeActionMsg, getSocketID(i+1));
+    }
+  };
+
   for(size_t i=0; ; ++i) // infinite loop : communicate until break command
   {
+    int completed = 0;
     const int workID = i % nClients, SID = getSocketID(workID+1);
     const COMM_buffer& B = getCommBuffer(workID+1);
+    SOCKET_Test(completed, reqs[workID]);
 
-    SOCKET_Test(reqs[workID].completed, reqs[workID]);
-
-    if(reqs[workID].completed) {
+    if(completed) {
       stepWorkerToMaster(workID);
       learnerStatus& S = Agent::messageLearnerStatus((char*) B.dataActionBuf);
-      // check if abort was called. don't tell the app yet, cleaner loop later
-      if(S == KILL) { bTerminate = true; S = WORK; }
+      if(S == KILL) { // check if abort was called
+        sendKillMsgs(workID);
+        return;
+      }
       SOCKET_Bsend(B.dataActionBuf, B.sizeActionMsg, SID);
     }
     else usleep(1); // wait for app to send a state without burning a cpu
-
-    if(bTerminate) break;
-  }
-
-  for(size_t i=0; i<nClients; ++i) {
-    SOCKET_Wait(reqs[i]);
-    const auto& B = getCommBuffer(i+1);
-    Agent::messageLearnerStatus((char*) B.dataActionBuf) = KILL;
-    SOCKET_Bsend(B.dataActionBuf, B.sizeActionMsg, getSocketID(i+1));
   }
 }
 

@@ -18,7 +18,7 @@ namespace smarties
 {
 
 Learner::Learner(MDPdescriptor& MD, Settings& S, DistributionInfo& D):
-  distrib(D), settings(S), MDP(MD), params(D), ReFER_reduce(D, LDvec{0.,1.}),
+  distrib(D), settings(S), MDP(MD), ReFER_reduce(D, LDvec{0.,1.}),
   ERFILTER(MemoryProcessing::readERfilterAlgo(S.ERoldSeqFilter, CmaxPol>0)),
   data_proc( new MemoryProcessing( data.get() ) ),
   data_coord( new DataCoordinator( data.get(), params ) ),
@@ -279,8 +279,8 @@ void Learner::restart()
     return;
   }
 
-  Uint nStoredEps, nStoredObs, nLocalSeenEps, nLocalSeenObs;
-  long nInitialData, doneGradSteps;
+  Uint nStoredEps = 0, nStoredObs = 0, nLocalSeenEps = 0, nLocalSeenObs = 0;
+  long nInitialData = nDataGatheredB4Startup, doneGradSteps = 0;
   Uint pass = 1;
   pass = pass && 1 == fscanf(fstat, "nStoredEps: %lu\n",    & nStoredEps);
   pass = pass && 1 == fscanf(fstat, "nStoredObs: %lu\n",    & nStoredObs);

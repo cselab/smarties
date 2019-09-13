@@ -40,7 +40,8 @@ struct Agent
   unsigned timeStepInEpisode = 0;
 
   learnerStatus learnStatus = WORK;
-  unsigned learnerStepID = 0;
+  unsigned learnerTimeStepID = 0;
+  unsigned learnerGradStepID = 0;
 
   bool trackSequence = true;
 
@@ -166,14 +167,16 @@ struct Agent
   {
     assert(buffer not_eq nullptr);
     char * msgPos = (char*) buffer;
-    memcpy(msgPos, &localID,       sizeof(unsigned));
-    msgPos +=                      sizeof(unsigned) ;
-    memcpy(msgPos, &learnStatus,   sizeof(learnerStatus));
-    msgPos +=                      sizeof(learnerStatus) ;
-    memcpy(msgPos, &learnerStepID, sizeof(unsigned));
-    msgPos +=                      sizeof(unsigned) ;
-    memcpy(msgPos,  action.data(), sizeof(double) * action.size());
-    msgPos +=                      sizeof(double) * action.size() ;
+    memcpy(msgPos, &localID,           sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy(msgPos, &learnStatus,       sizeof(learnerStatus));
+    msgPos +=                          sizeof(learnerStatus) ;
+    memcpy(msgPos, &learnerTimeStepID, sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy(msgPos, &learnerGradStepID, sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy(msgPos,  action.data(),     sizeof(double) * action.size());
+    msgPos +=                          sizeof(double) * action.size() ;
   }
 
   void unpackActionMsg(const void * const buffer)
@@ -181,14 +184,16 @@ struct Agent
     assert(buffer not_eq nullptr);
     const char * msgPos = (const char*) buffer;
     unsigned testAgentID;
-    memcpy(&testAgentID,   msgPos, sizeof(unsigned));
-    msgPos +=                      sizeof(unsigned) ;
-    memcpy(&learnStatus,   msgPos, sizeof(learnerStatus));
-    msgPos +=                      sizeof(learnerStatus) ;
-    memcpy(&learnerStepID, msgPos, sizeof(unsigned));
-    msgPos +=                      sizeof(unsigned) ;
-    memcpy( action.data(), msgPos, sizeof(double) * action.size());
-    msgPos +=                      sizeof(double) * action.size() ;
+    memcpy(&testAgentID,       msgPos, sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy(&learnStatus,       msgPos, sizeof(learnerStatus));
+    msgPos +=                          sizeof(learnerStatus) ;
+    memcpy(&learnerTimeStepID, msgPos, sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy(&learnerGradStepID, msgPos, sizeof(unsigned));
+    msgPos +=                          sizeof(unsigned) ;
+    memcpy( action.data(),     msgPos, sizeof(double) * action.size());
+    msgPos +=                          sizeof(double) * action.size() ;
     assert( testAgentID == localID );
   }
 

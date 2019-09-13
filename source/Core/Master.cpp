@@ -19,6 +19,13 @@ Master<MasterSockets, SOCKET_REQ>(D) { }
 MasterMPI::MasterMPI(DistributionInfo& D) :
 Master<MasterMPI, MPI_Request>(D) { }
 
+inline static bool isUnfinished(const MPI_Request& req) {
+  return req not_eq MPI_REQUEST_NULL;
+}
+inline static bool isUnfinished(const SOCKET_REQ& req) {
+  return req.todo not_eq 0;
+}
+
 MasterSockets::~MasterSockets() {}
 MasterMPI::~MasterMPI() {}
 
@@ -28,8 +35,8 @@ Master<CommType, Request_t>::Master(DistributionInfo&D) : Worker(D) {}
 void MasterSockets::run(const environment_callback_t& callback)
 {
   assert(distrib.nForkedProcesses2spawn > 0);
-  COMM->forkApplication(callback);
-
+  const bool isChild = COMM->forkApplication(callback);
+  if(isChild) return;
   Master<MasterSockets, SOCKET_REQ>::run();
 }
 
@@ -88,6 +95,24 @@ void Master<CommType,Request_t>::waitForStateActionCallers(const std::vector<Uin
     interface()->Irecv(B.dataStateBuf, B.sizeStateMsg, callerID, 78283, reqs[i]);
   }
 
+  const auto sendKillMsgs = [&] (const int clientJustRecvd)
+  {
+    for(size_t i=0; i<nClients; ++i) {
+      if( (int) i == clientJustRecvd ) {
+        assert( isUnfinished(reqs[i]) == false );
+        continue;
+      } else assert( isUnfinished(reqs[i]) );
+      interface()->WaitComm(reqs[i]);
+    }
+    // now all requests are completed and waiting to recv an 'action': terminate
+    for(size_t i=0; i<nClients; ++i) {
+      const Uint callID = givenWorkers[i], callRank = callID+1;
+      const COMM_buffer& B = getCommBuffer(callRank);
+      Agent::messageLearnerStatus((char*) B.dataActionBuf) = KILL;
+      interface()->Send(B.dataActionBuf, B.sizeActionMsg, callRank, 22846);
+    }
+  };
+
   for(size_t i=0; ; ++i) // infinite loop : communicate until break command
   {
     const Uint j = i % nClients, callID = givenWorkers[j], callRank = callID+1;
@@ -95,26 +120,25 @@ void Master<CommType,Request_t>::waitForStateActionCallers(const std::vector<Uin
     const int completed = interface()->TestComm(reqs[j]);
     //Learners lock workers if they have enough data to advance step
     while (bTrain && completed && learnersBlockingDataAcquisition()) {
+      if(bExit.load()>0) { // exit in case of MPI world reached max num steps
+        sendKillMsgs(j);
+        return;
+      }
       usleep(1); // this is to avoid burning cpus when waiting learners
-      if(bExit.load()>0) break;
     }
 
     if(completed) {
       answerStateAction(callID);
+      if(bExit.load()>0) { // exit in case this process reached max num steps
+        sendKillMsgs(j);
+        return;
+      }
       const COMM_buffer& B = getCommBuffer(callRank);
       interface()->Send(B.dataActionBuf,B.sizeActionMsg,callRank,22846);
       interface()->Irecv(B.dataStateBuf,B.sizeStateMsg, callRank,78283,reqs[j]);
-      if(bExit.load()>0) break;
     } else {
       usleep(1); // this is to avoid burning cpus when waiting environments
     }
-  }
-
-  for(size_t i=0; i<nClients; ++i) { // send KILL messages
-    interface()->WaitComm(reqs[i]);
-    const COMM_buffer& B = getCommBuffer(givenWorkers[i]+1);
-    Agent::messageLearnerStatus((char*) B.dataActionBuf) = KILL;
-    interface()->Send(B.dataActionBuf, B.sizeActionMsg, givenWorkers[i]+1, 22846);
   }
 }
 

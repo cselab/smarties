@@ -48,7 +48,7 @@ public:
 
   VISIBLE void setNmasters(const Uint nMasters);
 
-  VISIBLE void setNworkers(const Uint nWorkers);
+  VISIBLE void setNenvironments(const Uint nEnvironments);
 
   VISIBLE void setNworkersPerEnvironment(const Uint workerProcessesPerEnv);
 
