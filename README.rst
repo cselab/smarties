@@ -250,7 +250,7 @@ The script takes 2 (optional) positional arguments, for example:
     smarties.py cart_pole_py VRACER.json
 
 In this case, smarties will train with the V-RACER algorithm, and hyper-parameters  
-defined in the ``VRACER.json file`` found in the ``SMARTIES_ROOT/settings`` directory  
+defined in the ``VRACER.json`` file found in the ``SMARTIES_ROOT/settings`` directory  
 on the application ``cart_pole_py`` found in the ``SMARTIES_ROOT/apps`` folder.  
 All output files will be saved in the current directory. 
 If no arguments are provided, the script will look for an executable (named  
@@ -279,6 +279,7 @@ Outputs and postprocessing
 ==========================
 
 * Running the script will produce the following outputs on screen (also backed up into the files ``agent_%02d_stats.txt``). According to applicability, these are either statistics computed over the past 1000 steps or are the most recent values:
+
     - ``ID``: Learner identifier. If a single environment contains multiple agents, and if each agent requires a different policy, then we distinguish outputs pertinent to each agent with this ID integer.
     - ``#/1e3``: Counter of gradient steps divided by 1000
     - ``avgR | stdr | DKL``: Average **cumulative** reward among stored episodes, standard dev of the distribution of **instantaneous** rewards, and average Kullback Leibler divergence of experiences in the Memory Buffer w.r.t. current policy.
