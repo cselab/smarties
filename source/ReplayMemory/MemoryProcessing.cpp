@@ -110,10 +110,11 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   }
 }
 
-void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho)
+void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho, const bool recompute)
 {
   //checkNData();
   assert(CmaxRho>=1);
+  const Fval invC = 1/CmaxRho;
   // vector indicating location of sequence to delete
   int  oldP = -1, farP = -1, dklP = -1;
   Real dklV = -1, farV = -1, oldV = 9e9;
@@ -125,30 +126,20 @@ void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho)
     #pragma omp for schedule(static, 1) nowait
     for(Uint i = 0; i < setSize; ++i)
     {
-      #ifndef NDEBUG
-        const Fval invC = 1/CmaxRho;
+      if(recompute) {
         Fval dbg_nOffPol = 0, dbg_sumKLDiv = 0, dbg_sum_mse = 0;
         for(Uint j=0; j<Set[i]->ndata(); ++j) {
-          const Fval W = Set[i]->offPolicImpW[j];
+          const auto& W = Set[i]->offPolicImpW[j];
           dbg_sum_mse += Set[i]->SquaredError[j];
           dbg_sumKLDiv += Set[i]->KullbLeibDiv[j];
           assert( W>=0  &&  Set[i]->KullbLeibDiv[j]>=0 );
           // sequence is off policy if offPol W is out of 1/C : C
           if(W>CmaxRho || W<invC) dbg_nOffPol += 1;
         }
-        const auto badErr = [&](const Fval V, const Fval R) {
-            static const Fval EPS = std::numeric_limits<Fval>::epsilon();
-            const Fval den = std::max({std::fabs(R), std::fabs(V), EPS});
-            return std::fabs(V - R) / den > 0.1;
-          };
-        if( badErr(dbg_sumKLDiv, Set[i]->sumKLDiv) )
-          _die("DKL %f %f", dbg_sumKLDiv, Set[i]->sumKLDiv);
-        if( badErr(dbg_sum_mse, Set[i]->MSE) )
-          _die("MSE %f %f", dbg_sum_mse, Set[i]->MSE);
-        if(settings.epsAnneal <= 0) //else CmaxRho will change in time
-          if( badErr(dbg_nOffPol, Set[i]->nOffPol) )
-            _die("OFF %f %f", dbg_nOffPol, Set[i]->nOffPol);
-      #endif
+        Set[i]->MSE = dbg_sum_mse;
+        Set[i]->nOffPol = dbg_nOffPol;
+        Set[i]->sumKLDiv = dbg_sumKLDiv;
+      }
 
       const Real W_FAR = Set[i]->nOffPol /Set[i]->ndata();
       const Real W_DKL = Set[i]->sumKLDiv/Set[i]->ndata();

@@ -53,7 +53,7 @@ public:
   static FORGET readERfilterAlgo(const std::string setting, const bool bReFER);
 
   // Algorithm for maintaining and filtering dataset, and optional imp weight range parameter
-  void prune(const FORGET ALGO, const Fval CmaxRho = 1);
+  void prune(const FORGET ALGO, const Fval CmaxRho = 1, const bool recompute = false);
   void finalize();
 
   void getMetrics(std::ostringstream& buff);

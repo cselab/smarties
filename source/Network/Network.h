@@ -71,25 +71,25 @@ public:
           std::vector<std::unique_ptr<Layer>>& _layers,
           const std::shared_ptr<Parameters>& _weights);
 
-  std::vector<Real> predict(const std::vector<Real>& _inp,
-    const std::vector<Activation*>& timeSeries, const Uint step,
+  std::vector<Real> forward(const std::vector<Real>& _inp,
+    const std::vector<std::unique_ptr<Activation>>& timeSeries, const Uint step,
     const Parameters*const _weights = nullptr) const
   {
     assert(timeSeries.size() > step);
-    const Activation*const currStep = timeSeries[step];
-    const Activation*const prevStep = step==0 ? nullptr : timeSeries[step-1];
-    return predict(_inp, prevStep, currStep, _weights);
+    const Activation*const currStep = timeSeries[step].get();
+    const Activation*const prevStep = step? timeSeries[step-1].get() : nullptr;
+    return forward(_inp, prevStep, currStep, _weights);
   }
 
-  std::vector<Real> predict(const std::vector<Real>& _inp,
+  std::vector<Real> forward(const std::vector<Real>& _inp,
     const Activation* const currStep,
     const Parameters*const _weights = nullptr) const
   {
-    return predict(_inp,  nullptr, currStep, _weights);
+    return forward(_inp,  nullptr, currStep, _weights);
   }
 
   /*
-    predict output of network given input:
+    forward output of network given input:
     - vector<Real> _inp: must be same size as input layer
     - Activation prevStep: for recurrent connections. Will use field `outvals`.
     - Activation currStep: work memory where prediction will be computed.
@@ -99,7 +99,7 @@ public:
     - Parameters _weights: network weights to use. If nullptr then we use default.
   */
   template<typename T>
-  std::vector<Real> predict(const std::vector<T>& input,
+  std::vector<Real> forward(const std::vector<T>& input,
                             const Activation* const prevStep,
                             const Activation* const currStep,
                             const Parameters* const _weights = nullptr) const

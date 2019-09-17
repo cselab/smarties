@@ -26,7 +26,7 @@ public:
       - funcType: non-linearity applied to the matrix-vector mul
                   (for LSTM is function applied cell input, gates have sigmoid)
       - bOutput: whether layer is output and therefore copied into return
-                 vector when calling Network:predict
+                 vector when calling Network:forward
       - layerType: LSTM, RNN, else assumed MLP
       - iLink: how many layers back should layer take the input from.
                iLink=1 means that input is previous layer

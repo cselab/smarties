@@ -217,7 +217,7 @@ struct Agent
   }
   static size_t computeActionMsgSize(const size_t aDim)
   {
-   return 2*sizeof(unsigned) +sizeof(learnerStatus) + aDim*sizeof(double);
+   return 3*sizeof(unsigned) +sizeof(learnerStatus) + aDim*sizeof(double);
   }
 
   // for dumping to state-action-reward-policy binary log (writeBuffer):

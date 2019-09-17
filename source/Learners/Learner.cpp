@@ -84,9 +84,10 @@ void Learner::processMemoryBuffer()
 
   CmaxRet = 1 + Utilities::annealRate(CmaxPol, currStep, epsAnneal);
   CinvRet = 1 / CmaxRet;
+  const bool bRecomputeProperties = (currStep % 100) == 0;
   if(CmaxRet<=1 and CmaxPol>0)
     die("Either run lasted too long or epsAnneal is wrong.");
-  data_proc->prune(ERFILTER, CmaxRet);
+  data_proc->prune(ERFILTER, CmaxRet, bRecomputeProperties);
 
   // use result from prev AllReduce to update rewards (before new reduce).
   // Assumption is that the number of off Pol trajectories does not change

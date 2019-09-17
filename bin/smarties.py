@@ -150,6 +150,7 @@ def setComputationalResources(parsed):
   parsed.args += " --nEnvironments %d --nMasters %d --nThreads %d" \
                  " --workerProcessesPerEnv %d " % (parsed.nEnvironments, \
                  parsed.nLearners, parsed.nThreads, parsed.mpiProcsPerEnv)
+
   if parsed.nEvalSeqs == 0:
     parsed.args += " --bTrain 1 --nTrainSteps %d " % parsed.nTrainSteps
     if parsed.restart is None: parsed.args += " --restart none "
@@ -158,7 +159,14 @@ def setComputationalResources(parsed):
     parsed.args += " --bTrain 0 --totNumSteps %d " % parsed.nEvalSeqs
     if parsed.restart is None: parsed.args += " --restart ./ "
     else: parsed.args += " --restart %s " % parsed.restart
-  if parsed.netsOnlyLearners: parsed.args += " --learnersOnWorkers 1 "
+
+  if parsed.netsOnlyLearners:
+    parsed.args += " --learnersOnWorkers 0 "
+  if parsed.printAppStdout:
+    parsed.args += " --redirectAppStdoutToFile 0 "
+  if parsed.disableDataLogging:
+    parsed.args += " --logAllSamples 0 "
+
 
 def setEnvironmentFlags(nThreads):
   return "unset LSB_AFFINITY_HOSTFILE  #euler cluster \n" \
@@ -177,8 +185,10 @@ def setLaunchCommand(parsed):
   clockHours = int(parsed.clockHours)
   clockMinutes = int((parsed.clockHours - clockHours) / 60)
   # default:
-  cmd = "mpirun -n %d --map-by ppr:%d:node ./%s %s | tee out.log" \
-        % (nProcesses, parsed.nTaskPerNode, parsed.execname, parsed.args)
+  #cmd = "mpirun -n %d --map-by ppr:%d:node ./%s %s | tee out.log" \
+  #      % (nProcesses, parsed.nTaskPerNode, parsed.execname, parsed.args)
+  cmd = "mpirun -n %d ./%s %s | tee out.log" \
+        % (nProcesses, parsed.execname, parsed.args)
 
   if isEuler() and parsed.interactive is False:
     assert rundir is not None, "--runname option is required on Euler and Daint"
@@ -207,7 +217,6 @@ def setLaunchCommand(parsed):
   elif isDaint() and parsed.interactive is True:
     cmd = "srun -n %d --nodes %d --ntasks-per-node%d ./%s %s" \
           % (nProcs, nNodes, nPerNode, parsed.execname, parsed.args)
-
   return cmd
 
 if __name__ == '__main__':
@@ -268,6 +277,12 @@ if __name__ == '__main__':
     help="(optional) Prints application output to screen. If unset, application " \
          "output will be redirected to file in the simulation subfolder.")
   parser.set_defaults(printAppStdout=False)
+
+  parser.add_argument('--disableDataLogging', dest='disableDataLogging', action='store_true',
+    help="(optional) Stops smarties from storing all state/action/reward/policy " \
+         "into (binary) log files. These files enable postprocessing and analysis " \
+         " but may occupy a lot of storage space.")
+  parser.set_defaults(disableDataLogging=False)
 
   parser.add_argument('--restart', default=None,
       help="Path to existing directory which contains smarties output files "

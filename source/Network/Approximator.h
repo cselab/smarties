@@ -156,7 +156,7 @@ struct Approximator
     }
     assert(INP.size() == net->getnInputs());
     ////////////////////////////////////////////////////////////////////////////
-    return net->predict(INP, recur, activation, W);
+    return net->forward(INP, recur, activation, W);
   }
 
   // forward target network

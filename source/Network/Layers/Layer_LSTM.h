@@ -173,13 +173,13 @@ class LSTMLayer: public Layer
     std::uniform_real_distribution<nnReal> dis(-init, init);
     { // forget gate starts open, inp/out gates are closed
      nnReal* const BB = W->B(ID);
-     for(Uint o=0*nCells; o<1*nCells; ++o) BB[o]=dis(G);
+     for(Uint o=0*nCells; o<1*nCells; ++o) BB[o]=0;
      //for(Uint o=1*nCells; o<2*nCells; ++o) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
      //for(Uint o=2*nCells; o<3*nCells; ++o) BB[o]=dis(*gen)-LSTM_PRIME_FAC;
      //for(Uint o=3*nCells; o<4*nCells; ++o) BB[o]=dis(*gen)+LSTM_PRIME_FAC;
-     for(Uint o=1*nCells; o<2*nCells; ++o) BB[o]=dis(G)-LSTM_PRIME_FAC;
-     for(Uint o=2*nCells; o<3*nCells; ++o) BB[o]=dis(G)+LSTM_PRIME_FAC;
-     for(Uint o=3*nCells; o<4*nCells; ++o) BB[o]=dis(G)-LSTM_PRIME_FAC;
+     for(Uint o=1*nCells; o<2*nCells; ++o) BB[o]=0-LSTM_PRIME_FAC;
+     for(Uint o=2*nCells; o<3*nCells; ++o) BB[o]=0+LSTM_PRIME_FAC;
+     for(Uint o=3*nCells; o<4*nCells; ++o) BB[o]=0-LSTM_PRIME_FAC;
     }
     {
      nnReal* const weight = W->W(ID);
@@ -191,8 +191,10 @@ class LSTMLayer: public Layer
   {
     const nnReal* const bias = para->B(ID);
     const nnReal* const weight = para->W(ID);
-    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n) *(tmp++) = (float) weight[n];
-    for (Uint n=0; n<4*nCells; ++n) *(tmp++) = (float) bias[n];
+    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n)
+        *(tmp++) = (float) weight[n];
+    for (Uint n=0; n<4*nCells; ++n)
+        *(tmp++) = (float) bias[n];
     return 4*nCells * (nInputs+nCells + 1);
   }
   size_t restart(const Parameters * const para,
@@ -200,8 +202,10 @@ class LSTMLayer: public Layer
   {
     nnReal* const bias = para->B(ID);
     nnReal* const weight = para->W(ID);
-    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n) weight[n] = (nnReal) *(tmp++);
-    for (Uint n=0; n<4*nCells; ++n) bias[n] = (nnReal) *(tmp++);
+    for (Uint n=0; n<4*nCells * (nInputs+nCells); ++n)
+        weight[n] = (nnReal) *(tmp++);
+    for (Uint n=0; n<4*nCells; ++n)
+        bias[n] = (nnReal) *(tmp++);
     return 4*nCells * (nInputs+nCells + 1);
   }
 };

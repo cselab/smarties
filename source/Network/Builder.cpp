@@ -79,11 +79,17 @@ void Builder::addLayer(const Uint layerSize,
     );
   }
 
-  const bool bResidualLayer = layers[ID-1]->nOutputs() == layerSize
-                              && not isOutputLayer;
-  //const bool bResLayer = not bOutput;
-  if(bResidualLayer)
-    layers.emplace_back(std::make_unique<ResidualLayer>(ID+1, layerSize));
+  #if 0
+    const bool bResidualLayer = layers[ID-1]->nOutputs() == layerSize
+                                && not isOutputLayer;
+    if(bResidualLayer)
+      layers.emplace_back(std::make_unique<ResidualLayer>(ID+1, layerSize));
+  #else
+    const bool bResidualLayer = not isOutputLayer;
+    if(bResidualLayer)
+      layers.emplace_back(
+        std::make_unique<ParametricResidualLayer>(ID+1, layerSize) );
+  #endif
 
   if(isOutputLayer) nOutputs += layers.back()->nOutputs();
 }

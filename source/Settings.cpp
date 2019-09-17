@@ -298,6 +298,7 @@ void DistributionInfo::figureOutWorkersPattern()
         const Uint totalWorkRank = MPICommRank(learners_train_comm);
         assert(MPICommSize(learners_train_comm) == nWorkers);
         MPI_Comm_free(& learners_train_comm);
+        learners_train_comm = MPI_COMM_NULL;
         nOwnedEnvironments = notRoundedSplitting(nWorkers,
                                                  nEnvironments,
                                                  totalWorkRank);

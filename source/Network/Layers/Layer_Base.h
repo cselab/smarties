@@ -121,7 +121,7 @@ class BaseLayer: public Layer
     {
       nnReal* const biases = W->B(ID);
       for(Uint o=0; o<nNeurons; ++o)
-        if(initVals.size() != nNeurons) biases[o] = dis(G);
+        if(initVals.size() != nNeurons) biases[o] = 0;
         else biases[o] = func->inverse(initVals[o]);
     }
     {

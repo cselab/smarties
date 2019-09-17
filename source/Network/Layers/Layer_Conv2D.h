@@ -180,7 +180,7 @@ struct Conv2DLayer: public Layer
     nnReal* const weight = W->W(ID);
     assert(W->NB(ID) == out_size);
     assert(W->NW(ID) == KnX * KnY * KnC * InC);
-    for(Uint o=0; o < W->NB(ID); ++o) biases[o] = dis(G);
+    for(Uint o=0; o < W->NB(ID); ++o) biases[o] = 0;
     for(Uint o=0; o < W->NW(ID); ++o) weight[o] = dis(G);
   }
 

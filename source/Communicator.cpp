@@ -13,31 +13,16 @@
 namespace smarties
 {
 
-//Communicator::Communicator(int number_of_agents)
-//{
-//  set_num_agents(number_of_agents);
-//  //std::random_device RD;
-//  //gen = std::mt19937(RD);
-//  SOCK.server = SOCKET_clientConnect();
-//}
-
-//Communicator::Communicator(int stateDim, int actionDim, int number_of_agents)
-//{
-//  set_num_agents(number_of_agents);
-//  set_state_action_dims(stateDim, actionDim);
-//  //std::random_device RD;
-//  //gen = std::mt19937(RD);
-//  SOCK.server = SOCKET_clientConnect();
-//}
-
 void Communicator::set_state_action_dims(const int dimState,
                                          const int dimAct,
                                          const int agentID)
 {
-  if(ENV.bFinalized)
-    die("Cannot edit env description after having sent first state.");
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
   if( (size_t) agentID >= ENV.descriptors.size())
     die("Attempted to write to uninitialized MDPdescriptor");
+
   ENV.descriptors[agentID]->dimState = dimState;
   ENV.descriptors[agentID]->dimAction = dimAct;
 }
@@ -54,8 +39,9 @@ void Communicator::set_action_scales(const std::vector<double> upper,
                                      const std::vector<bool>   bound,
                                      const int agentID)
 {
-  if(ENV.bFinalized)
-    die("Cannot edit env description after having sent first state.");
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
   if(agentID >= (int) ENV.descriptors.size())
     die("Attempted to write to uninitialized MDPdescriptor");
   if(upper.size() not_eq ENV.descriptors[agentID]->dimAction or
@@ -81,8 +67,9 @@ void Communicator::set_action_options(const int options,
 void Communicator::set_action_options(const std::vector<int> options,
                                       const int agentID)
 {
-  if(ENV.bFinalized)
-    die("Cannot edit env description after having sent first state.");
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
   if(agentID >= (int) ENV.descriptors.size())
     die("Attempted to write to uninitialized MDPdescriptor");
   if(options.size() not_eq ENV.descriptors[agentID]->dimAction)
@@ -97,17 +84,12 @@ void Communicator::set_state_observable(const std::vector<bool> observable,
                                         const int agentID)
 {
   if(ENV.bFinalized) {
-    printf("ABORTING: cannot edit env description after having sent first state.");
-    fflush(0); abort();
+    warn("Cannot edit env description after having sent first state."); return;
   }
-  if(agentID >= (int) ENV.descriptors.size()) {
-    printf("ABORTING: Attempted to write to uninitialized MDPdescriptor.");
-    fflush(0); abort();
-  }
-  if(observable.size() not_eq ENV.descriptors[agentID]->dimState) {
-    printf("ABORTING: size mismatch when defining observed/hidden state variables.");
-    fflush(0); abort();
-  }
+  if(agentID >= (int) ENV.descriptors.size())
+    die("Attempted to write to uninitialized MDPdescriptor");
+  if(observable.size() not_eq ENV.descriptors[agentID]->dimState)
+    die("size mismatch");
 
   ENV.descriptors[agentID]->bStateVarObserved =
     std::vector<bool>(observable.begin(), observable.end());
@@ -118,17 +100,15 @@ void Communicator::set_state_scales(const std::vector<double> upper,
                                     const int agentID)
 {
   if(ENV.bFinalized) {
-    printf("ABORTING: cannot edit env description after having sent first state.");
-    fflush(0); abort();
+    warn("Cannot edit env description after having sent first state.");
+    return;
   }
-  if(agentID >= (int) ENV.descriptors.size()) {
-    printf("ABORTING: Attempted to write to uninitialized MDPdescriptor.");
-    fflush(0); abort();
-  }
+  if(agentID >= (int) ENV.descriptors.size())
+    die("Attempted to write to uninitialized MDPdescriptor");
   const Uint dimS = ENV.descriptors[agentID]->dimState;
-  if(upper.size() not_eq dimS or lower.size() not_eq dimS ) {
-    printf("ABORTING: upper/lower size mismatch."); fflush(0); abort();
-  }
+  if(upper.size() not_eq dimS or lower.size() not_eq dimS )
+    die("size mismatch");
+
   // For consistency with action space we ask user for a rough box of state vars
   // but in reality we scale with mean and stdev computed during training.
   // This function serves only as an optional initialization for statistiscs.
@@ -144,13 +124,11 @@ void Communicator::set_state_scales(const std::vector<double> upper,
 void Communicator::set_is_partially_observable(const int agentID)
 {
   if(ENV.bFinalized) {
-    printf("ABORTING: cannot edit env description after having sent first state.");
-    fflush(0); abort();
+    warn("Cannot edit env description after having sent first state."); return;
   }
-  if(agentID >= (int) ENV.descriptors.size()) {
-    printf("ABORTING: Attempted to write to uninitialized MDPdescriptor.");
-    fflush(0); abort();
-  }
+  if(agentID >= (int) ENV.descriptors.size())
+    die("Attempted to write to uninitialized MDPdescriptor");
+
   ENV.descriptors[agentID]->isPartiallyObservable = true;
 }
 
@@ -159,6 +137,12 @@ void Communicator::set_preprocessing_conv2d(
   const int kernels_num, const int filters_size, const int stride,
   const int agentID)
 {
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
+  if(agentID >= (int) ENV.descriptors.size())
+    die("Attempted to write to uninitialized MDPdescriptor");
+
   // can be made to be more powerful (different sizes in x/y, padding, etc)
   Conv2D_Descriptor descr;
   descr.inpFeatures = input_features;
@@ -173,12 +157,6 @@ void Communicator::set_preprocessing_conv2d(
   descr.paddiny     = 0;
   descr.outY   = (descr.inpY -descr.filterx +2*descr.paddinx)/descr.stridex + 1;
   descr.outX   = (descr.inpX -descr.filtery +2*descr.paddiny)/descr.stridey + 1;
-  if(ENV.bFinalized) {
-    printf("ABORTING: cannot edit env description after having sent first state."); fflush(0); abort();
-  }
-  if(agentID >= (int) ENV.descriptors.size()) {
-    printf("ABORTING: Attempted to write to uninitialized MDPdescriptor."); fflush(0); abort();
-  }
   ENV.descriptors[agentID]->conv2dDescriptors.push_back(descr);
 }
 
@@ -186,19 +164,21 @@ void Communicator::set_num_appended_past_observations(
   const int n_appended, const int agentID)
 {
   if(ENV.bFinalized) {
-    printf("ABORTING: cannot edit env description after having sent first state.");
-    fflush(0); abort();
+    warn("Cannot edit env description after having sent first state."); return;
   }
-  if(agentID >= (int) ENV.descriptors.size()) {
-    printf("ABORTING: Attempted to write to uninitialized MDPdescriptor.");
-    fflush(0); abort();
-  }
+  if(agentID >= (int) ENV.descriptors.size())
+    die("Attempted to write to uninitialized MDPdescriptor");
+
   ENV.descriptors[agentID]->nAppendedObs = n_appended;
 }
 
 void Communicator::set_num_agents(int _nAgents)
 {
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
   assert(_nAgents > 0);
+
   ENV.nAgentsPerEnvironment = _nAgents;
 }
 
@@ -213,26 +193,37 @@ void Communicator::env_has_distributed_agents()
     return;
   }
   */
-  if(ENV.bAgentsHaveSeparateMDPdescriptors) {
-    printf("ABORTING: Smarties supports either distributed agents (ie each "
-    "worker holds some of the agents) or each agent defining a different MDP "
-    "(state/act spaces)."); fflush(0); abort();
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
   }
+  if(ENV.bAgentsHaveSeparateMDPdescriptors)
+    die("ABORTING: Smarties supports either distributed agents (ie each "
+    "worker holds some of the agents) or each agent defining a different MDP "
+    "(state/act spaces).");
+
   bEnvDistributedAgents =  true;
 }
 
 void Communicator::agents_define_different_MDP()
 {
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
   if(bEnvDistributedAgents) {
     printf("ABORTING: Smarties supports either distributed agents (ie each "
     "worker holds some of the agents) or each agent defining a different MDP "
     "(state/act spaces)."); fflush(0); abort();
   }
+
   ENV.initDescriptors(true);
 }
 
 void Communicator::disableDataTrackingForAgents(int agentStart, int agentEnd)
 {
+  if(ENV.bFinalized) {
+    warn("Cannot edit env description after having sent first state."); return;
+  }
+
   ENV.bTrainFromAgentData.resize(ENV.nAgentsPerEnvironment, 1);
   for(int i=agentStart; i<agentEnd; ++i)
     ENV.bTrainFromAgentData[i] = 0;
@@ -241,8 +232,7 @@ void Communicator::disableDataTrackingForAgents(int agentStart, int agentEnd)
 void Communicator::finalize_problem_description()
 {
   if(ENV.bFinalized) {
-    printf("ABORTING: problem description was already finalized.");
-    fflush(0); abort();
+    warn("Cannot edit env description after having sent first state."); return;
   }
   synchronizeEnvironments();
 }
@@ -250,11 +240,10 @@ void Communicator::finalize_problem_description()
 void Communicator::_sendState(const int agentID, const episodeStatus status,
     const std::vector<double>& state, const double reward)
 {
-  if ( not ENV.bFinalized ) synchronizeEnvironments(); // race condition
-  if(bTrainIsOver) {
-    printf("ABORTING: App recvd end-of-training signal but did not abort on it's own.\n");
-    fflush(0); abort();
-  }
+  if( not ENV.bFinalized ) synchronizeEnvironments(); // race condition
+  if(bTrainIsOver)
+    die("App recvd end-of-training signal but did not abort on it's own.");
+
   //const auto& MDP = ENV.getDescriptor(agentID);
   assert(agentID>=0 && (Uint) agentID < agents.size());
   assert(agents[agentID]->localID == (unsigned) agentID);

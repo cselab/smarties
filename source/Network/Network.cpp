@@ -19,50 +19,53 @@ Network::Network(const Uint _nInp, const Uint _nOut,
 
 void Network::checkGrads()
 {
-  /*
   const Uint seq_len = 5;
-  const nnReal incr = std::cbrt(std::numeric_limits<nnReal>::epsilon())
-  const nnReal tol  = incr;
+  const nnReal incr = std::sqrt(std::numeric_limits<nnReal>::epsilon());
+  const nnReal tol  = std::sqrt(std::numeric_limits<nnReal>::epsilon());;
   printf("Checking grads with increment %e and tolerance %e\n", incr,tol);
 
-  std::vector<Activation*> timeSeries;
-  if(Vgrad.size() < 4) die("I'm the worst, just use 4 threads and forgive me");
-  Vgrad[1]->clear(); Vgrad[2]->clear(); Vgrad[3]->clear();
+  std::vector<std::unique_ptr<Activation>> timeSeries;
+  std::shared_ptr<Parameters>     grad = allocParameters();
+  std::shared_ptr<Parameters> backGrad = allocParameters(); backGrad->clear();
+  std::shared_ptr<Parameters> diffGrad = allocParameters(); diffGrad->clear();
+  std::shared_ptr<Parameters>  errGrad = allocParameters();  errGrad->clear();
+
   std::random_device rd;
   std::mt19937 gen(rd());
   for(Uint t=0; t<seq_len; ++t)
   for(Uint o=0; o<nOutputs; ++o)
   {
-    vector<vector<Real>> inputs(seq_len, vector<Real>(nInputs,0));
-    prepForBackProp(timeSeries, seq_len);
-    Vgrad[0]->clear();
-    normal_distribution<nnReal> dis_inp(0, 1);
+    std::vector<std::vector<Real>> inputs(seq_len,std::vector<Real>(nInputs,0));
+    std::normal_distribution<nnReal> dis_inp(0, 1);
     for(Uint i=0; i<seq_len; ++i)
       for(Uint j=0; j<nInputs; ++j) inputs[i][j] = dis_inp(gen);
 
+    allocTimeSeries(timeSeries, seq_len);
     for (Uint k=0; k<seq_len; ++k) {
-      predict(inputs[k], timeSeries, k);
-      vector<nnReal> errs(nOutputs, 0);
+      forward(inputs[k], timeSeries, k);
+      std::vector<nnReal> errs(nOutputs, 0);
       if(k==t) {
         errs[o] = -1;
         timeSeries[k]->addOutputDelta(errs);
       }
     }
-    backProp(timeSeries, t+1, Vgrad[0]);
+
+    grad->clear();
+    backProp(timeSeries, t+1, grad.get());
 
     for (Uint w=0; w<weights->nParams; ++w) {
       nnReal diff = 0;
       const auto copy = weights->params[w];
       //1
-      weights->params[w] += incr;
+      weights->params[w] = copy + incr;
       for (Uint k=0; k<seq_len; ++k) {
-        const vector<Real> ret = predict(inputs[k], timeSeries, k);
+        const std::vector<Real> ret = forward(inputs[k], timeSeries, k);
         if(k==t) diff = -ret[o]/(2*incr);
       }
       //2
       weights->params[w] = copy - incr;
       for (Uint k=0; k<seq_len; ++k) {
-        const vector<Real> ret = predict(inputs[k], timeSeries, k);
+        const std::vector<Real> ret = forward(inputs[k], timeSeries, k);
         if(k==t) diff += ret[o]/(2*incr);
       }
       //0
@@ -70,36 +73,37 @@ void Network::checkGrads()
 
       //const nnReal scale = std::max( fabs(Vgrad[0]->params[w]), fabs(diff) );
       //if (scale < nnEPS) continue;
-      const nnReal err = fabs(Vgrad[0]->params[w]-diff);//relerr=err/scale;
-      // if error now is bigger or if equal but grad magnitude is greater
-      if( err>Vgrad[2]->params[w] || ( err>=Vgrad[2]->params[w] &&
-         std::fabs(Vgrad[1]->params[w]) < std::fabs(Vgrad[0]->params[w]) ) ) {
-        Vgrad[1]->params[w] = Vgrad[0]->params[w];
-        Vgrad[2]->params[w] = err;
-        Vgrad[3]->params[w] = diff;
+      const nnReal err = std::fabs(grad->params[w] - diff); //relerr=err/scale;
+      if ( err > errGrad->params[w] ) {
+        backGrad->params[w] = grad->params[w];
+        diffGrad->params[w] = diff;
+        errGrad->params[w] = err;
       }
     }
   }
 
-  long double sum1 = 0, sumsq1 = 0, sum2 = 0, sumsq2 = 0;
+  long double sum1 = 0, sumsq1 = 0, sum2 = 0, sumsq2 = 0, sum3 = 0, sumsq3 = 0;
   for (Uint w=0; w<weights->nParams; ++w) {
-    if(Vgrad[2]->params[w]>tol)
-    cout<<w<<" err:"<<Vgrad[2]->params[w]<<", grad:"<<Vgrad[1]->params[w]
-        <<" diff:"<<Vgrad[3]->params[w]<<" param:"<<weights->params[w]<<endl;
+    if(errGrad->params[w]>tol)
+      printf("%lu err:%f, grad:%f, diff:%f, param:%f\n", w, errGrad->params[w],
+        backGrad->params[w], diffGrad->params[w], weights->params[w]);
 
-    sum1+=std::fabs(Vgrad[1]->params[w]); sum2+=std::fabs(Vgrad[2]->params[w]);
-    sumsq1 += Vgrad[1]->params[w]*Vgrad[1]->params[w];
-    sumsq2 += Vgrad[2]->params[w]*Vgrad[2]->params[w];
+    sum1 += std::fabs(backGrad->params[w]);
+    sum2 += std::fabs(diffGrad->params[w]);
+    sum3 += std::fabs(errGrad->params[w]);
+    sumsq1 += backGrad->params[w] * backGrad->params[w];
+    sumsq2 += diffGrad->params[w] * diffGrad->params[w];
+    sumsq3 +=  errGrad->params[w] *  errGrad->params[w];
   }
 
-  long double NW = weights->nParams, avg1 = sum1/NW, avg2 = sum2/NW;
-  auto std1=sqrt((sumsq1-sum1*avg1)/NW), std2=sqrt((sumsq2-sum2*avg2)/NW);
-  cout<< "Abs gradient avg:" <<avg1<<" std:"<<std1
-      <<" Abs error avg:"<<avg2<<" std:"<<std2<<endl;
-  deallocateUnrolledActivations(&timeSeries);
-  Vgrad[0]->clear(); Vgrad[1]->clear(); Vgrad[2]->clear(); Vgrad[3]->clear();
-  die("done");
-  */
+  const long double NW = weights->nParams;
+  const auto avg1 = sum1/NW, avg2 = sum2/NW, avg3 = sum3/NW;
+  const auto std1 = std::sqrt((sumsq1-sum1*avg1)/NW);
+  const auto std2 = std::sqrt((sumsq2-sum2*avg2)/NW);
+  const auto std3 = std::sqrt((sumsq3-sum3*avg3)/NW);
+  printf("<|grad|>:%Lf (std:%Lf) <|diff|>:%Lf (std:%Lf) <|err|>::%Lf (std:%Lf)\n",
+    avg1, std1, avg2, std2, avg3, std3);
+  //die("done");
 }
 
 

@@ -303,6 +303,96 @@ class JoinLayer: public Layer
                     const float * tmp) const override { return 0; }
 };
 
+class ParametricResidualLayer: public Layer
+{
+ public:
+  ParametricResidualLayer(Uint _ID, Uint _N): Layer(_ID, _N, false) { }
+
+  std::string printSpecs() const override {
+    return "("+ std::to_string(ID) +") Parametric Residual Connection of size:"
+           + std::to_string(size) + "\n";
+  }
+
+  void requiredParameters(std::vector<Uint>& nWeight,
+                          std::vector<Uint>& nBiases ) const override {
+    nWeight.push_back(size);
+    nBiases.push_back(size);
+  }
+  void requiredActivation(std::vector<Uint>& sizes,
+                          std::vector<Uint>& bOutputs,
+                          std::vector<Uint>& bInputs) const override {
+    sizes.push_back(size);
+    bOutputs.push_back(false);
+    bInputs.push_back(false);
+  }
+  void biasInitialValues(const std::vector<Real> init) override { }
+  void forward( const Activation*const prev,
+                const Activation*const curr,
+                const Parameters*const para) const override
+  {
+    nnReal* const ret = curr->Y(ID);
+    assert(curr->sizes[ID-1] == size);
+    memcpy(ret, curr->Y(ID-1), size * sizeof(nnReal));
+
+    const nnReal* const W = para->W(ID);
+    const nnReal* const B = para->B(ID);
+    const nnReal* const inp = curr->Y(ID-2);
+    const Uint sizeInp = std::min(curr->sizes[ID-2], size);
+
+    #pragma omp simd aligned(ret, inp, W, B : VEC_WIDTH)
+    for (Uint j=0; j<sizeInp; ++j) ret[j] += inp[j] * W[j] + B[j];
+  }
+
+  void backward(  const Activation*const prev,
+                  const Activation*const curr,
+                  const Activation*const next,
+                  const Parameters*const grad,
+                  const Parameters*const para) const override
+  {
+    const nnReal* const delta = curr->E(ID);
+    assert(curr->sizes[ID-1] == size);
+    memcpy(curr->E(ID-1), delta, size * sizeof(nnReal) );
+
+    nnReal* const gradB = grad->B(ID);
+    nnReal* const gradW = grad->W(ID);
+    nnReal* const gradInp = curr->E(ID-2);
+    const nnReal* const W = para->W(ID);
+    const nnReal* const inp = curr->Y(ID-2);
+    const Uint sizeInp = std::min(curr->sizes[ID-2], size);
+
+    #pragma omp simd aligned(delta,inp,W, gradB,gradW,gradInp : VEC_WIDTH)
+    for (Uint j=0; j<sizeInp; ++j) {
+      gradInp[j] += delta[j] * W[j];
+      gradW[j] += delta[j] * inp[j];
+      gradB[j] += delta[j];
+    }
+  }
+
+  void initialize(std::mt19937& G, const Parameters*const W,
+                  Real initializationFac) const override
+  {
+    for(Uint o=0; o<size; ++o) W->B(ID)[o] = 0.0;
+    for(Uint o=0; o<size; ++o) W->W(ID)[o] = 1.0;
+  }
+  size_t  save(const Parameters * const para,
+                          float * tmp) const override
+  {
+    const nnReal* const bias = para->B(ID);
+    const nnReal* const weight = para->W(ID);
+    for(Uint o=0; o<size; ++o) *(tmp++) = (float) weight[o];
+    for(Uint o=0; o<size; ++o) *(tmp++) = (float) bias[o];
+    return 2*size;
+  }
+  size_t restart(const Parameters * const para,
+                    const float * tmp) const override
+  {
+    nnReal* const bias = para->B(ID);
+    nnReal* const weight = para->W(ID);
+    for (Uint n=0; n<size; ++n) weight[n] = (nnReal) *(tmp++);
+    for (Uint n=0; n<size; ++n) bias[n] = (nnReal) *(tmp++);
+    return 2*size;
+  }
+};
 
 class ResidualLayer: public Layer
 {
