@@ -120,7 +120,7 @@ struct Conv2DLayer: public Layer
     GEMMomp<outRow, nInner, nInner, outCol, false, false>
       ( para->W(ID), curr->Y(ID-link), curr->X(ID) );
     #else
-    gemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, outRow, outCol, nInner,
+    SMARTIES_gemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, outRow, outCol, nInner,
       1, para->W(ID), nInner, curr->Y(ID-link), outCol, 1, curr->X(ID), outCol);
     #endif
     func::_eval(curr->X(ID), curr->Y(ID), KnC * OpY * OpX);
@@ -151,7 +151,7 @@ struct Conv2DLayer: public Layer
       GEMMomp<outRow,nInner, outCol, nInner, false, true>
         ( curr->E(ID), curr->Y(ID-link), grad->W(ID) );
       #else
-      gemm(CblasRowMajor, CblasNoTrans, CblasTrans, outRow, outCol, nInner,
+      SMARTIES_gemm(CblasRowMajor, CblasNoTrans, CblasTrans, outRow, outCol, nInner,
       1, curr->E(ID), nInner, curr->Y(ID-link), nInner, 1, grad->W(ID), outCol);
       #endif
     }
@@ -163,7 +163,7 @@ struct Conv2DLayer: public Layer
       GEMMomp<nInner,outRow, nInner, outCol, true, false>
         ( para->W(ID), curr->E(ID), curr->E(ID-link) );
       #else
-      gemm(CblasRowMajor, CblasTrans, CblasNoTrans, outRow, outCol, nInner,
+      SMARTIES_gemm(CblasRowMajor, CblasTrans, CblasNoTrans, outRow, outCol, nInner,
       1, para->W(ID), outRow, curr->E(ID), outCol, 1, curr->E(ID-link), outCol);
       #endif
     }

@@ -16,12 +16,12 @@ inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
 {
   const int control_vars = 1; // force along x
   const int state_vars = 6; // x, y, angvel, angle, cosine, sine
-  comm->set_state_action_dims(state_vars, control_vars);
+  comm->setStateActionDims(state_vars, control_vars);
 
   //OPTIONAL: action bounds
   bool bounded = true;
   std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
 
   /*
     // ALTERNATIVE for discrete actions:
@@ -33,12 +33,12 @@ inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
   //OPTIONAL: hide state variables.
   // e.g. show cosine/sine but not angle
   std::vector<bool> b_observable = {true, true, true, false, true, true};
-  comm->set_state_observable(b_observable);
+  comm->setStateObservable(b_observable);
 
   //OPTIONAL: set space bounds
   std::vector<double> upper_state_bound{ 1,  1,  1,  1,  1,  1};
   std::vector<double> lower_state_bound{-1, -1, -1, -1, -1, -1};
-  comm->set_state_scales(upper_state_bound, lower_state_bound);
+  comm->setStateScales(upper_state_bound, lower_state_bound);
 
   CartPole env;
 

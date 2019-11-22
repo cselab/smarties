@@ -15,6 +15,9 @@
 #include "../Utils/SstreamUtilities.h"
 
 //#define DKL_filter
+#define DPG_RETRACE_TGT
+#define DPG_LEARN_STDEV
+
 namespace smarties
 {
 
@@ -54,8 +57,8 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
       const Rvec v_next = critc->forward(bID, t+1); // value with state+policy
       MB.updateRetrace(bID, t+1, 0, v_next[0], 0);
     }
-    const Real target = MB.Q_RET(bID, t), advantage = q_curr[0]-v_curr[0];
-    const Real dQRET = MB.updateRetrace(bID, t, advantage, v_curr[0], RHO);
+    const Real target = MB.Q_RET(bID, t), advantage = qval[0] - pval[0];
+    const Real dQRET = MB.updateRetrace(bID, t, advantage, pval[0], RHO);
   #else
     Real target = MB.reward(bID, t);
     if (not MB.isTerminal(bID, t+1) && not isOff) {
@@ -71,8 +74,8 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   assert(polGrad.size() == nA); polGrad.resize(2*nA, 0); // space for stdev
   // In order to enable learning stdev on request, stdev is part of actor output
   #ifdef DPG_LEARN_STDEV
-    const Rvec SPG = POL.policy_grad(target * std::min(CmaxRet,RHO));
-    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = isOff? 0 : DPG[i+nA];
+    const Rvec SPG = POL.policy_grad((target-pval[0]) * std::min(CmaxRet,RHO));
+    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = isOff? 0 : polGrad[i+nA];
   #else
     // Next line keeps stdev at user's value, else NN penal might cause drift.
     for (Uint i=0; i<nA; ++i) polGrad[i+nA] = explNoise - POL.stdev[i];
@@ -90,9 +93,9 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   //bookkeeping:
   MB.setMseDklImpw(bID, t, std::pow(target-qval[0],2), DKL,RHO,CmaxRet,CinvRet);
   #ifdef DPG_RETRACE_TGT
-    trainInfo->log(q_curr[0],grad_val[0], polG, penG, {beta,dQRET,rho}, thrID);
+    trainInfo->log(qval[0],valueG[0], polGrad,penGrad, {beta,dQRET,RHO}, thrID);
   #else
-    trainInfo->log(qval[0], valueG[0], polGrad, penGrad, {beta, RHO}, thrID);
+    trainInfo->log(qval[0],valueG[0], polGrad,penGrad, {beta, RHO}, thrID);
   #endif
 }
 
@@ -125,9 +128,9 @@ void DPG::select(Agent& agent)
     #ifdef DPG_RETRACE_TGT
       //careful! act may be scaled to agent's action space, mean/sampAct aren't
       critc->setAddedInput(POL.sampAct,   agent, currStep);
-      const Rvec qval = F[1]->forward(agent);
+      const Rvec qval = critc->forward(agent);
       critc->setAddedInput(POL.getMean(), agent, currStep);
-      const Rvec sval = F[1]->forward(agent, true); // overwrite = true
+      const Rvec sval = critc->forward(agent, true); // overwrite = true
       EP.action_adv.push_back(qval[0]-sval[0]);
       EP.state_vals.push_back(sval[0]);
     #endif
@@ -136,7 +139,8 @@ void DPG::select(Agent& agent)
   {
     #ifdef DPG_RETRACE_TGT
       if( agent.agentStatus == TRNC ) {
-        const Rvec polMean = actor->forward(agent).resize(nA); // grab pol mean
+        Rvec polMean = actor->forward(agent); // grab pol mean
+        polMean.resize(nA); // grab pol mean
         critc->setAddedInput(polMean, agent, currStep);
         const Rvec sval = critc->forward(agent);
         EP.state_vals.push_back(sval[0]); // not a terminal state
@@ -234,7 +238,8 @@ DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
 
   const bool bCreatedEncorder = createEncoder();
   assert(networks.size() == bCreatedEncorder? 1 : 0);
-  const Approximator* const encoder = bCreatedEncorder? networks[0] : nullptr;
+  Approximator* const encoder = bCreatedEncorder? networks[0] : nullptr;
+  if(bCreatedEncorder) encoder->initializeNetwork();
 
   networks.push_back(
     new Approximator("policy", settings, distrib, data.get(), encoder)
@@ -258,11 +263,12 @@ DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   settings.nnOutputFunc = "Linear"; // critic must be linear
   critc->buildFromSettings(1);
   critc->initializeNetwork();
-  printf("DPG\n");
 
-  trainInfo = new TrainData("DPG", distrib, 1, "| beta | avgW ", 2);
   #ifdef DPG_RETRACE_TGT
     computeQretrace = true;
+    trainInfo = new TrainData("DPG", distrib, 1, "| beta | dAdv | avgW ", 3);
+  #else
+    trainInfo = new TrainData("DPG", distrib, 1, "| beta | avgW ", 2);
   #endif
 }
 

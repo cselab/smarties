@@ -7,12 +7,12 @@
 inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
 {
   const unsigned maxStep = 500;
-  comm->set_num_agents(2); // predator prey
-  comm->agents_define_different_MDP(); // pred & prey learn different policies
+  comm->setNumAgents(2); // predator prey
+  comm->agentsDefineDifferentMDP(); // pred & prey learn different policies
   //Sim box has size EXTENT. Fraction of box that agent can traverse in 1 step:
   const double velScale = 0.02 * EXTENT;
-  comm->set_state_action_dims(4, 2, 0); // 4 state, 2 control variables
-  comm->set_state_action_dims(4, 2, 1); // 4 state, 2 control variables
+  comm->setStateActionDims(4, 2, 0); // 4 state, 2 control variables
+  comm->setStateActionDims(4, 2, 1); // 4 state, 2 control variables
 
   // predator additional arg is how much slower than prey (eg 50%)
   Predator pred(4, velScale, 0.5);

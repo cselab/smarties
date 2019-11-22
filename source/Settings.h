@@ -75,7 +75,7 @@ struct DistributionInfo
   std::string restart = ".";
 
   bool bTrain = true;
-  bool logAllSamples = true;
+  int logAllSamples = 1;
   bool learnersOnWorkers = true;
   bool forkableApplication = false;
   bool redirectAppStdoutToFile = true;

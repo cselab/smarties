@@ -41,7 +41,7 @@ struct Discrete_policy
   static void setInitial_Stdev(const ActionInfo*const aI, Rvec&O, const Real S)
   {
     for(Uint e=0; e<aI->dimDiscrete(); ++e)
-    #ifdef EXTRACT_COVAR
+    #ifdef SMARTIES_EXTRACT_COVAR
         O.push_back(PosDefMapping_f::_inv(S*S));
     #else
         O.push_back(PosDefMapping_f::_inv(S));

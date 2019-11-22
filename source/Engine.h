@@ -64,7 +64,7 @@ public:
 
   VISIBLE void setIsTraining(const bool bTrain);
 
-  VISIBLE void setIsLoggingAllData(const bool logAllSamples);
+  VISIBLE void setIsLoggingAllData(const int logAllSamples);
 
   VISIBLE void setAreLearnersOnWorkers(const bool learnersOnWorkers);
 

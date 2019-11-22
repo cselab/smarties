@@ -10,27 +10,29 @@
 #include "../cart_pole_cpp/cart-pole.h"
 
 #include <cstdio>
+#define DIFFERENT_MDPS
 
 inline int app_main(
   smarties::Communicator*const comm, int argc, char**argv
 )
 {
-  comm->set_num_agents(2);
-  comm->set_state_action_dims(6, 1);
+  comm->setNumAgents(2);
+  comm->setStateActionDims(6, 1);
   const std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
-  comm->set_action_scales(upper_action_bound, lower_action_bound, true);
-
-  // All information about the MDP before calling agents_define_different_MDP()
-  // is copied over to all agents.
-  comm->agents_define_different_MDP();
-
+  comm->setActionScales(upper_action_bound, lower_action_bound, true);
   // state vars :                        x    vx  angvel  ang   cos    sine
   const std::vector<bool> bObservable1{true, true, true, false, true, true};
-  comm->set_state_observable(bObservable1, 0);
-  // one agent is partially observed: linear and angular vels are hidden
-  const std::vector<bool> bObservable2{true, false, false, false, true, true};
-  comm->set_state_observable(bObservable2, 1);
-  comm->set_is_partially_observable(1);
+  comm->setStateObservable(bObservable1);
+
+  #ifdef DIFFERENT_MDPS
+    // All information about the MDP before calling
+    // agents_define_different_MDP() is copied over to all agents.
+    comm->agentsDefineDifferentMDP();
+    // one agent is partially observed: linear and angular vels are hidden
+    const std::vector<bool> bObservable2{true, false, false, false, true, true};
+    comm->setStateObservable(bObservable2, 1);
+    comm->setIsPartiallyObservable(1);
+  #endif
   // Moreover, agent 0 will have inverted controls relative to agent 1
 
   // Here for simplicity we have two environments
@@ -49,7 +51,9 @@ inline int app_main(
     while (true) //simulation loop
     {
       std::vector<double> action1 = comm->recvAction(0);
-      action1[0] = - action1[0]; // make the two optimal policy different
+      #ifdef DIFFERENT_MDPS
+        action1[0] = - action1[0]; // make the two optimal policy different
+      #endif
       std::vector<double> action2 = comm->recvAction(1);
 
       //advance the simulation:

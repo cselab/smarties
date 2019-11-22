@@ -12,6 +12,7 @@
 #include "Builder.h"
 #include "ThreadContext.h"
 #include "../Utils/StatsTracker.h"
+//#include "../Utils/SstreamUtilities.h"
 #include "../ReplayMemory/MemoryBuffer.h"
 
 namespace smarties
@@ -40,7 +41,7 @@ struct Approximator
   void buildPreprocessing(const std::vector<Uint> outputSizes);
   Builder& getBuilder()
   {
-    if(build) return * build.get();
+    if (build) return * build.get();
     else {
       die("Requested unallocated network building entity");
       return * build.get();
@@ -49,7 +50,15 @@ struct Approximator
 
   void initializeNetwork();
 
-  Uint nOutputs() const { return net->getnOutputs(); }
+  Uint nOutputs() const {
+    if (net == nullptr) return 0;
+    else return net->getnOutputs();
+  }
+  Uint nLayers() const {
+    if (net not_eq nullptr) return net->nLayers;
+    else if (build not_eq nullptr) return build->layers.size();
+    else return 0;
+  }
   void setNgradSteps(const Uint iter) const { opt->nStep = iter; }
   void updateGradStats(const std::string& base, const Uint iter) const
   {
@@ -198,7 +207,7 @@ struct Approximator
     assert(auxInputNet && "improperly set up the aux input net");
     assert(auxInputAttachLayer >= 0 && "improperly set up the aux input net");
     if(ESpopSize > 1) {
-      debugL("Skipping relay_backprop because we use ES optimizers.");
+      debugL("Skipping backprop because we use ES optimizers.");
       return Rvec(m_auxInputSize, 0);
     }
     ThreadContext& C = getContext(batchID);
@@ -212,13 +221,15 @@ struct Approximator
     //const int ind = mapTime2Ind(samp, thrID);
     //assert(act[ind]->written == true && relay not_eq nullptr);
     const Rvec ret = net->backPropToLayer(gradient, auxInputAttachLayer, A, W);
-    //if(!thrID)
-    //{
-    //  const auto pret = Rvec(&ret[nInp], &ret[nInp+relay->nOutputs()]);
-    //  const auto inp = act[ind]->getInput();
-    //  const auto pinp = Rvec(&inp[nInp], &inp[nInp+relay->nOutputs()]);
-    //  cout <<"G:"<<print(pret)<< " Inp:"<<print(pinp)<<endl;
-    //}
+    #if 0
+    if(batchID == 0) {
+      const auto pret = Rvec(&ret[inputSize], &ret[inputSize + m_auxInputSize]);
+      const auto inp = A->getInput();
+      const auto pinp = Rvec(&inp[inputSize], &inp[inputSize + m_auxInputSize]);
+      printf("G:%s Inp:%s\n", Utilities::vec2string(pret).c_str(),
+                              Utilities::vec2string(pinp).c_str());
+    }
+    #endif
     if(auxInputAttachLayer>0) return ret;
     else return Rvec(& ret[inputSize], & ret[inputSize + m_auxInputSize]);
   }
@@ -328,7 +339,6 @@ private:
   // policy net gradients towards input conv layers
   bool m_blockInpGrad = false;
 
-  //const Aggregator* const relay;
   std::shared_ptr<Network> net;
   std::shared_ptr<Optimizer> opt;
   std::unique_ptr<Builder> build;

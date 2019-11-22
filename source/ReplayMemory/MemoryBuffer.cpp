@@ -135,6 +135,8 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
   }
 
   MiniBatch ret(batchSize, settings.gamma);
+
+  #pragma omp parallel for schedule(static)
   for(Uint b=0; b<batchSize; ++b)
   {
     ret.episodes[b] = Set[ sampleEID[b] ];
@@ -169,6 +171,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
   const nnReal impSampAnneal = std::min( (Real)1, stepID*settings.epsAnneal);
   const nnReal beta = 0.5 + 0.5 * impSampAnneal;
   const bool bReqImpSamp = bRequireImportanceSampling();
+
   #pragma omp parallel for schedule(static) // collapse(2)
   for(Uint b=0; b<batchSize; ++b)
   for(Uint t=ret.begTimeStep[b]; t<ret.endTimeStep[b]; ++t)
@@ -240,8 +243,32 @@ void MemoryBuffer::removeSequence(const Uint ind)
 
 void MemoryBuffer::pushBackSequence(Sequence*const seq)
 {
+  assert(seq not_eq nullptr);
+  const int wrank = MPICommRank(distrib.world_comm);
+  const bool logSample =  distrib.logAllSamples==1 ||
+                         (distrib.logAllSamples==2 && seq->agentID==0);
+  char pathRew[2048], pathObs[2048], rewArg[1024];
+  sprintf(pathRew, "%s/agent_%02lu_rank%02d_cumulative_rewards.dat",
+          distrib.initial_runDir, learnID, wrank);
+  sprintf(pathObs, "%s/agent%03lu_rank%02d_obs.raw",
+          distrib.initial_runDir, learnID, wrank);
+  sprintf(rewArg, "%ld %ld %ld %lu %f", nGradSteps.load(),
+          std::max(nLocTimeStepsTrain(), (long)0),
+          seq->agentID, seq->nsteps(), seq->totR);
+  const auto log = not logSample ? std::vector<float>(0) :
+                   seq->logToFile(sI.dim(), nSeenTransitions_loc.load());
+
   std::lock_guard<std::mutex> lock(dataset_mutex);
-  assert( readNSeq() == (long) Set.size() and seq not_eq nullptr);
+  assert( readNSeq() == (long) Set.size() );
+
+  FILE * pFile = fopen (pathRew, "a");
+  fprintf (pFile, "%s\n", rewArg); fflush (pFile); fclose (pFile);
+  if(logSample) {
+    pFile = fopen (pathObs, "ab");
+    fwrite (log.data(), sizeof(float), log.size(), pFile);
+    fflush(pFile); fclose(pFile);
+  }
+
   const auto ind = Set.size();
   seq->ID = nSeenSequences.load();
   seq->prefix = ind>0? Set[ind-1]->prefix +Set[ind-1]->ndata() : 0;

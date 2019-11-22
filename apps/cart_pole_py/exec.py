@@ -76,15 +76,13 @@ class CartPole:
     return 1.0 - 1.0 * self.isFailed();
 
 def app_main(comm):
-  print("got into app_main")
-  sys.stdout.flush()
   env = CartPole()
   # state is x, v, angle, omega, cos(angle), sin(angle), action is Fx
-  comm.set_state_action_dims(6, 1)
+  comm.setStateActionDims(6, 1)
   #Here, the action space is in [-10, 10] and is bounded.
-  comm.set_action_scales([10.0], [-10.0], areBounds=True)
+  comm.setActionScales([10.0], [-10.0], areBounds=True)
   #Agent knows cos and sin of angle, angle itself is hidden:
-  comm.set_state_observable([True, True, False, True, True, True])
+  comm.setStateObservable([True, True, False, True, True, True])
 
   while 1: #train loop, each new episode starts here
     env.reset() # (slightly) random initial conditions are best

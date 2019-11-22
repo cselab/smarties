@@ -191,6 +191,7 @@ struct AgentContext
     lastGradTstep = -1;
     weightIndex = weightID;
     NET->allocTimeSeries(activations, batch->sampledNumSteps(0));
+    _addedInputVec.resize(batch->sampledNumSteps(0));
   }
 
   void overwrite(const Uint t, const Sint sample = -1) const

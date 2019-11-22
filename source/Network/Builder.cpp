@@ -131,9 +131,8 @@ void Builder::build(const bool isInputNet)
     l->initialize(gen, weights.get(),
       l->bOutput && not isInputNet ? settings.outWeightsPrefac : 1);
 
-  if(MPICommRank(distrib.world_comm) == 0) {
+  if(MPICommRank(distrib.world_comm) == 0)
     for(const auto & l : layers) printf( "%s", l->printSpecs().c_str() );
-  }
 
   // Make sure that all ranks have the same weights (copy from rank 0)
   if(distrib.learnersOnWorkers) weights->broadcast(distrib.world_comm);

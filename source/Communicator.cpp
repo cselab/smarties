@@ -13,7 +13,7 @@
 namespace smarties
 {
 
-void Communicator::set_state_action_dims(const int dimState,
+void Communicator::setStateActionDims(const int dimState,
                                          const int dimAct,
                                          const int agentID)
 {
@@ -27,14 +27,14 @@ void Communicator::set_state_action_dims(const int dimState,
   ENV.descriptors[agentID]->dimAction = dimAct;
 }
 
-void Communicator::set_action_scales(const std::vector<double> uppr,
+void Communicator::setActionScales(const std::vector<double> uppr,
                                      const std::vector<double> lowr,
                                      const bool bound,
                                      const int agentID)
 {
-  set_action_scales(uppr,lowr, std::vector<bool>(uppr.size(),bound), agentID);
+  setActionScales(uppr,lowr, std::vector<bool>(uppr.size(),bound), agentID);
 }
-void Communicator::set_action_scales(const std::vector<double> upper,
+void Communicator::setActionScales(const std::vector<double> upper,
                                      const std::vector<double> lower,
                                      const std::vector<bool>   bound,
                                      const int agentID)
@@ -58,13 +58,13 @@ void Communicator::set_action_scales(const std::vector<double> upper,
     std::vector<bool>(bound.begin(), bound.end());
 }
 
-void Communicator::set_action_options(const int options,
+void Communicator::setActionOptions(const int options,
                                       const int agentID)
 {
-  set_action_options(std::vector<int>(1, options), agentID);
+  setActionOptions(std::vector<int>(1, options), agentID);
 }
 
-void Communicator::set_action_options(const std::vector<int> options,
+void Communicator::setActionOptions(const std::vector<int> options,
                                       const int agentID)
 {
   if(ENV.bFinalized) {
@@ -80,7 +80,7 @@ void Communicator::set_action_options(const std::vector<int> options,
     std::vector<Uint>(options.begin(), options.end());
 }
 
-void Communicator::set_state_observable(const std::vector<bool> observable,
+void Communicator::setStateObservable(const std::vector<bool> observable,
                                         const int agentID)
 {
   if(ENV.bFinalized) {
@@ -95,7 +95,7 @@ void Communicator::set_state_observable(const std::vector<bool> observable,
     std::vector<bool>(observable.begin(), observable.end());
 }
 
-void Communicator::set_state_scales(const std::vector<double> upper,
+void Communicator::setStateScales(const std::vector<double> upper,
                                     const std::vector<double> lower,
                                     const int agentID)
 {
@@ -121,7 +121,7 @@ void Communicator::set_state_scales(const std::vector<double> upper,
   ENV.descriptors[agentID]->stateStdDev = diffState;
 }
 
-void Communicator::set_is_partially_observable(const int agentID)
+void Communicator::setIsPartiallyObservable(const int agentID)
 {
   if(ENV.bFinalized) {
     warn("Cannot edit env description after having sent first state."); return;
@@ -132,7 +132,7 @@ void Communicator::set_is_partially_observable(const int agentID)
   ENV.descriptors[agentID]->isPartiallyObservable = true;
 }
 
-void Communicator::set_preprocessing_conv2d(
+void Communicator::setPreprocessingConv2d(
   const int input_width, const int input_height, const int input_features,
   const int kernels_num, const int filters_size, const int stride,
   const int agentID)
@@ -160,7 +160,7 @@ void Communicator::set_preprocessing_conv2d(
   ENV.descriptors[agentID]->conv2dDescriptors.push_back(descr);
 }
 
-void Communicator::set_num_appended_past_observations(
+void Communicator::setNumAppendedPastObservations(
   const int n_appended, const int agentID)
 {
   if(ENV.bFinalized) {
@@ -172,7 +172,7 @@ void Communicator::set_num_appended_past_observations(
   ENV.descriptors[agentID]->nAppendedObs = n_appended;
 }
 
-void Communicator::set_num_agents(int _nAgents)
+void Communicator::setNumAgents(int _nAgents)
 {
   if(ENV.bFinalized) {
     warn("Cannot edit env description after having sent first state."); return;
@@ -182,7 +182,7 @@ void Communicator::set_num_agents(int _nAgents)
   ENV.nAgentsPerEnvironment = _nAgents;
 }
 
-void Communicator::env_has_distributed_agents()
+void Communicator::envHasDistributedAgents()
 {
   /*
   if(comm_inside_app == MPI_COMM_NULL) {
@@ -204,7 +204,7 @@ void Communicator::env_has_distributed_agents()
   bEnvDistributedAgents =  true;
 }
 
-void Communicator::agents_define_different_MDP()
+void Communicator::agentsDefineDifferentMDP()
 {
   if(ENV.bFinalized) {
     warn("Cannot edit env description after having sent first state."); return;
@@ -229,7 +229,7 @@ void Communicator::disableDataTrackingForAgents(int agentStart, int agentEnd)
     ENV.bTrainFromAgentData[i] = 0;
 }
 
-void Communicator::finalize_problem_description()
+void Communicator::finalizeProblemDescription()
 {
   if(ENV.bFinalized) {
     warn("Cannot edit env description after having sent first state."); return;

@@ -19,12 +19,14 @@ Master<MasterSockets, SOCKET_REQ>(D) { }
 MasterMPI::MasterMPI(DistributionInfo& D) :
 Master<MasterMPI, MPI_Request>(D) { }
 
+#ifndef NDEBUG
 inline static bool isUnfinished(const MPI_Request& req) {
   return req not_eq MPI_REQUEST_NULL;
 }
 inline static bool isUnfinished(const SOCKET_REQ& req) {
   return req.todo not_eq 0;
 }
+#endif
 
 MasterSockets::~MasterSockets() {}
 MasterMPI::~MasterMPI() {}

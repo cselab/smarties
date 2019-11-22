@@ -9,7 +9,7 @@
 # SIMPLE PYTHON SCRIPT TO PLOT .raw AGENT OBS FILES
 #
 # usage:
-# python plot_obs.py /path/to/folder ($2) ($3) ($4)
+# python smarties_plot_obs.py /path/to/folder ($2) ($3) ($4)
 # optional args:
 # ($2) Fraction of sequences not plotted (to lighten script and plot)
 # ie. If $2=10 we plot all observed states for one sequence every 10 sequences.

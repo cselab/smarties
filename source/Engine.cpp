@@ -70,7 +70,7 @@ void Engine::setIsTraining(const bool bTrain) {
   distrib->bTrain = bTrain;
 }
 
-void Engine::setIsLoggingAllData(const bool logAllSamples) {
+void Engine::setIsLoggingAllData(const int logAllSamples) {
   distrib->logAllSamples = logAllSamples;
 }
 

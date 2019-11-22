@@ -46,29 +46,52 @@ void Sampling::IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
   }
 }
 
+void Sampling::IDtoSeqStep_par(std::vector<Uint>& seq, std::vector<Uint>& obs,
+  const std::vector<Uint>& ret, const Uint nSeqs)
+{ // go through each element of ret to find corresponding seq and obs
+  #pragma omp parallel
+  {
+    Uint i = 0;
+    #pragma omp for schedule(static)
+    for (Uint k=0; k<nSeqs; ++k) {
+      // sample i lies before start of episode k:
+      while(i < ret.size() && ret[i] < Set[k]->prefix) ++i;
 
+      while(i < ret.size() && ret[i] < Set[k]->prefix + Set[k]->ndata()) {
+        // if ret[i]==prefix then obs 0 of k and so forth:
+        obs[i] = ret[i] - Set[k]->prefix;
+        seq[i] = k;
+        ++i; // next iteration remember first i-1 were already found
+      }
+    }
+  }
+}
 
 Sample_uniform::Sample_uniform(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSeq): Sampling(G,R,bSeq) {}
 void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {
   assert(seq.size() == obs.size());
-  std::unique_lock<std::mutex> lock(RM->dataset_mutex, std::defer_lock);
-  lock.lock();
-  //std::lock_guard<std::mutex> lock(RM->dataset_mutex);
-  const long nSeqs = nSequences(), nData = nTransitions(), nBatch = obs.size();
-  lock.unlock();
+  //std::unique_lock<std::mutex> lock(RM->dataset_mutex, std::defer_lock);
+  //lock.lock();
+  const long nBatch = obs.size();
+  //lock.unlock();
 
   #ifndef NDEBUG
-  assert(Set.size() == (size_t) nSeqs);
-  for(long i=0, locPrefix=0; i<nSeqs; ++i) {
-    assert(Set[i]->prefix == (Uint) locPrefix);
-    locPrefix += Set[i]->ndata();
-    if(i+1 == nSeqs) assert(locPrefix == nData);    
+  {
+    std::lock_guard<std::mutex> lock(RM->dataset_mutex);
+    const long nSeqs = nSequences(), nData = nTransitions();
+    assert(Set.size() == (size_t) nSeqs);
+    for(long i=0, locPrefix=0; i<nSeqs; ++i) {
+      assert(Set[i]->prefix == (Uint) locPrefix);
+      locPrefix += Set[i]->ndata();
+      if(i+1 == nSeqs) assert(locPrefix == nData);
+    }
   }
   #endif
 
   if(bSampleSequences)
   {
+    const long nSeqs = nSequences();
     std::uniform_int_distribution<Uint> distSeq(0, nSeqs-1);
     std::vector<Uint>::iterator it = seq.begin();
     while(it not_eq seq.end())
@@ -86,6 +109,7 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
   }
   else
   {
+    const long nData = nTransitions();
     std::uniform_int_distribution<Uint> distObs(0, nData-1);
     std::vector<Uint> ret(nBatch);
     std::vector<Uint>::iterator it = ret.begin();
@@ -95,8 +119,17 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
       std::sort(ret.begin(), ret.end());
       it = std::unique (ret.begin(), ret.end());
     } // ret is now also sorted!
-
-    IDtoSeqStep(seq, obs, ret, nSeqs);
+    const auto nSeq = nSequences();
+    IDtoSeqStep_par(seq, obs, ret, nSeq);
+    //IDtoSeqStep(seq, obs, ret, nSeq);
+    #if 0
+    auto obs2 = obs, seq2 = seq;
+    IDtoSeqStep_par(seq2, obs2, ret, nSeq);
+    if (! std::equal(obs.begin(), obs.end(), obs2.begin()) )
+       die("obs obs2 are not equal");
+    if (! std::equal(seq.begin(), seq.end(), seq2.begin()) )
+       die("seq seq2 are not equal");
+    #endif
   }
 }
 void Sample_uniform::prepare(std::atomic<bool>& needs_pass) {
@@ -184,13 +217,14 @@ void TSample_shuffle::prepare(std::atomic<bool>& needs_pass)
     for(Uint j=0, k=Set[i]->prefix; j<Set[i]->ndata(); ++j, ++k)
       samples[k] = std::pair<unsigned, unsigned>{i, j};
 
-  const auto RNG = [&](const int max) {
-    assert(max > 0);
-    std::uniform_int_distribution<int> dist(0, max-1);
-    return dist(gens[0]);
-  };
+  //const auto RNG = [&](const int max) {
+  //  assert(max > 0);
+  //  std::uniform_int_distribution<int> dist(0, max-1);
+  //  return dist(gens[0]);
+  //};
   //__gnu_parallel::random_shuffle(samples.begin(), samples.end(), RNG);
-  std::random_shuffle(samples.begin(), samples.end(), RNG);
+  //std::random_shuffle(samples.begin(), samples.end(), RNG);
+  std::shuffle(samples.begin(), samples.end(), gens[0]);
 }
 void TSample_shuffle::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 {

@@ -34,6 +34,8 @@ class Sampling
   virtual ~Sampling() {}
   virtual void sample(std::vector<Uint>& seq, std::vector<Uint>& obs) = 0;
   virtual void prepare(std::atomic<bool>& needs_pass) = 0;
+  void IDtoSeqStep_par(std::vector<Uint>& seq, std::vector<Uint>& obs,
+                       const std::vector<Uint>& ret, const Uint nSeqs);
   void IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
                   const std::vector<Uint>& ret, const Uint nSeqs);
   virtual bool requireImportanceWeights() = 0;

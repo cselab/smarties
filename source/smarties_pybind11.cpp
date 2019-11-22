@@ -3,6 +3,10 @@
 #include "Communicator.h"
 #include "Engine.h"
 
+#define PYBIND11_HAS_OPTIONAL 0
+#define PYBIND11_HAS_EXP_OPTIONAL 0
+#define PYBIND11_HAS_VARIANT 0
+
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
@@ -118,55 +122,59 @@ PYBIND11_MODULE(smarties, m)
          py::arg("agentID") = 0,
          "Get an action for agent # 'agentID' given previously sent state.")
 
-    .def("set_state_action_dims",
-         & smarties::Communicator::set_state_action_dims,
+    .def("setNumAgents",
+         & smarties::Communicator::setNumAgents,
+         py::arg("nAgents"), "Set number of agents in the environment.")
+
+    .def("setStateActionDims",
+         & smarties::Communicator::setStateActionDims,
          py::arg("dimState"), py::arg("dimAct"), py::arg("agentID") = 0,
          "Set dimensionality of state and action for agent # 'agentID'.")
 
-    .def("set_action_scales",
+    .def("setActionScales",
          ( void (smarties::Communicator::*) (
             const std::vector<double>, const std::vector<double>,
             const bool, const int) )
-         & smarties::Communicator::set_action_scales,
+         & smarties::Communicator::setActionScales,
          py::arg("upper_scale"), py::arg("lower_scale"),
          py::arg("areBounds"), py::arg("agentID") = 0,
          "Set lower and upper scale of the actions for agent # 'agentID'. "
          "Boolean arg specifies if actions are bounded between gien values.")
 
-    .def("set_action_scales",
+    .def("setActionScales",
          ( void (smarties::Communicator::*) (
             const std::vector<double>, const std::vector<double>,
             const std::vector<bool>, const int) )
-         & smarties::Communicator::set_action_scales,
+         & smarties::Communicator::setActionScales,
          py::arg("upper_scale"), py::arg("lower_scale"),
          py::arg("areBounds"), py::arg("agentID") = 0,
          "Set lower and upper scale of the actions for agent # 'agentID'. "
          "Boolean arg specifies if actions are bounded between gien values.")
 
-    .def("set_action_options",
+    .def("setActionOptions",
          ( void (smarties::Communicator::*) (const int, const int) )
-         & smarties::Communicator::set_action_options,
+         & smarties::Communicator::setActionOptions,
          py::arg("n_options"), py::arg("agentID") = 0,
          "Set number of discrete control options for agent # 'agentID'.")
 
-    .def("set_action_options",
+    .def("setActionOptions",
          ( void (smarties::Communicator::*) (const std::vector<int>,const int) )
-         & smarties::Communicator::set_action_options,
+         & smarties::Communicator::setActionOptions,
          py::arg("n_options"), py::arg("agentID") = 0,
          "Set number of discrete control options for agent # 'agentID'.")
 
-    .def("set_state_observable",
-         & smarties::Communicator::set_state_observable,
+    .def("setStateObservable",
+         & smarties::Communicator::setStateObservable,
          py::arg("is_observable"), py::arg("agentID") = 0,
          "For each state variable, set whether observed by agent # 'agentID'.")
 
-    .def("set_state_scales",
-         & smarties::Communicator::set_state_scales,
+    .def("setStateScales",
+         & smarties::Communicator::setStateScales,
          py::arg("upper_scale"), py::arg("lower_scale"), py::arg("agentID") = 0,
          "Set upper & lower scaling values for the state of agent # 'agentID'.")
 
-    .def("agents_define_different_MDP",
-         & smarties::Communicator::agents_define_different_MDP,
+    .def("agentsDefineDifferentMDP",
+         & smarties::Communicator::agentsDefineDifferentMDP,
          "Specify that each agent defines a different MPD (state/action/rew).")
 
     .def("disableDataTrackingForAgents",
@@ -182,21 +190,21 @@ PYBIND11_MODULE(smarties, m)
          & smarties::Communicator::terminateTraining,
          "Returns true if smarties is requesting application to exit.")
 
-    .def("set_num_appended_past_observations",
-        & smarties::Communicator::set_num_appended_past_observations,
+    .def("setNumAppendedPastObservations",
+        & smarties::Communicator::setNumAppendedPastObservations,
         py::arg("n_appended"), py::arg("agentID") = 0,
         "Specify that the state of agent # 'agentID' should be composed with "
         "the current observation along with n_appended past ones. "
         "Like it was done in the Atari Nature paper to avoid using RNN.")
 
-    .def("set_is_partially_observable",
-        & smarties::Communicator::set_is_partially_observable,
+    .def("setIsPartiallyObservable",
+        & smarties::Communicator::setIsPartiallyObservable,
         py::arg("agentID") = 0,
         "Specify that the decision process of agent # 'agentID' is "
         "non-Markovian and therefore smarties will use RNN.")
 
-    .def("set_preprocessing_conv2d",
-        & smarties::Communicator::set_preprocessing_conv2d,
+    .def("setPreprocessingConv2d",
+        & smarties::Communicator::setPreprocessingConv2d,
         py::arg("input_width"), py::arg("input_height"), py::arg("input_features"),
         py::arg("kernels_num"), py::arg("filters_size"), py::arg("stride"),
         py::arg("agentID") = 0,

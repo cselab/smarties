@@ -17,14 +17,6 @@
 #define __STDC_VERSION__ 0
 #endif
 
-#ifndef SINGLE_PREC // NETWORK PRECISION
-  #define gemv cblas_dgemv
-  #define gemm cblas_dgemm
-#else
-  #define gemv cblas_sgemv
-  #define gemm cblas_sgemm
-#endif
-
 #if   defined(USE_MKL)
 #include "mkl_cblas.h"
 #elif defined(USE_OPENBLAS)
@@ -140,9 +132,9 @@ class Layer
         //        weight + startCompInpGrads * NOsimd,
         //        deltas, errors + startCompInpGrads);
       #else
-      gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, NO, 1,
-        weight + startCompInpGrads * NOsimd, NOsimd,
-        deltas, 1, 1, errors + startCompInpGrads, 1);
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, NO, 1,
+          weight + startCompInpGrads * NOsimd, NOsimd,
+          deltas, 1, 1, errors + startCompInpGrads, 1);
       #endif
     }
 
@@ -153,8 +145,8 @@ class Layer
       #ifdef USE_OMPSIMD_BLAS
         GEMVomp(NO, NR, NOsimd, weight, deltas, errors);
       #else
-      gemv(CblasRowMajor, CblasNoTrans, NR, NO, 1,
-        weight, NOsimd, deltas, 1, 1, errors, 1);
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, NR, NO, 1,
+          weight, NOsimd, deltas, 1, 1, errors, 1);
       #endif
     }
 
@@ -322,7 +314,7 @@ class ParametricResidualLayer: public Layer
                           std::vector<Uint>& bOutputs,
                           std::vector<Uint>& bInputs) const override {
     sizes.push_back(size);
-    bOutputs.push_back(false);
+    bOutputs.push_back(bOutput);
     bInputs.push_back(false);
   }
   void biasInitialValues(const std::vector<Real> init) override { }
@@ -352,13 +344,19 @@ class ParametricResidualLayer: public Layer
     const nnReal* const delta = curr->E(ID);
     assert(curr->sizes[ID-1] == size);
     memcpy(curr->E(ID-1), delta, size * sizeof(nnReal) );
-
-    nnReal* const gradB = grad->B(ID);
-    nnReal* const gradW = grad->W(ID);
     nnReal* const gradInp = curr->E(ID-2);
     const nnReal* const W = para->W(ID);
     const nnReal* const inp = curr->Y(ID-2);
     const Uint sizeInp = std::min(curr->sizes[ID-2], size);
+
+    if(grad == nullptr) {
+      #pragma omp simd aligned(delta, W, gradInp : VEC_WIDTH)
+      for (Uint j=0; j<sizeInp; ++j) gradInp[j] += delta[j] * W[j];
+      return;
+    }
+
+    nnReal* const gradB = grad->B(ID);
+    nnReal* const gradW = grad->W(ID);
 
     #pragma omp simd aligned(delta,inp,W, gradB,gradW,gradInp : VEC_WIDTH)
     for (Uint j=0; j<sizeInp; ++j) {
@@ -502,13 +500,22 @@ class ParamLayer: public Layer
                   const Parameters*const grad,
                   const Parameters*const para) const override
   {
-          nnReal* const deltas = curr->E(ID);
-          nnReal* const grad_b = grad->B(ID);
     const nnReal* const inputs = curr->X(ID);
     const nnReal* const outval = curr->Y(ID);
-    for(Uint o=0; o<size; ++o) {
-      deltas[o] *= func->evalDiff(inputs[o], outval[o]);
-      grad_b[o] += deltas[o];
+    nnReal* const deltas = curr->E(ID);
+
+    if(grad == nullptr)
+    {
+      for(Uint o=0; o<size; ++o)
+        deltas[o] *= func->evalDiff(inputs[o], outval[o]);
+    }
+    else
+    {
+      nnReal* const grad_b = grad->B(ID);
+      for(Uint o=0; o<size; ++o) {
+        deltas[o] *= func->evalDiff(inputs[o], outval[o]);
+        grad_b[o] += deltas[o];
+      }
     }
   }
 

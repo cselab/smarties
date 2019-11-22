@@ -56,7 +56,7 @@ public:
     nGradSteps = counters[1];
     // workers always recv params from learner (rank 0)
     for(const auto& data : dataList ) {
-      MPI(Recv, data.second, data.first, MPI_NNVALUE_TYPE, 0,
+      MPI(Recv, data.second, data.first, SMARTIES_MPI_NNVALUE_TYPE, 0,
         72726 + MDP_ID, comm, MPI_STATUS_IGNORE);
     }
   }
@@ -67,7 +67,7 @@ public:
     MPI(Send, counters, 2, MPI_LONG, toRank, 72726 + MDP_ID, comm);
 
     for(const auto& data : dataList )
-      MPI(Send, data.second, data.first, MPI_NNVALUE_TYPE, toRank,
+      MPI(Send, data.second, data.first, SMARTIES_MPI_NNVALUE_TYPE, toRank,
         72726 + MDP_ID, comm);
   }
 };

@@ -10,6 +10,7 @@
 #define smarties_FunctionUtilities_h
 
 #include "Bund.h"
+#include "Warnings.h"
 
 #include <cassert>
 #include <cmath> // log, exp, ...
@@ -48,7 +49,7 @@ inline bool isValidValue(const T vals) {
 template <typename T = Real>
 inline T safeExp(const T val)
 {
-  return std::exp( std::min( (T)EXP_CUT, std::max( - (T)EXP_CUT, val) ) );
+  return std::exp( std::min( (T)SMARTIES_EXP_CUT, std::max( - (T)SMARTIES_EXP_CUT, val) ) );
 }
 template <typename T = nnReal>
 inline T nnSafeExp(const T val)
@@ -105,7 +106,7 @@ inline std::vector<T*> allocate_vec(const std::vector<Uint>& _sizes)
   return ret;
 }
 
-#ifdef CHEAP_SOFTPLUS
+#ifdef SMARTIES_CHEAP_SOFTPLUS
 
   template<typename T>
   inline T unbPosMap_func(const T in)
@@ -156,7 +157,7 @@ inline std::vector<T*> allocate_vec(const std::vector<Uint>& _sizes)
 template<typename T>
 inline T noiseMap_func(const T val)
 {
-  #ifdef UNBND_VAR
+  #ifdef SMARTIES_UNBND_VAR
     return unbPosMap_func(val);
   #else
     return 1/(1 + safeExp(-val));
@@ -166,7 +167,7 @@ inline T noiseMap_func(const T val)
 template<typename T>
 inline T noiseMap_diff(const T val)
 {
-  #ifdef UNBND_VAR
+  #ifdef SMARTIES_UNBND_VAR
     return unbPosMap_diff(val);
   #else
     const T expx = safeExp(val);
@@ -177,7 +178,7 @@ inline T noiseMap_diff(const T val)
 template<typename T>
 inline T noiseMap_inverse(T val)
 {
-  #ifdef UNBND_VAR
+  #ifdef SMARTIES_UNBND_VAR
     return unbPosMap_inverse(val);
   #else
     if(val<=0 || val>=1) {
@@ -300,11 +301,11 @@ void dispose_object(T *const& ptr)
 
 template<typename It> class Range
 {
-    const It b, e;
+    const It m_beg, m_end;
 public:
-    Range(It _b, It _e) : b(_b), e(_e) {}
-    It begin() const { return b; }
-    It end() const { return e; }
+    Range(It _beg, It _end) : m_beg(_beg), m_end(_end) {}
+    It begin() const { return m_beg; }
+    It end()   const { return m_end; }
 };
 
 template<typename ORange,
@@ -319,105 +320,4 @@ Range<It> reverse(ORange && originalRange) {
 } // end namespace Utilities
 #endif // smarties_FunctionUtilties_h
 
-/*
-inline Uint roundUpSimd(const Uint size)
-{
-  return std::ceil(size/(Real)simdWidth)*simdWidth;
-}
-static inline nnReal readCutStart(vector<nnReal>& buf)
-{
-  const Real ret = buf.front();
-  buf.erase(buf.begin(),buf.begin()+1);
-  assert(!std::isnan(ret) && !std::isinf(ret));
-  return ret;
-}
-static inline nnReal readBuf(vector<nnReal>& buf)
-{
-  //const Real ret = buf.front();
-  //buf.erase(buf.begin(),buf.begin()+1);
-  const Real ret = buf.back();
-  buf.pop_back();
-  assert(!std::isnan(ret) && !std::isinf(ret));
-  return ret;
-}
-static inline void writeBuf(const nnReal weight, vector<nnReal>& buf)
-{
-  buf.insert(buf.begin(), weight);
-}
 
-template <typename T>
-inline void _myfree(T *const& ptr)
-{
-  if(ptr == nullptr) return;
-  free(ptr);
-}
-
-//template <typename T>
-inline void _allocate_quick(nnReal*& ptr, const Uint size)
-{
-  const Uint sizeSIMD = roundUpSimd(size)*sizeof(nnReal);
-  posix_memalign((void **) &ptr, VEC_WIDTH, sizeSIMD);
-}
-
-//template <typename T>
-inline void _allocate_clean(nnReal*& ptr, const Uint size)
-{
-  const Uint sizeSIMD = roundUpSimd(size)*sizeof(nnReal);
-  posix_memalign((void **) &ptr, VEC_WIDTH, sizeSIMD);
-  memset(ptr, 0, sizeSIMD);
-}
-
-inline nnReal* init(const Uint N, const nnReal ini)
-{
-  nnReal* ret;
-  _allocate_quick(ret, N);
-  for (Uint j=0; j<N; ++j) ret[j] = ini;
-  return ret;
-}
-
-inline nnReal* initClean(const Uint N)
-{
-  nnReal* ret;
-  _allocate_clean(ret, N);
-  return ret;
-}
-
-inline nnReal* init(const Uint N)
-{
-  nnReal* ret;
-  _allocate_quick(ret, N);
-  return ret;
-}
-
-inline Rvec circle_region(const Rvec& grad,
-  const Rvec& trust, const Uint nact, const Real delta)
-{
-  assert(grad.size() == trust.size());
-  const Uint nA = grad.size();
-  Rvec ret(nA);
-  Real normKG = 0, normK = 1e-16, normG = 1e-16, dot = 0;
-  for(Uint j=0; j<nA; ++j) {
-    normKG += std::pow(grad[j]+trust[j],2);
-    normK += trust[j] * trust[j];
-    normG += grad[j] * grad[j];
-    dot += trust[j] *  grad[j];
-  }
-  #if 1
-    const Real nG = sqrt(normG)/nact *(sqrt(normK)/nact +dot/sqrt(normG)/nact);
-    const Real denom = std::max((Real)1, nG/delta);
-    //const Real denom = (1+ nG/delta);
-    for(Uint j=0; j<nA; ++j) ret[j] = grad[j]/denom;
-  #else
-    const Real nG = std::sqrt(normKG)/nact;
-    const Real denom = std::max((Real)1, nG/delta);
-    //const Real denom = (1+ nG/delta);
-    const Real numer = std::min((Real)0, (delta-nG)/delta);
-    for(Uint j=0; j<nA; ++j) ret[j] = (grad[j] + numer*trust[j])/denom;
-  #endif
-  //printf("KG:%f K:%f G:%f dot:%f denom:%f delta:%f\n",
-  //       normKG,normK,normG,dot,denom,delta);
-  //const Real nG = std::sqrt(normKG), softclip = delta/(nG+delta);
-  //for(Uint j=0; j<nA; ++j) ret[j] = (grad[j]+trust[j])*softclip -trust[j];
-  return ret;
-}
-*/

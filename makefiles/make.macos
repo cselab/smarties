@@ -1,3 +1,5 @@
 MPICXX=mpic++
 LIBS+= -L/usr/local/opt/openblas/lib/ -lopenblas
 CPPFLAGS+= -I/usr/local/opt/openblas/include/ -DUSE_OPENBLAS
+
+LIBOMP_LIB=$(shell ls -d /usr/local/Cellar/libomp/*/lib)

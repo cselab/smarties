@@ -30,7 +30,7 @@ struct AdaMax
     const nnReal DW = grad * fac;
     M1 = B1 * M1 + (1-B1) * DW;
     M2 = std::max(B2 * M2, std::fabs(DW));
-    #ifdef NESTEROV_ADAM
+    #ifdef SMARTIES_NESTEROV_ADAM
       const nnReal numer = B1*M1 + (1-B1)*DW;
     #else
       const nnReal numer = M1;
@@ -77,25 +77,25 @@ struct Adam
     #else
       const nnReal penal = - W*lambda;
     #endif
-    #ifndef ADAMW
+    #ifndef SMARTIES_ADAMW
     const nnReal DW = fac * grad + penal;
     #else
     const nnReal DW = fac * grad;
     #endif
     M1 = B1 * M1 + (1-B1) * DW;
     M2 = B2 * M2 + (1-B2) * DW*DW;
-    #ifdef NESTEROV_ADAM // No significant effect
+    #ifdef SMARTIES_NESTEROV_ADAM // No significant effect
       const nnReal numer = B1*M1 + (1-B1)*DW;
     #else
       const nnReal numer = M1;
     #endif
-    #ifdef SAFE_ADAM //numerical safety, assumes that 1-beta2 = (1-beta1)^2/10
+    #ifdef SMARTIES_SAFE_ADAM //numerical safety, assumes that 1-beta2 = (1-beta1)^2/10
       //assert( std::fabs( (1-B2) - 0.1*std::pow(1-B1,2) ) < nnEPS );
       M2 = M2 < M1*M1 ? M1*M1 : M2;
     #endif
     const nnReal ret = numer / ( nnEPS + std::sqrt(M2) );
     assert(not std::isnan(ret) && not std::isinf(ret));
-    #ifdef ADAMW
+    #ifdef SMARTIES_ADAMW
       return eta * ( ret + penal );
     #else
       return eta * ret;
@@ -109,7 +109,7 @@ void AdamOptimizer::prepare_update(const Rvec& esLosses)
 
   if (learn_size > 1)
   { //add up gradients across master ranks
-    MPI(Iallreduce, MPI_IN_PLACE, gradSum->params, gradSum->nParams, MPI_NNVALUE_TYPE, MPI_SUM, learnersComm, &paramRequest);
+    MPI(Iallreduce, MPI_IN_PLACE, gradSum->params, gradSum->nParams, SMARTIES_MPI_NNVALUE_TYPE, MPI_SUM, learnersComm, &paramRequest);
     assert(paramRequest not_eq MPI_REQUEST_NULL);
   }
   nStep++;

@@ -17,7 +17,7 @@ include make.euler
 endif
 
 ifeq "$(findstring daint,$(shell hostname))" "daint"
-include make.daint_srun
+include make.daint
 endif
 
 ifeq "$(findstring falcon,$(shell hostname))" "falcon"
@@ -56,7 +56,7 @@ endif
 
 testdiff ?= false
 ifeq "$(testdiff)" "true"
-CPPFLAGS+= -D__CHECK_DIFF
+CPPFLAGS+= -DSMARTIES_CHECK_DIFF
 endif
 
 precision ?= double

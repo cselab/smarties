@@ -30,8 +30,8 @@ class HumanoidWrapper():
 
     dimAction = self.action_space.shape[0]
     dimState = 257 # SOME UNUSED STATE VARIABLES ARE CUT OUT FOR SPEED
-    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
-    comm.set_action_scales(self.action_space.high, self.action_space.low, False, 0)
+    comm.setStateActionDims(dimState, dimAction, 0) # 1 agent
+    comm.setActionScales(self.action_space.high, self.action_space.low, False, 0)
 
   def reset(self):
     observation = self.env.reset()

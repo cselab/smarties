@@ -24,7 +24,7 @@ struct Environment
 
   std::vector<std::unique_ptr<MDPdescriptor>> descriptors;
   std::vector<std::unique_ptr<Agent>> agents;
-  std::vector<int> bTrainFromAgentData;
+  std::vector<bool> bTrainFromAgentData;
 
   MDPdescriptor& getDescriptor(int agentID = 0)
   {
@@ -55,8 +55,8 @@ struct Environment
     //  nMPIranksPerEnvironment = 1;
     //}
 
-    bTrainFromAgentData.resize(nAgentsPerEnvironment, 1);
-    sendRecvFunc(bTrainFromAgentData.data(), nAgentsPerEnvironment*sizeof(bool));
+    bTrainFromAgentData.resize(nAgentsPerEnvironment, true);
+    sendRecvVectorFunc(sendRecvFunc, bTrainFromAgentData);
 
     nAgents = nAgentsPerEnvironment * nCallingEnvironments;
     //assert(nCallingEnvironments>0);

@@ -155,10 +155,9 @@ struct MiniBatch
     const bool wasOff = EP.offPolicImpW[t] > C || EP.offPolicImpW[t] < invC;
     const bool isOff = W > C || W < invC;
     {
-      std::lock_guard<std::mutex> lock(EP.seq_mutex);
-      EP.sumKLDiv = EP.sumKLDiv - EP.KullbLeibDiv[t] + D;
-      EP.MSE = EP.MSE - EP.SquaredError[t] + E;
-      EP.nOffPol = EP.nOffPol - wasOff + isOff;
+      EP.sumKLDiv.store(EP.sumKLDiv.load() - EP.KullbLeibDiv[t] + D);
+      EP.MSE.store(EP.MSE.load() - EP.SquaredError[t] + E);
+      EP.nOffPol.store(EP.nOffPol.load() - wasOff + isOff);
     }
     EP.SquaredError[t] = E;
     EP.KullbLeibDiv[t] = D;

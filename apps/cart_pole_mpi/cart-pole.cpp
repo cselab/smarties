@@ -18,14 +18,14 @@ inline void app_main(smarties::Communicator*const comm, // communicator with sma
                     int argc, char**argv    // arguments read from app's runtime settings file
 )
 {
-  comm->set_state_action_dims(6, 1);
+  comm->setStateActionDims(6, 1);
   //smarties::Profiler prof;
   //int wrank;
   //MPI_Comm_rank(MPI_COMM_WORLD, &wrank);
   //OPTIONAL: action bounds
   bool bounded = true;
   std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
   
   /*
    // ALTERNATIVE for discrete actions:
@@ -38,12 +38,12 @@ inline void app_main(smarties::Communicator*const comm, // communicator with sma
   // e.g. show cosine/sine but not angle
   std::vector<bool> b_observable = {true, true, true, false, true, true};
   //std::vector<bool> b_observable = {true, false, false, false, true, true};
-  comm->set_state_observable(b_observable);
+  comm->setStateObservable(b_observable);
   
   //OPTIONAL: set space bounds
   std::vector<double> upper_state_bound{ 1,  1,  1,  1,  1,  1};
   std::vector<double> lower_state_bound{-1, -1, -1, -1, -1, -1};
-  comm->set_state_scales(upper_state_bound, lower_state_bound);
+  comm->setStateScales(upper_state_bound, lower_state_bound);
   // Here for simplicity we have two environments
   // But real application is to env with two competing/collaborating agents
   CartPole env;

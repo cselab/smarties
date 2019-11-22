@@ -61,8 +61,9 @@ select(Agent& agent)
       auto dbg = prepare_policy<Policy_t>(output);
       const Rvec & ACT = EP.actions.back(), & MU = EP.policies.back();
       dbg.prepare(ACT, MU);
-      const double err = fabs(dbg.sampImpWeight-1);
-      if(err>1e-10) _die("Imp W err %20.20e", err);
+      const double err = std::fabs(dbg.sampImpWeight-1);
+      if(err>1e-10 || dbg.sampKLdiv>nnEPS)
+        _die("ImpW:%20.20e DKL:%20.20e", dbg.sampImpWeight, dbg.sampKLdiv);
     #endif
   }
   else // either terminal or truncation state

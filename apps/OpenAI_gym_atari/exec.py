@@ -93,20 +93,20 @@ def app_main(comm):
   print("openAI atari environment: ", sys.argv[1])
   env = atariWrapper()
   # state is a 84*84 grayscale (valued from 0 to 255) image
-  comm.set_state_action_dims(84*84, 1)
+  comm.setStateActionDims(84*84, 1)
   upprScale, lowrScale = 84*84 * [255.0], 84*84 * [0.0]
-  comm.set_state_scales(upprScale, lowrScale, 0)
+  comm.setStateScales(upprScale, lowrScale, 0)
   # how many action options depends on the game:
-  comm.set_action_options(env.env.action_space.n)
+  comm.setActionOptions(env.env.action_space.n)
   # define how obersation is preprocessed by approximators:
   # 1) chain together 4 observation
-  comm.set_num_appended_past_observations(3)
+  comm.setNumAppendedPastObservations(3)
   # 2) add convolutional layers:
   #    input is image of size 84 * 84 * (1 + 3)
-  comm.set_preprocessing_conv2d(84, 84,  4, 32, 8, 4)
+  comm.setPreprocessingConv2d(84, 84,  4, 32, 8, 4)
   #    then some math to figure out the input dim of next layers
-  comm.set_preprocessing_conv2d(20, 20, 32, 64, 4, 2)
-  comm.set_preprocessing_conv2d( 9,  9, 64, 64, 3, 1)
+  comm.setPreprocessingConv2d(20, 20, 32, 64, 4, 2)
+  comm.setPreprocessingConv2d( 9,  9, 64, 64, 3, 1)
 
   while True: #training loop
     observation = env.env_reset()

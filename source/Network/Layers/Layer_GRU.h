@@ -137,7 +137,7 @@ class MGULayer: public Layer
       #ifdef USE_OMPSIMD_BLAS
         GEMVomp(nCells, nCells, 2*nCells, WRC, deltaC, tmp);
       #else
-        gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
           WRC, 2*nCells, deltaC, 1, 0, tmp, 1);
       #endif
 
@@ -171,7 +171,7 @@ class MGULayer: public Layer
       #ifdef USE_OMPSIMD_BLAS
         GEMVomp(nCells, nCells, 2*nCells, WRF, deltaF, prvErr);
       #else
-        gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
           WRF, 2*nCells, deltaF, 1, 1, prvErr, 1);
       #endif
 
@@ -198,9 +198,9 @@ class MGULayer: public Layer
         GEMVomp(nCells, spanCompInpGrads, 2*nCells, WHF, deltaF, errors);
         GEMVomp(nCells, spanCompInpGrads, 2*nCells, WHC, deltaC, errors);
       #else
-        gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
           WHF, 2*nCells, deltaF, 1, 1, errors, 1);
-        gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
+        SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
           WHC, 2*nCells, deltaC, 1, 1, errors, 1);
       #endif
 

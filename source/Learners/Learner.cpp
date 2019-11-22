@@ -48,7 +48,7 @@ void Learner::initializeLearner()
   profiler->start("PRE");
   data_proc->updateRewardsStats(1, 1, true);
   // shift counters after initial data is gathered and sync is concluded
-  nDataGatheredB4Startup = data->readNSeen_loc();
+  data->nGatheredB4Startup = data->readNSeen_loc();
   _nObsB4StartTraining = nObsB4StartTraining;
   //data_proc->updateRewardsStats(1, 1e-3, true);
   if(learn_rank==0) printf("Initial reward std %e\n", 1/data->scaledReward(1));
@@ -135,7 +135,7 @@ void Learner::finalizeMemoryProcessing()
 
   profiler->stop_start("PRE");
   if(currStep%1000==0) // update state mean/std with net's learning rate
-    data_proc->updateRewardsStats(1, 1e-3*(OFFPOL_ADAPT_STSCALE>0));
+    data_proc->updateRewardsStats(1, 1e-3*(SMARTIES_OFFPOL_ADAPT_STSCALE>0));
   profiler->stop();
 }
 
@@ -187,7 +187,7 @@ void Learner::logStats()
 
 void Learner::globalGradCounterUpdate()
 {
-  _nGradSteps++;
+  data->nGradSteps++;
 }
 
 void Learner::processStats()
@@ -225,11 +225,11 @@ void Learner::processStats()
   }
   #ifdef PRINT_ALL_RANKS
     printf("%01lu-%01lu %05u%s\n",
-      learn_rank, learnID, currStep/freqPrint, buf.str().c_str());
+      learn_rank, data->learnID, currStep/freqPrint, buf.str().c_str());
   #else
-    printf("%02lu %05lu%s\n", learnID, currStep/freqPrint, buf.str().c_str());
+    printf("%02lu %05lu%s\n", data->learnID, currStep/freqPrint, buf.str().c_str());
   #endif
-  fprintf(fout,"%02lu %05lu%s\n", learnID,currStep/freqPrint,buf.str().c_str());
+  fprintf(fout,"%02lu %05lu%s\n", data->learnID, currStep/freqPrint, buf.str().c_str());
   fclose(fout);
   fflush(0);
 }
@@ -281,7 +281,7 @@ void Learner::restart()
   }
 
   Uint nStoredEps = 0, nStoredObs = 0, nLocalSeenEps = 0, nLocalSeenObs = 0;
-  long nInitialData = nDataGatheredB4Startup, doneGradSteps = 0;
+  long nInitialData = data->nGatheredB4Startup, doneGradSteps = 0;
   Uint pass = 1;
   pass = pass && 1 == fscanf(fstat, "nStoredEps: %lu\n",    & nStoredEps);
   pass = pass && 1 == fscanf(fstat, "nStoredObs: %lu\n",    & nStoredObs);
@@ -297,8 +297,8 @@ void Learner::restart()
   data->setNData(nStoredObs);
   data->setNSeen_loc(nLocalSeenObs);
   data->setNSeenSeq_loc(nLocalSeenEps);
-  nDataGatheredB4Startup = nInitialData;
-  _nGradSteps = doneGradSteps;
+  data->nGatheredB4Startup = nInitialData;
+  data->nGradSteps = doneGradSteps;
 
   for(Uint i = 0; i < nStoredEps; ++i)
   {
@@ -325,7 +325,7 @@ void Learner::save()
   FILE * fstat = fopen((dumpName + "status_backup.raw").c_str(), "w");
   FILE * fdata = fopen((dumpName + "data_backup.raw").c_str(), "wb");
 
-  const long doneGradSteps = _nGradSteps;
+  const long doneGradSteps = nGradSteps();
   const Uint nStoredEps = data->readNSeq();
   const Uint nStoredObs = data->readNData();
   const Uint nLocalSeenObs = data->readNSeen_loc();
@@ -335,7 +335,7 @@ void Learner::save()
   fprintf(fstat, "nStoredObs: %lu\n",    nStoredObs);
   fprintf(fstat, "nLocalSeenEps: %lu\n", nLocalSeenEps);
   fprintf(fstat, "nLocalSeenObs: %lu\n", nLocalSeenObs);
-  fprintf(fstat, "nInitialData: %ld\n",  nDataGatheredB4Startup);
+  fprintf(fstat, "nInitialData: %ld\n",  data->nGatheredB4Startup);
   fprintf(fstat, "nGradSteps: %ld\n",    doneGradSteps);
   fprintf(fstat, "CmaxReFER: %le\n",     CmaxRet);
   fprintf(fstat, "beta: %le\n",          beta);

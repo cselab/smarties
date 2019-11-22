@@ -41,7 +41,7 @@ struct Parameters
 
   void broadcast(const MPI_Comm comm) const
   {
-    MPI_Bcast(params, nParams, MPI_NNVALUE_TYPE, 0, comm);
+    MPI_Bcast(params, nParams, SMARTIES_MPI_NNVALUE_TYPE, 0, comm);
   }
 
   void copy(const ParametersPtr_t& tgt) const

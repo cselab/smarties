@@ -85,56 +85,56 @@ public:
   VISIBLE const std::vector<double>& recvAction(const int agentID = 0) const;
 
 
-  VISIBLE void set_num_agents(int _nAgents);
+  VISIBLE void setNumAgents(int _nAgents);
 
-  VISIBLE void set_state_action_dims(const int dimState,
-                                     const int dimAct,
-                                     const int agentID = 0);
-
-  VISIBLE void set_action_scales(const std::vector<double> uppr,
-                                 const std::vector<double> lowr,
-                                 const bool bound,
-                                 const int agentID = 0);
-
-  VISIBLE void set_action_scales(const std::vector<double> upper,
-                                 const std::vector<double> lower,
-                                 const std::vector<bool>   bound,
-                                 const int agentID = 0);
-
-  VISIBLE void set_action_options(const int options,
+  VISIBLE void setStateActionDims(const int dimState,
+                                  const int dimAct,
                                   const int agentID = 0);
 
-  VISIBLE void set_action_options(const std::vector<int> options,
-                                  const int agentID = 0);
+  VISIBLE void setActionScales(const std::vector<double> uppr,
+                               const std::vector<double> lowr,
+                               const bool bound,
+                               const int agentID = 0);
 
-  VISIBLE void set_state_observable(const std::vector<bool> observable,
-                                    const int agentID = 0);
+  VISIBLE void setActionScales(const std::vector<double> upper,
+                               const std::vector<double> lower,
+                               const std::vector<bool>   bound,
+                               const int agentID = 0);
 
-  VISIBLE void set_state_scales(const std::vector<double> upper,
-                                const std::vector<double> lower,
+  VISIBLE void setActionOptions(const int options,
                                 const int agentID = 0);
 
-  VISIBLE void set_is_partially_observable(const int agentID = 0);
+  VISIBLE void setActionOptions(const std::vector<int> options,
+                                const int agentID = 0);
 
-  VISIBLE void finalize_problem_description();
+  VISIBLE void setStateObservable(const std::vector<bool> observable,
+                                  const int agentID = 0);
+
+  VISIBLE void setStateScales(const std::vector<double> upper,
+                              const std::vector<double> lower,
+                              const int agentID = 0);
+
+  VISIBLE void setIsPartiallyObservable(const int agentID = 0);
+
+  VISIBLE void finalizeProblemDescription();
 
   //////////////////////////////////////////////////////////////////////////////
   ////////////////////////////// ADVANCED METHODS //////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  VISIBLE void env_has_distributed_agents();
+  VISIBLE void envHasDistributedAgents();
 
-  VISIBLE void agents_define_different_MDP();
+  VISIBLE void agentsDefineDifferentMDP();
 
   VISIBLE void disableDataTrackingForAgents(int agentStart, int agentEnd);
 
-  VISIBLE void set_preprocessing_conv2d(
+  VISIBLE void setPreprocessingConv2d(
     const int input_width, const int input_height, const int input_features,
     const int kernels_num, const int filters_size, const int stride,
     const int agentID = 0);
 
-  VISIBLE void set_num_appended_past_observations(const int n_appended,
-                                                  const int agentID = 0);
+  VISIBLE void setNumAppendedPastObservations(const int n_appended,
+                                              const int agentID = 0);
 
   //////////////////////////////////////////////////////////////////////////////
   ////////////////////////// OPTIMIZATION INTERFACE ////////////////////////////

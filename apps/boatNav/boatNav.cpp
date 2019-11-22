@@ -208,14 +208,14 @@ inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
   bool commNow=false;
   const double magnifyAction = 1.0;
 
-  comm->set_num_agents(number_of_agents);
-  comm->set_state_action_dims(state_vars, control_vars);
+  comm->setNumAgents(number_of_agents);
+  comm->setStateActionDims(state_vars, control_vars);
   std::mt19937	&rngPointer =  comm->getPRNG();
 
   //OPTIONAL: action bounds
   const bool bounded = true;
   vector<double> upper_action_bound{200,200}, lower_action_bound{0,0}; // only positive motor control
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
 
   // Path start and end
   const double xPathStart[2] = {0,0};

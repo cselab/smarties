@@ -1,9 +1,10 @@
 MPICXX=CC
 LD=CC
 
-ifeq ($(INTEL_LICENSE_FILE),)
+ifeq "$(shell CC --version | grep -ci 'icpc')" "0"
 LIBS+= -lsci_gnu
 else
 LIBS+= -lsci_intel
 endif
+
 CPPFLAGS+= -DUSE_OPENBLAS

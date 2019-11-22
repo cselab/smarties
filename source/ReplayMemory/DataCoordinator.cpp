@@ -107,7 +107,7 @@ void DataCoordinator::distributePendingEpisodes()
         MPI(Wait, & sharingReq[dest], MPI_STATUS_IGNORE);
       sharingSeq[dest] = EP->packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
       MPI(Isend, sharingSeq[dest].data(), sharingSeq[dest].size(),
-          MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
+          SMARTIES_MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
       Utilities::dispose_object(EP);
     }
     episodes.pop_back();
@@ -127,9 +127,9 @@ void DataCoordinator::mastersRecvEpisodes()
     MPI_Iprobe(MPI_ANY_SOURCE, tag, C, &completed, &S);
     if(completed) {
       int count = 0, source = S.MPI_SOURCE;
-      MPI(Get_count, & status, MPI_Fval, & count);
+      MPI(Get_count, & status, SMARTIES_MPI_Fval, & count);
       Fvec EP(count, (Fval)0);
-      MPI(Recv, EP.data(), EP.size(), MPI_Fval, source, tag, C, &S);
+      MPI(Recv, EP.data(), EP.size(), SMARTIES_MPI_Fval, source, tag, C, &S);
       assert(EP.size());
       return EP;
     } else return Fvec();
@@ -180,7 +180,7 @@ void DataCoordinator::mastersRecvEpisodes()
         MPI(Wait, & sharingReq[dest], MPI_STATUS_IGNORE);
       sharingSeq[dest] = workersEP;
       MPI(Isend, sharingSeq[dest].data(), sharingSeq[dest].size(),
-          MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
+          SMARTIES_MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
     }
     if(sharingSize>0) sharingDest = (sharingDest+1) % sharingSize; //pick next
 
@@ -224,7 +224,7 @@ void DataCoordinator::addComplete(Sequence* const EP, const bool bUpdateParams)
     //master processes one after the other (i.e. other threads will wait)
     //however, in case of non-multiple thread safety, it will cause deadlock
     std::lock_guard<std::mutex> send_ep_lock(complete_mutex);
-    MPI(Send, MSG.data(), MSG.size(), MPI_Fval, 0, 737283+MDPID, workerComm);
+    MPI(Send, MSG.data(), MSG.size(), SMARTIES_MPI_Fval, 0, 737283+MDPID, workerComm);
 
     const int intUpdateParams = bUpdateParams? 1 : 0;
     MPI(Send, &intUpdateParams, 1, MPI_INT, 0, 275727+MDPID, workerComm);

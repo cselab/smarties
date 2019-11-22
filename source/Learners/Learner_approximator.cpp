@@ -117,7 +117,7 @@ void Learner_approximator::restart()
 
   Learner::restart();
 
-  for(const auto & net : networks) net->setNgradSteps(_nGradSteps);
+  for(const auto & net : networks) net->setNgradSteps(nGradSteps());
 }
 
 void Learner_approximator::save()
@@ -138,15 +138,20 @@ void Learner_approximator::save()
 // that take the output of the preprocessor and produce policies,values, etc.
 bool Learner_approximator::createEncoder()
 {
-  const Uint nPreProcLayers = settings.encoderLayerSizes.size();
+  auto & encoderLayers = settings.encoderLayerSizes;
+  // remove zero-sized layers: (i.e. if settings reads 'encoderLayerSizes: 0')
+  for(Uint i=0; i<encoderLayers.size(); ++i)
+    if (encoderLayers[i] == 0)
+      encoderLayers.erase(encoderLayers.begin() + i);
 
+  const Uint nPreProcLayers = encoderLayers.size();
   if ( MDP.conv2dDescriptors.size() == 0 and nPreProcLayers == 0 )
     return false; // no preprocessing
 
   if(networks.size()>0) warn("some network was created before preprocessing");
   networks.push_back(new Approximator("encodr", settings,distrib, data.get()));
-  networks.back()->buildPreprocessing(settings.encoderLayerSizes);
-
+  networks.back()->buildPreprocessing(encoderLayers);
+  assert( networks.back()->nLayers() > 1 );
   return true;
 }
 

@@ -62,7 +62,7 @@ void CMA_Optimizer::prepare_update(const Rvec&L)
   assert(L.size() == populationSize);
   losses = L;
   if (learn_size > 1) { //add up losses across master ranks
-    MPI(Iallreduce, MPI_IN_PLACE, losses.data(), populationSize, MPI_VALUE_TYPE,
+    MPI(Iallreduce, MPI_IN_PLACE, losses.data(), populationSize, SMARTIES_MPI_VALUE_TYPE,
                    MPI_SUM, learnersComm, &paramRequest);
   }
   nStep++;
@@ -225,9 +225,9 @@ void CMA_Optimizer::startAllGather(const Uint ID)
   }
 
   //MPI(Iallgatherv, MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, P, pCounts.data(),
-  //  pStarts.data(), MPI_NNVALUE_TYPE, mastersComm, &wVecReq[ID]);
+  //  pStarts.data(), SMARTIES_MPI_NNVALUE_TYPE, mastersComm, &wVecReq[ID]);
   MPI(Iallgather, MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, P, mpiDistribOpsStride,
-    MPI_NNVALUE_TYPE, learnersComm, &weightsMPIrequests[ID]);
+    SMARTIES_MPI_NNVALUE_TYPE, learnersComm, &weightsMPIrequests[ID]);
 }
 
 } // end namespace smarties

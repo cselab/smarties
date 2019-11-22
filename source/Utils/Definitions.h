@@ -23,30 +23,30 @@ using Sint = ptrdiff_t;
 ////////////////////////////////////////////////////////////////////////////////
 #if 1 // MAIN CODE PRECISION
 using Real = double;
-#define MPI_VALUE_TYPE MPI_DOUBLE
+#define SMARTIES_MPI_VALUE_TYPE MPI_DOUBLE
 #else
 using Real = float;
-#define MPI_VALUE_TYPE MPI_FLOAT
+#define SMARTIES_MPI_VALUE_TYPE MPI_FLOAT
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef SINGLE_PREC // NETWORK PRECISION
-  #define gemv cblas_dgemv
-  #define gemm cblas_dgemm
+  #define SMARTIES_gemv cblas_dgemv
+  #define SMARTIES_gemm cblas_dgemm
   using nnReal = double;
-  #define MPI_NNVALUE_TYPE MPI_DOUBLE
-  #define EXP_CUT 16 //prevent under/over flow with exponentials
+  #define SMARTIES_MPI_NNVALUE_TYPE MPI_DOUBLE
+  #define SMARTIES_EXP_CUT 16 //prevent under/over flow with exponentials
 #else
-  #define gemv cblas_sgemv
-  #define gemm cblas_sgemm
-  #define MPI_NNVALUE_TYPE MPI_FLOAT
+  #define SMARTIES_gemv cblas_sgemv
+  #define SMARTIES_gemm cblas_sgemm
+  #define SMARTIES_MPI_NNVALUE_TYPE MPI_FLOAT
   using nnReal = float;
-  #define EXP_CUT 8 //prevent under/over flow with exponentials
+  #define SMARTIES_EXP_CUT 8 //prevent under/over flow with exponentials
 #endif
 ////////////////////////////////////////////////////////////////////////////////
 // Data format for storage in memory buffer. Switch to float for example for
 // Atari where the memory buffer is in the order of GBs.
 using Fval = float;
-#define MPI_Fval MPI_FLOAT
+#define SMARTIES_MPI_Fval MPI_FLOAT
 
 using Fvec = std::vector<Fval>;
 using Rvec = std::vector<Real>;

@@ -1,4 +1,7 @@
 
+ifneq ($(LIBOMP_LIB),)
+  LDFLAGS += -L$(LIBOMP_LIB)
+endif
 CPPFLAGS+= -std=c++14 -fopenmp=libomp
 LDFLAGS+= -fopenmp=libomp
 

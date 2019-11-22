@@ -24,15 +24,15 @@ inline int app_main(
   const int otherRank = myRank == 0? 1 : 0;
   assert(simSize == 2 && myRank < 2); // app designed to be run by 2 ranks
 
-  comm->set_state_action_dims(6, 1);
+  comm->setStateActionDims(6, 1);
 
   //OPTIONAL: action bounds
   bool bounded = true;
   std::vector<double> upper_action_bound{10}, lower_action_bound{-10};
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
   //OPTIONAL: hide angle, but not cosangle and sinangle.
   std::vector<bool> b_observable = {true, true, true, false, true, true};
-  comm->set_state_observable(b_observable);
+  comm->setStateObservable(b_observable);
 
   CartPole env;
 

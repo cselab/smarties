@@ -40,18 +40,18 @@ def setupSmartiesCommon(comm, task):
   # then figure out action dims and details
   if hasattr(env.action_space, 'spaces'):
     dimAction = len(env.action_space.spaces)
-    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
+    comm.setStateActionDims(dimState, dimAction, 0) # 1 agent
     control_options = dimAction * [0]
     for i in range(dimAction):
       control_options[i] = env.action_space.spaces[i].n
-    comm.set_action_options(control_options, 0) # agent 0
+    comm.setActionOptions(control_options, 0) # agent 0
   elif hasattr(env.action_space, 'n'):
     dimAction = 1
-    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
-    comm.set_action_options(env.action_space.n, 0) # agent 0
+    comm.setStateActionDims(dimState, dimAction, 0) # 1 agent
+    comm.setActionOptions(env.action_space.n, 0) # agent 0
   elif hasattr(env.action_space, 'shape'):
     dimAction = env.action_space.shape[0]
-    comm.set_state_action_dims(dimState, dimAction, 0) # 1 agent
+    comm.setStateActionDims(dimState, dimAction, 0) # 1 agent
     upprScale = dimAction * [0.0]
     lowrScale = dimAction * [0.0]
     isBounded = dimAction * [False]
@@ -65,7 +65,7 @@ def setupSmartiesCommon(comm, task):
       assert(env.action_space.low[i] >-1e6) # make sense
       upprScale[i] = env.action_space.high[i]
       lowrScale[i] = env.action_space.low[i]
-    comm.set_action_scales(upprScale, lowrScale, isBounded, 0)
+    comm.setActionScales(upprScale, lowrScale, isBounded, 0)
   else: assert(False)
 
   return env

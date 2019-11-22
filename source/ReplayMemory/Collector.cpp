@@ -26,7 +26,7 @@ replay(RM), sharing(C)
 void Collector::add_state(Agent&a)
 {
   assert(a.ID < inProgress.size());
-  assert(replay->MDP.localID == a.localID);
+  //assert(replay->MDP.localID == a.localID);
   Sequence* const S = inProgress[a.ID];
 
   // assign or check id of agent generating episode
@@ -80,17 +80,17 @@ void Collector::add_action(const Agent& a, const Rvec pol)
   assert(a.agentStatus < TERM);
   if(a.trackSequence == false) {
     // do not store more stuff in sequence but also do not track data counter
-    inProgress[a.ID]->actions = std::vector<std::vector<Real>>{ a.action };
-    inProgress[a.ID]->policies = std::vector<std::vector<Real>>{ pol };
+    inProgress[a.ID]->actions = std::vector<Rvec>{ a.action };
+    inProgress[a.ID]->policies = std::vector<Rvec>{ pol };
     return;
   }
 
   if(a.agentStatus not_eq INIT) nSeenTransitions_loc ++;
   inProgress[a.ID]->actions.push_back( a.action );
   inProgress[a.ID]->policies.push_back(pol);
-  if(distrib.logAllSamples) // TODO was learner rank
-    a.writeData(distrib.initial_runDir, distrib.world_rank,
-                pol, nSeenTransitions_loc.load());
+  //if(distrib.logAllSamples) // TODO was learner rank
+  //  a.writeData(distrib.initial_runDir, distrib.world_rank,
+  //              pol, nSeenTransitions_loc.load());
 }
 
 // If the state is terminal, instead of calling `add_action`, call this:
@@ -105,9 +105,9 @@ void Collector::terminate_seq(Agent&a)
   inProgress[a.ID]->actions.push_back( dummyAct );
   inProgress[a.ID]->policies.push_back( dummyPol );
 
-  if(distrib.logAllSamples) // TODO was learner rank
-    a.writeData(distrib.initial_runDir, distrib.world_rank,
-                dummyPol, nSeenTransitions_loc.load());
+  //if(distrib.logAllSamples) // TODO was learner rank
+  //  a.writeData(distrib.initial_runDir, distrib.world_rank,
+  //              dummyPol, nSeenTransitions_loc.load());
   push_back(a.ID);
 }
 

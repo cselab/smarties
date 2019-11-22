@@ -217,6 +217,7 @@ ACER::ACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   const bool bCreatedEncorder = createEncoder();
   assert(networks.size() == bCreatedEncorder? 1 : 0);
   encoder = bCreatedEncorder? networks[0] : nullptr;
+  if(bCreatedEncorder) encoder->initializeNetwork();
 
   networks.push_back(
     new Approximator("policy", settings, distrib, data.get(), encoder)

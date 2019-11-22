@@ -26,7 +26,7 @@ if __name__ == '__main__':
     isBounded = dimAction * [True] # all bounded in DMC
 
     comm = Communicator(dimState, dimAction, 1) # 1 agent
-    comm.set_action_scales(upprScale, lowrScale, isBounded, 0)
+    comm.setActionScales(upprScale, lowrScale, isBounded, 0)
 
     while True: #training loop
         t = env.reset()

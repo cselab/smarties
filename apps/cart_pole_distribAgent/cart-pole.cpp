@@ -27,17 +27,17 @@ inline int app_main(
 
   // This options says that the agent themselves are distributed.
   // I.e. the same agent runs on multiple ranks:
-  comm->env_has_distributed_agents();
+  comm->envHasDistributedAgents();
   // Because we are holding on to using cart-poles... let's just say that our
   // agent is NCARTS cart-poles with joint controls. 4 state and 1 control
   // variables per process, distributed over NCARTS processes.
-  comm->set_state_action_dims(4 * NCARTS, 1 * NCARTS);
+  comm->setStateActionDims(4 * NCARTS, 1 * NCARTS);
 
   //OPTIONAL: action bounds
   const bool bounded = true;
   const std::vector<double> upper_action_bound(NCARTS,  10);
   const std::vector<double> lower_action_bound(NCARTS, -10);
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
 
   CartPole env;
 

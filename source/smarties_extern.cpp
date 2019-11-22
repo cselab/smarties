@@ -61,92 +61,92 @@ extern "C" void smarties_recvAction(void*const ptr2comm,
 //=============================================================================
 
 //=============================================================================
-extern "C" void smarties_set_num_agents(void*const ptr2comm,
+extern "C" void smarties_setNumAgents(void*const ptr2comm,
   const int num_agents)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_num_agents(num_agents);
+  static_cast<smarties::Communicator*>(ptr2comm)->setNumAgents(num_agents);
 }
 
-extern "C" void smarties_set_state_action_dims(void*const ptr2comm,
+extern "C" void smarties_setStateActionDims(void*const ptr2comm,
   const int state_dim, const int action_dim, const int agent_id)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_state_action_dims(
+  static_cast<smarties::Communicator*>(ptr2comm)->setStateActionDims(
     state_dim, action_dim, agent_id);
 }
 
-extern "C" void smarties_set_action_scales_default(void*const ptr2comm,
+extern "C" void smarties_setActionScales(void*const ptr2comm,
   const double* const upper_scale, const double* const lower_scale,
   const int are_bounds, const int action_dim, const int agent_id)
 {
   const std::vector<double> upper(upper_scale, upper_scale + action_dim);
   const std::vector<double> lower(lower_scale, lower_scale + action_dim);
-  static_cast<smarties::Communicator*>(ptr2comm)->set_action_scales(
+  static_cast<smarties::Communicator*>(ptr2comm)->setActionScales(
     upper, lower, are_bounds, agent_id);
 }
 
-extern "C" void smarties_set_action_scales_pointer(void*const ptr2comm,
+extern "C" void smarties_setActionScalesBounds(void*const ptr2comm,
   const double* const upper_scale, const double* const lower_scale,
   const int*const are_bounds, const int action_dim, const int agent_id)
 {
   const std::vector<double> upper(upper_scale, upper_scale + action_dim);
   const std::vector<double> lower(lower_scale, lower_scale + action_dim);
   const std::vector<bool>  bounds( are_bounds,  are_bounds + action_dim);
-  static_cast<smarties::Communicator*>(ptr2comm)->set_action_scales(
+  static_cast<smarties::Communicator*>(ptr2comm)->setActionScales(
     upper, lower, bounds, agent_id);
 }
 
-extern "C" void smarties_set_action_options_default(void*const ptr2comm,
+extern "C" void smarties_setActionOptions(void*const ptr2comm,
   const int noptions, const int agent_id)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_action_options(
+  static_cast<smarties::Communicator*>(ptr2comm)->setActionOptions(
     noptions, agent_id);
 }
 
-extern "C" void smarties_set_action_options_dim(void*const ptr2comm,
+extern "C" void smarties_setActionOptionsPerDim(void*const ptr2comm,
   const int*const noptions, const int action_dim, const int agent_id)
 {
   const std::vector<int> optionsvec(noptions, noptions + action_dim);
-  static_cast<smarties::Communicator*>(ptr2comm)->set_action_options(
+  static_cast<smarties::Communicator*>(ptr2comm)->setActionOptions(
     optionsvec, agent_id);
 }
 
-extern "C" void smarties_set_state_observable(void*const ptr2comm,
+extern "C" void smarties_setStateObservable(void*const ptr2comm,
   const int*const bobservable, const int state_dim, const int agent_id)
 {
   const std::vector<bool> optionsvec(bobservable, bobservable + state_dim);
-  static_cast<smarties::Communicator*>(ptr2comm)->set_state_observable(
+  static_cast<smarties::Communicator*>(ptr2comm)->setStateObservable(
     optionsvec, agent_id);
 }
 
-extern "C" void smarties_set_state_scales(void*const ptr2comm,
+extern "C" void smarties_setStateScales(void*const ptr2comm,
   const double*const upper_scale, const double*const lower_scale,
   const int state_dim, const int agent_id)
 {
   const std::vector<double> upper(upper_scale, upper_scale + state_dim);
   const std::vector<double> lower(lower_scale, lower_scale + state_dim);
-  static_cast<smarties::Communicator*>(ptr2comm)->set_state_scales(
+  static_cast<smarties::Communicator*>(ptr2comm)->setStateScales(
     upper, lower, agent_id);
 }
 
-extern "C" void smarties_set_is_partially_observable(void*const ptr2comm,
+extern "C" void smarties_setIsPartiallyObservable(void*const ptr2comm,
   const int agent_id)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_is_partially_observable(agent_id);
+  static_cast<smarties::Communicator*>(ptr2comm)->setIsPartiallyObservable(agent_id);
 }
 
-extern "C" void smarties_finalize_problem_description(void*const ptr2comm)
+extern "C" void smarties_finalizeProblemDescription(void*const ptr2comm)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->finalize_problem_description();
+  static_cast<smarties::Communicator*>(ptr2comm)->finalizeProblemDescription();
 }
 
-extern "C" void smarties_env_has_distributed_agents(void*const ptr2comm)
+extern "C" void smarties_envHasDistributedAgents(void*const ptr2comm)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->env_has_distributed_agents();
+  static_cast<smarties::Communicator*>(ptr2comm)->envHasDistributedAgents();
 }
 
-extern "C" void smarties_agents_define_different_MDP(void*const ptr2comm)
+extern "C" void smarties_agentsDefineDifferentMDP(void*const ptr2comm)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->agents_define_different_MDP();
+  static_cast<smarties::Communicator*>(ptr2comm)->agentsDefineDifferentMDP();
 }
 
 extern "C" void smarties_disableDataTrackingForAgents(void*const ptr2comm,
@@ -156,19 +156,19 @@ extern "C" void smarties_disableDataTrackingForAgents(void*const ptr2comm,
     agentStart, agentEnd);
 }
 
-extern "C" void smarties_set_preprocessing_conv2d(void*const ptr2comm,
+extern "C" void smarties_setPreprocessingConv2d(void*const ptr2comm,
   const int input_width, const int input_height, const int input_features,
   const int kernels_num, const int filters_size, const int stride,
   const int agentID)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_preprocessing_conv2d(input_width,
+  static_cast<smarties::Communicator*>(ptr2comm)->setPreprocessingConv2d(input_width,
     input_height, input_features, kernels_num, filters_size, stride, agentID);
 }
 
-extern "C" void smarties_set_num_appended_past_observations(void*const ptr2comm,
+extern "C" void smarties_setNumAppendedPastObservations(void*const ptr2comm,
   const int n_appended, const int agentID)
 {
-  static_cast<smarties::Communicator*>(ptr2comm)->set_num_appended_past_observations(
+  static_cast<smarties::Communicator*>(ptr2comm)->setNumAppendedPastObservations(
     n_appended, agentID);
 }
 

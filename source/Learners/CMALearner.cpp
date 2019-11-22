@@ -10,8 +10,8 @@
 #include "../Utils/StatsTracker.h"
 #include "../ReplayMemory/Collector.h"
 #include "../ReplayMemory/MemoryProcessing.h"
-#ifdef EXTRACT_COVAR
-#undef EXTRACT_COVAR
+#ifdef SMARTIES_EXTRACT_COVAR
+#undef SMARTIES_EXTRACT_COVAR
 #endif
 #include "../Math/Gaussian_policy.h"
 #include "../Math/Discrete_policy.h"

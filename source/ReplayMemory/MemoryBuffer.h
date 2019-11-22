@@ -36,6 +36,7 @@ class MemoryBuffer
   std::mutex dataset_mutex; // accessed by some samplers
  private:
 
+  friend class Learner;
   friend class Sampling;
   friend class Collector;
   friend class DataCoordinator;
@@ -47,6 +48,7 @@ class MemoryBuffer
   std::vector<nnReal>& std = MDP.stateStdDev;
   nnReal& stddev_reward = MDP.rewardsStdDev;
   nnReal& invstd_reward = MDP.rewardsScale;
+
   const bool bSampleSequences = settings.bSampleSequences;
   const Uint nAppended = MDP.nAppendedObs;
   const Real gamma = settings.gamma;
@@ -55,6 +57,11 @@ class MemoryBuffer
 
   std::vector<Sequence*> Set;
   std::vector<Uint> lastSampledEps;
+
+  // num of grad steps performed by owning learner:
+  std::atomic<long> nGradSteps{0};
+  // number of time steps collected before training begins:
+  long nGatheredB4Startup = std::numeric_limits<long>::max();
 
   // num of samples contained in dataset:
   std::atomic<long> nSequences{0}; // num of episodes
@@ -73,7 +80,8 @@ class MemoryBuffer
   void checkNData();
 
  public:
-
+  MemoryBuffer(const MemoryBuffer& c) = delete;
+  MemoryBuffer(MemoryBuffer && c) = delete;
   MemoryBuffer(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_);
   ~MemoryBuffer();
 
@@ -131,6 +139,10 @@ class MemoryBuffer
   long readNSeenSeq_loc() const { return nSeenSequences_loc.load();  }
   long readNData()        const { return nTransitions.load();  }
   long readNSeq()         const { return nSequences.load();  }
+  long nLocTimeStepsTrain() const {
+    return readNSeen_loc() - nGatheredB4Startup;
+  }
+
   void setNSeen_loc(const long val)    { nSeenTransitions_loc = val;  }
   void setNSeenSeq_loc(const long val) { nSeenSequences_loc = val;  }
   void setNData(const long val)        { nTransitions = val;  }
