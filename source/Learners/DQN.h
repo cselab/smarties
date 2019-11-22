@@ -20,11 +20,13 @@ class DQN : public Learner_approximator
 
   Real annealingFactor() const
   {
+    if(not bTrain) return 0; // no training: pick best action
+    if(epsAnneal <= 0) return 0; // no annealing : same
+
     //number that goes from 1 to 0 with optimizer's steps
-    assert(epsAnneal>1.0);
     const auto mynstep = nGradSteps();
-    if(mynstep*epsAnneal >= 1 || not bTrain) return 0;
-    else return 1 - mynstep*epsAnneal;
+    if(mynstep*epsAnneal >= 1) return 0; // annealing finished
+    else return 1 - mynstep*epsAnneal; // annealing
   }
 
   void Train(const MiniBatch&MB, const Uint wID,const Uint bID) const override;

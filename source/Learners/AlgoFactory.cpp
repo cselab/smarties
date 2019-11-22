@@ -164,7 +164,7 @@ std::unique_ptr<Learner> createLearner(
   {
     if(not MDP.bDiscreteActions)
       die("DQN supports only discrete-action problems");
-    o << MDP.maxActionLabel << " " << MDP.maxActionLabel;
+    o << MDP.dimAction << " " << MDP.maxActionLabel;
     printLogfile(o, "problem_size.log", distrib.world_rank);
     MDP.policyVecDim = MDP.maxActionLabel;
     ret = std::make_unique<DQN>(MDP, settings, distrib);

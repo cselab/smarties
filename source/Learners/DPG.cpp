@@ -155,7 +155,6 @@ void DPG::select(Agent& agent)
       assert(0 == EP.Q_RET.size());
       //within Retrace, we use the Q_RET vector to write the Adv retrace values
       EP.Q_RET.resize(N, 0);
-      EP.offPolicImpW.resize(N, 1);
       for(Uint i=EP.ndata(); i>0; --i)
         EP.propagateRetrace(i, gamma, data->scaledReward(EP, i));
     #endif

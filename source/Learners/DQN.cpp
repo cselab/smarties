@@ -41,9 +41,31 @@ DQN::DQN(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
     networks.push_back(new Approximator("Q", settings, distrib, data.get()));
   }
   networks[0]->setUseTargetNetworks();
-  networks[0]->buildFromSettings(nA + 1);
+  networks[0]->buildFromSettings(nA);
   networks[0]->initializeNetwork();
+  {  // TEST FINITE DIFFERENCES:
+    Rvec output(nA), mu(nA);
+    std::normal_distribution<Real> dist(0, 1);
 
+    Real sumMu = 0;
+    for(Uint i=0; i<nA; ++i) {
+        const Real Qi = dist(generators[0]);
+        mu[i] = PosDefMapping_f::_eval(Qi);
+        sumMu += mu[i];
+    }
+    for(Uint i=0; i<nA; ++i) mu[i] /= sumMu;
+    //for(Uint i=0; i<nA; ++i) printf("mu:%e\n",mu[i]);
+
+    for(Uint i=0; i<nA; ++i) {
+      const Real Qmu = Utilities::noiseMap_inverse(mu[i]);
+      output[i] = Qmu + 0.01 * dist(generators[0]);
+    }
+
+    Discrete_policy pol({0}, &aInfo, output);
+    Uint act = pol.finalize(1, &generators[0], mu);
+    pol.prepare(aInfo.label2actionMessage(act), mu);
+    pol.test(act, mu);
+  }
   trainInfo = new TrainData("DQN", distrib);
 }
 
@@ -52,6 +74,7 @@ void DQN::select(Agent& agent)
   data_get->add_state(agent);
   Sequence& EP = * data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(&EP);
+  auto & rngen = generators[nThreads+agent.ID];
 
   if( agent.agentStatus < TERM )
   {
@@ -59,13 +82,12 @@ void DQN::select(Agent& agent)
     // recurrent connection from last call from same agent will be reused
     networks[0]->load(MB, agent);
     auto outVec = networks[0]->forward(agent);
-    outVec.pop_back(); // remove state value
 
     #ifdef DQN_USE_POLICY
       Discrete_policy POL({0}, &aInfo, outVec);
       Rvec MU = POL.getVector();
       const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
-      Uint act = POL.finalize(bSamplePol, &generators[nThreads+agent.ID], MU);
+      Uint act = POL.finalize(bSamplePol, & rngen, MU);
       agent.act(act);
     #else
       const Real anneal = annealingFactor(), explNoise = settings.explNoise;
@@ -73,8 +95,8 @@ void DQN::select(Agent& agent)
       const Uint greedyAct = Utilities::maxInd(outVec);
 
       std::uniform_real_distribution<Real> dis(0.0, 1.0);
-      if(dis(generators[nThreads+agent.ID]) < annealedEps)
-        agent.act(nA * dis(generators[nThreads+agent.ID]));
+      if(dis(rngen) < annealedEps)
+        agent.act(nA * dis(rngen));
       else agent.act(greedyAct);
 
       Rvec MU(policyVecDim, annealedEps/nA);
@@ -148,14 +170,14 @@ static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
                                  const ActionInfo*const aI)
 {
   assert( aI->dimDiscrete() == Qhats.size() );
-  assert( aI->dimDiscrete() + 1 == Qhats.size() );
+  assert( aI->dimDiscrete() == Qhats.size() );
   #ifdef DQN_USE_POLICY
     Discrete_policy pol({0}, aI, Qhats);
     Real ret = 0;
     for(Uint i=0; i<aI->dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
     return ret;
   #else
-    return Qtildes[ Utilities::maxInd(Qhats) ] + Qtildes.back();
+    return Qtildes[ Utilities::maxInd(Qhats) ];
   #endif
 }
 
@@ -167,22 +189,21 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   const Rvec Qs = networks[0]->forward(bID, t);
   const Uint actt = aInfo.actionMessage2label(MB.action(bID,t));
-  assert(actt+1 < Qs.size()); // enough to store advantages and value
+  assert(actt < Qs.size()); // enough to store advantages and value
 
   Real Vsnew = MB.reward(bID, t);
   if (not MB.isTerminal(bID, t+1)) {
     // find best action for sNew with moving wghts, evaluate it with tgt wgths:
     // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
     Rvec Qhats         = networks[0]->forward    (bID, t+1);
-    Qhats.pop_back(); // remove state value
     const Rvec Qtildes = networks[0]->forward_tgt(bID, t+1);
-    //v_s = r +gamma*( adv(greedy action)                + V(s'))
+    //v_s = r + gamma * Q(greedy action)
     Vsnew += gamma * expectedValue(Qhats, Qtildes, & aInfo);
   }
-  const Real ERR = Vsnew - Qs[actt] - Qs.back();
+  const Real ERR = Vsnew - Qs[actt];
 
-  Rvec gradient(nA+1, 0);
-  gradient[actt] = ERR; gradient.back() = ERR; // add error for state value
+  Rvec gradient(nA, 0);
+  gradient[actt] = ERR;
 
   #ifdef DQN_USE_POLICY
     Discrete_policy POL({0}, &aInfo, Qs);
@@ -191,16 +212,16 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
     const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
     if(CmaxRet>1 && beta<1) { // then refer
-      if(isOff) gradient = Rvec(nA+1, 0); // grad clipping as if pol gradient
+      if(isOff) gradient = Rvec(nA, 0); // grad clipping as if pol gradient
       const Rvec penGrad = POL.finalize_grad(POL.div_kl_grad(MB.mu(bID,t), -1));
       for(Uint i=0; i<nA; ++i)
         gradient[i] = beta * gradient[i] + (1-beta) * penGrad[i];
     }
     MB.setMseDklImpw(bID, t, ERR*ERR, DKL, RHO, CmaxRet, CinvRet);
-    trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
+    trainInfo->log(Qs[actt], ERR, thrID);
   #else
     MB.setMseDklImpw(bID, t, ERR*ERR, 0, 1, CmaxRet, CinvRet);
-    trainInfo->log(Qs[actt] + Qs.back(), ERR, thrID);
+    trainInfo->log(Qs[actt], ERR, thrID);
   #endif
 
   networks[0]->setGradient(gradient, bID, t);
