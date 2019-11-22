@@ -236,15 +236,18 @@ void Learner::processStats()
 
 void Learner::getMetrics(std::ostringstream& buf) const
 {
-  if(not computeQretrace) return;
-  Utilities::real2SS(buf, alpha, 6, 1);
-  Utilities::real2SS(buf, beta, 6, 1);
+  if(CmaxRet>1) {
+    //Utilities::real2SS(buf, alpha, 6, 1);
+    Utilities::real2SS(buf, beta, 6, 1);
+  }
 }
 
 void Learner::getHeaders(std::ostringstream& buf) const
 {
-  if(not computeQretrace) return;
-  buf << "| alph | beta ";
+  if(CmaxRet>1) {
+    //buf << "| alph | beta ";
+    buf << "| beta ";
+  }
 }
 
 void Learner::restart()

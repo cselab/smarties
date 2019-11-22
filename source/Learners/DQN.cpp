@@ -195,9 +195,10 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   if (not MB.isTerminal(bID, t+1)) {
     // find best action for sNew with moving wghts, evaluate it with tgt wgths:
     // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
-    Rvec Qhats         = networks[0]->forward    (bID, t+1);
-    const Rvec Qtildes = networks[0]->forward_tgt(bID, t+1);
-    //v_s = r + gamma * Q(greedy action)
+    const Rvec Qhats = networks[0]->forward(bID, t+1);
+    const Rvec Qtildes = settings.targetDelay <= 0 ? Qhats // no target nets
+                         : networks[0]->forward_tgt(bID, t+1);
+    //v_s = r + gamma * Q(greedy action) :
     Vsnew += gamma * expectedValue(Qhats, Qtildes, & aInfo);
   }
   const Real ERR = Vsnew - Qs[actt];
@@ -211,7 +212,7 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
     const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
     const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
-    if(CmaxRet>1 && beta<1) { // then refer
+    if(CmaxRet>1) { // then refer
       if(isOff) gradient = Rvec(nA, 0); // grad clipping as if pol gradient
       const Rvec penGrad = POL.finalize_grad(POL.div_kl_grad(MB.mu(bID,t), -1));
       for(Uint i=0; i<nA; ++i)
