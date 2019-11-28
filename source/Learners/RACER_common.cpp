@@ -17,28 +17,29 @@ void RACER<Advantage_t, Policy_t, Action_t>::prepareCMALoss()
   if(ESpopSize<=1) return;
 
   profiler->start("LOSS");
-  std::vector<Real> aR(batchSize, 0), aA(batchSize, 0);
+  std::vector<Real> avgRho(batchSize, 0), avgAdv(batchSize, 0);
 
   #pragma omp parallel for schedule(static)
   for (Uint b=0; b<batchSize; ++b) {
     for(Uint w=0; w<ESpopSize; ++w) {
-      aR[b] += rhos[b][w];
-      aA[b] += advs[b][w];
+      avgRho[b] += rhos[b][w];
+      avgAdv[b] += advs[b][w];
     }
-    aR[b] /= ESpopSize; aA[b] /= ESpopSize;
+    avgRho[b] /= ESpopSize; avgAdv[b] /= ESpopSize;
   }
-  //for(Uint b=0; b<batchSize; ++b) { aR[b] = rhos[b][0]; aA[b] = advs[b][0]; }
 
+  //for(Uint b=0; b<batchSize; ++b) { aR[b] = rhos[b][0]; aA[b] = advs[b][0]; }
   const auto isFar = [&](const Real&W) {return W >= CmaxRet || W <= CinvRet;};
 
   #pragma omp parallel for schedule(static)
   for (Uint w=0; w<ESpopSize; ++w)
   for (Uint b=0; b<batchSize; ++b) {
-    const Real clipR = std::max(CinvRet, std::min(rhos[b][w], CmaxRet));
-    const Real clipA = isFar(rhos[b][w]) ? aA[b] : advs[b][w];
-    const Real costAdv = - beta * clipR * aA[b]; //minus: to maximize pol adv
-    const Real costVal = beta * std::pow(std::min((Real)1, aR[b]) * clipA, 2);
-    const Real costDkl = (1-beta) * dkls[b][w];
+    const Real clipRho = std::max(CinvRet, std::min(rhos[b][w], CmaxRet));
+    const Real clipAdv = isFar(rhos[b][w]) ? avgAdv[b] : advs[b][w];
+    const Real criticError = std::min((Real) 1, avgRho[b]) * clipAdv;
+    const Real costAdv =    - beta  * clipRho * avgAdv[b]; // minus: minimize
+    const Real costVal =      beta  * std::pow(criticError, 2);
+    const Real costDkl = (1 - beta) * dkls[b][w];
     networks[0]->ESloss(w) += alpha*(costAdv + costDkl) + (1-alpha)*costVal;
   }
   networks[0]->nAddedGradients = ESpopSize * batchSize;

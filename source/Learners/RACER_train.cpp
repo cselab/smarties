@@ -59,6 +59,11 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   // logging for diagnostics:
   trainInfo->log(V_cur+A_cur, A_RET-A_cur, polG,penalG, {deltaQRET,rho}, thrID);
+  if(ESpopSize > 1) {
+    rhos[bID][wID] = rho;
+    advs[bID][wID] = A_RET;
+    dkls[bID][wID] = dkl;
+  }
 }
 
 template<typename Advantage_t, typename Policy_t, typename Action_t>

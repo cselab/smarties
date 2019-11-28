@@ -122,6 +122,10 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     profiler->stop();
     debugL("Sample the replay memory and compute the gradients");
     spawnTrainTasks();
+    if(ESpopSize>1) {
+      debugL("Compute objective function for CMA optimizer.");
+      prepareCMALoss();
+    }
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
     prepareGradient();
     debugL("Search work to do in the Replay Memory");

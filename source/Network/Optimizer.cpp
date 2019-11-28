@@ -8,7 +8,7 @@
 
 #include "Optimizer.h"
 #include "../Utils/SstreamUtilities.h"
-#include "saruprng.h"
+#include "../extern/saruprng.h"
 #include <unistd.h>
 
 namespace smarties
@@ -238,7 +238,10 @@ AdamOptimizer::AdamOptimizer(const Settings& S, const DistributionInfo& D,
                              const std::shared_ptr<Parameters>& W,
                              const std::vector<std::shared_ptr<Parameters>> & G,
                              const Real beta1, const Real beta2) :
-Optimizer(S,D,W), beta_1(beta1), beta_2(beta2), gradients(G) {}
+Optimizer(S,D,W), beta_1(beta1), beta_2(beta2), gradients(G) {
+  if(D.world_rank == 0)
+    printf("Optimizer: Parameter updates using Adam SGD algorithm.\n");
+}
 
 Optimizer::~Optimizer()
 {

@@ -27,7 +27,7 @@ struct MiniBatch
     S.resize(size); R.resize(size); PERW.resize(size);
   }
   MiniBatch(MiniBatch && p) = default;
-  MiniBatch& operator=(MiniBatch && p) = default;
+  MiniBatch& operator=(MiniBatch && p) = delete;
   MiniBatch(const MiniBatch &p) = delete;
   MiniBatch& operator=(const MiniBatch &p) = delete;
 

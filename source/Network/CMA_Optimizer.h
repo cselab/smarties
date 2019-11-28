@@ -12,8 +12,6 @@
 #include "Optimizer.h"
 
 class Saru;
-// #define ACCEL_CMA
-// #define FDIFF_CMA
 
 namespace smarties
 {
@@ -66,12 +64,8 @@ public:
     nnReal sum = 0;
     for(Uint i=0; i<popSize; ++i)
     {
-      ret[i] = std::log(0.5*(popSize+1)) - std::log(i+1.);
-      #ifdef FDIFF_CMA
-        sum += std::fabs( ret[i] );
-      #else
-        sum += std::max( ret[i], (nnReal) 0 );
-      #endif
+      ret[i] = std::log(0.5*(popSize+1)) - std::log(i+1.0);
+      sum += std::max( ret[i], (nnReal) 0 );
     }
     for(Uint i=0; i<popSize; ++i) ret[i] /= sum;
     return ret;
@@ -82,11 +76,7 @@ public:
   {
     Real sum = 0, sumsq = 0;
     for(Uint i=0; i<popSize; ++i) {
-      #ifdef FDIFF_CMA
-        const nnReal W = std::fabs( popW[i] );
-      #else
-        const nnReal W = std::max( popW[i], (nnReal) 0 );
-      #endif
+      const nnReal W = std::max( popW[i], (nnReal) 0 );
       sumsq += W * W; sum += W;
     }
     return sum * sum / sumsq;

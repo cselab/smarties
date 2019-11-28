@@ -8,7 +8,7 @@
 
 #include "CMA_Optimizer.h"
 #include "../Utils/SstreamUtilities.h"
-#include "saruprng.h"
+#include "../extern/saruprng.h"
 #include <algorithm>
 #include <unistd.h>
 
@@ -20,6 +20,8 @@ CMA_Optimizer::CMA_Optimizer(const Settings& S, const DistributionInfo& D,
   Optimizer(S,D,W), pStarts(computePstarts()), pCounts(computePcounts()),
   pStart(pStarts[learn_rank]), pCount(pCounts[learn_rank])
 {
+  if(D.world_rank == 0)
+    printf("Optimizer: Parameter updates using diagonal-only version of CMA-ES.\n");
   diagCov->set(1);
   pathCov->set(0);
   pathDif->set(0);
@@ -76,19 +78,37 @@ void CMA_Optimizer::apply_update()
     MPI(Wait, &paramRequest, MPI_STATUS_IGNORE);
   }
 
+  // steps:
+  // 0. Backup mean weights and prepare arrays for reductions
+  //    (note that parameter vector [0] is always the mean, therefore
+  //     associated sampled noise vector is 0)
+  // 1. Compute new weighted mean. (MPI: start allgather for population mean)
+  // 2. Compute weighted mean noise vector (for update path) and estimate
+  //    of noise vector's second moment (for rank-mu update).
+  // 3. Update path integral and diagonal covariance^(1/2) matrix. For stability
+  //    we apply bounds to the entries of the covariance matrix.
+  // 4. Sample noise vector and population from new mean and cov^(1/2) matrix.
+
+  // Parallelization strategy:
+  //    MPI) Avoid allreduce, prefer allgather. Each MPI rank works on a chunk
+  //         of the various parameter vectors (from pStart to pStart + pCount).
+  // OpenMP) Mixed. Some loops are parallelized over vector length pCount (1.)
+  //         Some loops are parallelized over population size (3.)
   std::vector<Uint> inds(populationSize, 0);
   std::iota(inds.begin(), inds.end(), 0);
   std::sort(inds.begin(), inds.end(), // is i1 before i2
        [&] (const Uint i1, const Uint i2) { return losses[i1] < losses[i2]; } );
 
-  sampled_weights[0]->copy(weights); // first backup mean weights
-  popNoiseVectors[0]->clear();       // sample 0 is always mean W, no noise
-  momNois->clear(); avgNois->clear(); // prepare for
-  weights->clear(); //negNois->clear(); // reductions
+  // 0.
+  sampled_weights[0]->copy(weights);
+  popNoiseVectors[0]->clear();
+  momNois->clear();
+  avgNois->clear();
+  weights->clear();
 
   static constexpr nnReal c1cov = 1e-5;
   static constexpr nnReal c_sig = 1e-3;
-  const nnReal alpha = 1 - c1cov - sumW*mu_eff*c1cov;
+  const nnReal alpha = 1 - c1cov - sumW * mu_eff * c1cov;
   const nnReal alphaP = 1 - c_sig;
 
   const nnReal updSigP = std::sqrt(c_sig * (2-c_sig) * mu_eff);
@@ -97,32 +117,29 @@ void CMA_Optimizer::apply_update()
   #pragma omp parallel num_threads(nThreads)
   {
     const Uint thrID = omp_get_thread_num();
-    // compute weighted mean. vectors parallelize over chunks of param vector:
+
+    // 1.
     for(Uint i=0; i<populationSize; ++i)
     {
       nnReal * const M = weights->params;
       const nnReal wC = popWeights[i];
-      #ifndef FDIFF_CMA
-        if(wC <=0 ) continue;
-      #endif
+      if(wC <= 0) continue; // bad samples are not used to update mean
+
       const nnReal* const X = sampled_weights[ inds[i] ]->params;
       #pragma omp for simd schedule(static) aligned(M,X : VEC_WIDTH) nowait
       for(Uint w=pStart; w<pStart+pCount; ++w) M[w] += wC * X[w];
     }
 
-    #pragma omp barrier
-    // init gather of mean weight vector across ranks
+    #pragma omp barrier // wait for all parellel-nowait loops above
+
     if(thrID == 0) startAllGather(0);
 
-    // compute weighted avg noise and noise second moment:
+    // 2.
     for(Uint i=0; i<populationSize; ++i)
     {
       const nnReal wC = popWeights[i];
-      #ifdef FDIFF_CMA
-        const nnReal wZ = wC;
-      #else
-        const nnReal wZ = std::max(wC, (nnReal) 0 );
-      #endif
+      const nnReal wZ = std::max(wC, (nnReal) 0 );
+
       nnReal * const B = momNois->params;
       nnReal * const A = avgNois->params;
       const nnReal* const Y = popNoiseVectors[ inds[i] ]->params;
@@ -133,39 +150,55 @@ void CMA_Optimizer::apply_update()
       }
     }
 
-    //const nnReal * const C = negNois->params;
     const nnReal * const B = momNois->params;
     const nnReal * const A = avgNois->params;
-    //nnReal * const D = pathDif->params;
+
     nnReal * const P = pathCov->params;
     nnReal * const S = diagCov->params;
 
+    // 3.
     #pragma omp for simd schedule(static) aligned(P,A,S,B : VEC_WIDTH)
     for(Uint w=pStart; w<pStart+pCount; ++w)
     {
       P[w] = alphaP * P[w] + updSigP * A[w];
       S[w] = std::sqrt( alpha*S[w]*S[w] + c1cov*P[w]*P[w] + mu_eff*c1cov*B[w] );
-      S[w] = std::min(S[w], (nnReal) 10); //safety
-      S[w] = std::max(S[w], (nnReal) .01); //safety
+      S[w] = std::max(std::min(S[w], (nnReal) 10.0), (nnReal) 0.01); //safety
     }
 
     const nnReal* const M = weights->params;
     Saru & gen = * generators[thrID].get();
-    #pragma omp for schedule(static) nowait
-    for(Uint i=1; i<populationSize; ++i)
-    {
-      nnReal* const Y = popNoiseVectors[i]->params;
-      nnReal* const X = sampled_weights[i]->params;
-      for(Uint w=pStart; w<pStart+pCount; ++w) {
-        Y[w] = gen.f_mean0_var1() * S[w];
-        X[w] = M[w] + _eta * Y[w]; //+ _eta*1e-2*D[w];
+
+    // 4.
+    #if 0 // Parellized over pop size. Benefit: gathers start asap.
+      #pragma omp for schedule(static, 1) nowait
+      for(Uint i=1; i<populationSize; ++i)
+      {
+        nnReal* const Y = popNoiseVectors[i]->params;
+        nnReal* const X = sampled_weights[i]->params;
+        for(Uint w=pStart; w<pStart+pCount; ++w) {
+          Y[w] = gen.f_mean0_var1() * S[w];
+          X[w] = M[w] + _eta * Y[w]; //+ _eta*1e-2*D[w];
+        }
+        startAllGather(i);
       }
-      startAllGather(i);
-    }
-    //for(Uint i=1; i<populationSize; ++i)
-    //  if( i % nThreads == thrID ) startAllGather(i);
+    #else // Parellized over pCount. Benefit: less compulsory cache misses.
+      for(Uint i=1; i<populationSize; ++i)
+      {
+        nnReal* const Y = popNoiseVectors[i]->params;
+        nnReal* const X = sampled_weights[i]->params;
+        #pragma omp for schedule(static) nowait
+        for(Uint w=pStart; w<pStart+pCount; ++w) {
+          Y[w] = gen.f_mean0_var1() * S[w];
+          X[w] = M[w] + _eta * Y[w];
+        }
+      }
+    #endif
   }
-  //for(Uint i=1; i<pop_size; ++i) startAllGather(i);
+  #if 1 // Parellized over pCount. Benefit: less compulsory cache misses.
+    for(Uint i=1; i<populationSize; ++i) startAllGather(i);
+  #endif
+
+  // Mean parameter vector needs to be available when we exit:
   MPI(Wait, &weightsMPIrequests[0], MPI_STATUS_IGNORE);
 }
 
@@ -217,13 +250,13 @@ void CMA_Optimizer::getHeaders(std::ostringstream&buff,const std::string nnName)
 
 void CMA_Optimizer::startAllGather(const Uint ID)
 {
-  nnReal * const P = ID? sampled_weights[ID]->params : weights->params;
   if( learn_size < 2 ) return;
 
   if(weightsMPIrequests[ID] not_eq MPI_REQUEST_NULL) {
     MPI(Wait, &weightsMPIrequests[ID], MPI_STATUS_IGNORE);
   }
 
+  nnReal * const P = ID>0 ? sampled_weights[ID]->params : weights->params;
   //MPI(Iallgatherv, MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, P, pCounts.data(),
   //  pStarts.data(), SMARTIES_MPI_NNVALUE_TYPE, mastersComm, &wVecReq[ID]);
   MPI(Iallgather, MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, P, mpiDistribOpsStride,

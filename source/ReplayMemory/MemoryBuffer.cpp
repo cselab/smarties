@@ -314,11 +314,13 @@ std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
   std::unique_ptr<Sampling> ret = nullptr;
 
   if(S.dataSamplingAlgo == "uniform") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: uniform probability.\n");
     ret = std::make_unique<Sample_uniform>(D.generators,R,S.bSampleSequences);
   }
 
   if(S.dataSamplingAlgo == "impLen") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "probability is proportional to episode-length.%s\n",
            S.bSampleSequences? "" : " Equivalent to uniform probability.");
@@ -326,6 +328,7 @@ std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
   }
 
   if(S.dataSamplingAlgo == "shuffle") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "shuffle-based uniform probability.\n");
     ret = std::make_unique<TSample_shuffle>(D.generators,R,S.bSampleSequences);
@@ -333,6 +336,7 @@ std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
   }
 
   if(S.dataSamplingAlgo == "PERrank") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "rank based prioritized replay.\n");
     ret = std::make_unique<TSample_impRank>(D.generators,R,S.bSampleSequences);
@@ -340,6 +344,7 @@ std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
   }
 
   if(S.dataSamplingAlgo == "PERerr") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "error value based prioritized replay.\n");
     ret = std::make_unique<TSample_impErr>(D.generators,R,S.bSampleSequences);
@@ -347,6 +352,7 @@ std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
   }
 
   if(S.dataSamplingAlgo == "PERseq") {
+    if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "episodes' mean squared error based prioritized replay.\n");
     ret = std::make_unique<Sample_impSeq>(D.generators,R,S.bSampleSequences);
