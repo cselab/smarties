@@ -50,9 +50,6 @@ public:
 
   // some algorithm hyper-parameters:
   const Real gamma = settings.gamma;
-  const Real ReFtol = settings.penalTol;
-  const Real CmaxPol = settings.clipImpWeight;
-  const Real epsAnneal = settings.epsAnneal;
 
   DelayedReductor<long double> ReFER_reduce;
   const FORGET ERFILTER;
@@ -60,10 +57,11 @@ public:
 protected:
   int algoSubStepID = -1;
 
-  Real alpha = 0.5; // weight between critic and policy
-  Real beta = CmaxPol<=0? 1 : 1e-4; // if CmaxPol==0 do naive Exp Replay
-  Real CmaxRet = 1 + CmaxPol;
-  Real CinvRet = 1 / CmaxRet;
+  Real alpha = 0.5; // weight between critic and policy used for CMA
+  // if clipImpWeight==0 do naive Exp Replay==0 do naive Exp Replay:
+  Real beta = settings.clipImpWeight <= 0 ? 1 : 1e-4;
+  Real CmaxRet = 1 + settings.clipImpWeight;
+  Real CinvRet = 1 / settings.clipImpWeight;
   bool computeQretrace = false;
 
   std::vector<std::mt19937>& generators = distrib.generators;

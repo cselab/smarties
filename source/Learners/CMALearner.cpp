@@ -215,13 +215,6 @@ template<> CMALearner<Rvec>::
 CMALearner(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_) :
 Learner_approximator(MDP_, S_, D_)
 {
-  if(D_.world_rank == 0) {
-  printf(
-  "==========================================================================\n"
-  "           Continuous-valued CMA : Covariance Matrix Adaptation           \n"
-  "==========================================================================\n"
-  ); }
-
   createEncoder();
   assert(networks.size() <= 1);
   if(networks.size()>0) {
@@ -243,13 +236,6 @@ template<> CMALearner<Uint>::
 CMALearner(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_) :
 Learner_approximator(MDP_, S_, D_)
 {
-  if(D_.world_rank == 0) {
-  printf(
-  "==========================================================================\n"
-  "            Discrete-action CMA : Covariance Matrix Adaptation            \n"
-  "==========================================================================\n"
-  ); }
-
   createEncoder();
   assert(networks.size() <= 1);
   if(networks.size()>0) {

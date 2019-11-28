@@ -9,11 +9,10 @@
 #ifndef smarties_Sequence_h
 #define smarties_Sequence_h
 
-#include "../Utils/Bund.h"
-#include "../Utils/Warnings.h"
+#include "../Utils/FunctionUtilities.h"
+
 #include <cassert>
 #include <atomic>
-//#include <mutex>
 #include <cmath>
 
 namespace smarties
@@ -39,6 +38,7 @@ inline bool distFarPolicy(const Fval D, const Fval target)
 
 struct Sequence
 {
+  static constexpr Fval FVAL_EPS = std::numeric_limits<Fval>::epsilon();
   Sequence()
   {
     states.reserve(MAX_SEQ_LEN);
@@ -46,6 +46,12 @@ struct Sequence
     policies.reserve(MAX_SEQ_LEN);
     rewards.reserve(MAX_SEQ_LEN);
   }
+  ~Sequence() { }
+  Sequence(Sequence && p) = delete;
+  Sequence& operator=(Sequence && p) = delete;
+  Sequence(const Sequence &p) = delete;
+  Sequence& operator=(const Sequence &p) = delete;
+
 
   bool isEqual(const Sequence * const S) const;
 
@@ -63,9 +69,60 @@ struct Sequence
 
   // some quantities needed for processing of experiences
   Fval totR = 0;
-  std::atomic<Fval> sumKLDiv{0};
-  std::atomic<Fval> nOffPol{0};
-  std::atomic<Fval> MSE{0};
+  std::atomic<Uint> nFarOverPolSteps{0}; // pi/mu > c
+  std::atomic<Uint> nFarUndrPolSteps{0}; // pi/mu < 1/c
+  std::atomic<Real> sumKLDivergence{0};
+  std::atomic<Real> sumSquaredErr{0};
+  std::atomic<Real> minImpW{1};
+  std::atomic<Real> avgImpW{1};
+
+  void updateCumulative(const Fval C, const Fval invC)
+  {
+    const Uint N = ndata();
+    Uint nOverFarPol = 0, nUndrFarPol = 0;
+    Real minRho = 9e9, avgRho = 1;
+    const Real invN = 1.0 / N;
+    for (Uint t = 0; t < N; ++t) {
+      // float precision may cause DKL to be slightly negative:
+      assert(KullbLeibDiv[t] >= - FVAL_EPS && offPolicImpW[t] >= 0);
+      // sequence is off policy if offPol W is out of 1/C : C
+      if (offPolicImpW[t] >    C) nOverFarPol++;
+      if (offPolicImpW[t] < invC) nUndrFarPol++;
+      if (offPolicImpW[t] < minRho) minRho = offPolicImpW[t];
+      const Real clipRho = std::min((Fval) 1, offPolicImpW[t]);
+      avgRho *= std::pow(clipRho, invN);
+    }
+    nFarOverPolSteps = nOverFarPol;
+    nFarUndrPolSteps = nUndrFarPol;
+    minImpW = minRho;
+    avgImpW = avgRho;
+
+    totR = Utilities::sum(rewards);
+    sumSquaredErr = Utilities::sum(SquaredError);
+    sumKLDivergence = Utilities::sum(KullbLeibDiv);
+  }
+
+  void updateCumulative_atomic(const Uint t, const Fval E, const Fval D,
+                               const Fval W, const Fval C, const Fval invC)
+  {
+    const Fval oldW = offPolicImpW[t];
+    const Uint wasFarOver = oldW > C, wasFarUndr = oldW < invC;
+    const Uint  isFarOver =    W > C,  isFarUndr =    W < invC;
+    const Real clipOldW = std::min((Fval) 1, oldW);
+    const Real clipNewW = std::min((Fval) 1,    W);
+    const Real invN = 1.0 / ndata();
+
+    sumKLDivergence.store(sumKLDivergence.load() - KullbLeibDiv[t] + D);
+    sumSquaredErr.store(sumSquaredErr.load() - SquaredError[t] + E);
+    nFarOverPolSteps += isFarOver - wasFarOver;
+    nFarUndrPolSteps += isFarUndr - wasFarUndr;
+    avgImpW.store(avgImpW.load() * std::pow(clipNewW/clipOldW, invN));
+    if(W < minImpW.load()) minImpW = W;
+
+    SquaredError[t] = E;
+    KullbLeibDiv[t] = D;
+    offPolicImpW[t] = W;
+  }
 
   // did episode terminate (i.e. terminal state) or was a time out (i.e. V(s_end) != 0
   bool ended = false;
@@ -84,49 +141,60 @@ struct Sequence
     if(states.size()==0) return 0;
     else return states.size() - 1;
   }
+
   Uint nsteps() const // total number of time steps observed
   {
     return states.size();
   }
+
+  Uint nFarPolicySteps() const
+  {
+    return nFarOverPolSteps + nFarUndrPolSteps;
+  }
+
   bool isTerminal(const Uint t) const
   {
     return t+1 == states.size() && ended;
   }
+
   bool isTruncated(const Uint t) const
   {
     return t+1 == states.size() && not ended;
   }
-  ~Sequence() { clear(); }
+
   void clear()
   {
-    ended=0; ID=-1; just_sampled=-1; nOffPol=0; MSE=0; sumKLDiv=0; totR=0;
-    states.clear();
-    actions.clear();
-    policies.clear();
-    rewards.clear();
-    //priorityImpW.clear();
-    SquaredError.clear();
-    offPolicImpW.clear();
-    priorityImpW.clear();
-    KullbLeibDiv.clear();
-    action_adv.clear();
-    state_vals.clear();
-    Q_RET.clear();
+    ended = false; ID = -1; just_sampled = -1;
+    nFarOverPolSteps = 0;
+    nFarUndrPolSteps = 0;
+    sumKLDivergence  = 0;
+    sumSquaredErr    = 0;
+    minImpW          = 1;
+    avgImpW          = 1;
+    totR = 0;
+
+    states.clear(); actions.clear(); policies.clear(); rewards.clear();
+    SquaredError.clear(); offPolicImpW.clear(); KullbLeibDiv.clear();
+    action_adv.clear(); state_vals.clear(); Q_RET.clear(); priorityImpW.clear();
   }
+
   void setSampled(const int t) //update ind of latest sampled time step
   {
     if(just_sampled < t) just_sampled = t;
   }
+
   void setRetrace(const Uint t, const Fval Q)
   {
     assert( t < Q_RET.size() );
     Q_RET[t] = Q;
   }
+
   void setAdvantage(const Uint t, const Fval A)
   {
     assert( t < action_adv.size() );
     action_adv[t] = A;
   }
+
   void setStateValue(const Uint t, const Fval V)
   {
     assert( t < state_vals.size() );
@@ -143,6 +211,12 @@ struct Sequence
     // off pol importance weights are initialized to 1s
     offPolicImpW = std::vector<Fval>(seq_len, 1);
     KullbLeibDiv = std::vector<Fval>(seq_len, 0);
+    #ifndef NDEBUG
+      Fval dbg_sumR = std::accumulate(rewards.begin(), rewards.end(), (Fval)0);
+      //Fval dbg_norm = std::max(std::fabs(totR), std::fabs(dbg_sumR));
+      Fval dbg_norm = std::max((Fval)1, std::fabs(totR));
+      assert(std::fabs(totR-dbg_sumR)/dbg_norm < 100*FVAL_EPS);
+    #endif
   }
 
   int restart(FILE * f, const Uint dS, const Uint dA, const Uint dP);
@@ -156,18 +230,19 @@ struct Sequence
     const Uint dP, const Uint Nstep)
   {
     const Uint tuplSize = dS+dA+dP+1;
-    static constexpr Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
+    static constexpr Uint infoSize = 6; //adv,val,ret, mse,dkl,impW
     //extras : ended,ID,sampled,prefix,agentID x 2 for conversion safety
-    static constexpr Uint extraSize = 14;
+    static constexpr Uint extraSize = 10;
     const Uint ret = (tuplSize+infoSize)*Nstep + extraSize;
     return ret;
   }
+
   static Uint computeTotalEpisodeNstep(const Uint dS, const Uint dA,
     const Uint dP, const Uint size)
   {
     const Uint tuplSize = dS+dA+dP+1;
-    static constexpr Uint infoSize = 6; //adv,val,ret,mse,dkl,impW
-    static constexpr Uint extraSize = 14;
+    static constexpr Uint infoSize = 6; //adv,val,ret, mse,dkl,impW
+    static constexpr Uint extraSize = 10;
     const Uint nStep = (size - extraSize)/(tuplSize+infoSize);
     assert(Sequence::computeTotalEpisodeSize(dS,dA,dP,nStep) == size);
     return nStep;

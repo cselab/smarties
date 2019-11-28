@@ -45,8 +45,13 @@ using Real = float;
 ////////////////////////////////////////////////////////////////////////////////
 // Data format for storage in memory buffer. Switch to float for example for
 // Atari where the memory buffer is in the order of GBs.
+#if 1
 using Fval = float;
 #define SMARTIES_MPI_Fval MPI_FLOAT
+#else
+using Fval = double;
+#define SMARTIES_MPI_Fval MPI_DOUBLE
+#endif
 
 using Fvec = std::vector<Fval>;
 using Rvec = std::vector<Real>;

@@ -74,6 +74,13 @@ std::unique_ptr<Learner> createLearner(
   std::ostringstream o;
   o << MDP.dimState << " ";
 
+  if(settings.learner == "VRACER" and MDP.bDiscreteActions)
+  {
+    warn("V-RACER makes little sense with discrete action-spaces. Code will "
+        "override user and add parameterization for action advantage.");
+    settings.learner = "RACER";
+  }
+
   if (settings.learner == "PYTORCH")
   {
     MDP.policyVecDim = Learner_pytorch::getnDimPolicy(&aInfo);
@@ -84,13 +91,28 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "RACER")
   {
-    if(MDP.bDiscreteActions) {
+    if(MDP.bDiscreteActions)
+    {
+      if(distrib.world_rank == 0) printf(
+      "==========================================================================\n"
+      "               Discrete-action RACER with Bernoulli policy                \n"
+      "==========================================================================\n"
+      );
+
       using RACER_discrete = RACER<Discrete_advantage, Discrete_policy, Uint>;
       MDP.policyVecDim = RACER_discrete::getnDimPolicy(&aInfo);
-      o << MDP.maxActionLabel << " " << MDP.policyVecDim;
+      o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);
       ret = std::make_unique<RACER_discrete>(MDP, settings, distrib);
-    } else {
+    }
+    else
+    {
+      if(distrib.world_rank == 0) printf(
+      "==========================================================================\n"
+      "               Continuous-action RACER with Gaussian policy               \n"
+      "==========================================================================\n"
+      );
+
       //using RACER_continuous = RACER<Mixture_advantage<NEXPERTS>, Gaussian_mixture<NEXPERTS>, Rvec>;
       using RACER_continuous = RACER<Param_advantage,Gaussian_policy,Rvec>;
       MDP.policyVecDim = RACER_continuous::getnDimPolicy(&aInfo);
@@ -102,16 +124,15 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "VRACER")
   {
-    if(MDP.bDiscreteActions) {
-      // V-RACER with discrete actions makes little sense: we revert to RACER
-      warn("V-RACER makes little sense with discrete action-spaces. Code will "
-        "override user and add parameterization for action advantage.");
-      using RACER_discrete = RACER<Discrete_advantage, Discrete_policy, Uint>;
-      MDP.policyVecDim = RACER_discrete::getnDimPolicy(&aInfo);
-      o << MDP.maxActionLabel << " " << MDP.policyVecDim;
-      printLogfile(o, "problem_size.log", distrib.world_rank);
-      ret = std::make_unique<RACER_discrete>(MDP, settings, distrib);
-    } else {
+    if(MDP.bDiscreteActions) die("impossible");
+    else
+    {
+      if(distrib.world_rank == 0) printf(
+      "==========================================================================\n"
+      "              Continuous-action V-RACER with Gaussian policy              \n"
+      "==========================================================================\n"
+      );
+
       //using RACER_continuous = VRACER<Gaussian_mixture<NEXPERTS>, Rvec>;
       using RACER_continuous = RACER<Zero_advantage, Gaussian_policy, Rvec>;
       MDP.policyVecDim = RACER_continuous::getnDimPolicy(&aInfo);
@@ -123,6 +144,12 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "DDPG" || settings.learner == "DPG")
   {
+    if(MPICommRank(distrib.world_comm) == 0) printf(
+    "==========================================================================\n"
+    "                DDPG : Deep Deterministic Policy Gradients                \n"
+    "==========================================================================\n"
+    );
+
     MDP.policyVecDim = 2*MDP.dimAction;
     // non-NPER DPG is unstable with annealed network learn rate
     // because critic network must adapt quickly
@@ -134,13 +161,26 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "GAE" || settings.learner == "PPO")
   {
-    if(MDP.bDiscreteActions) {
+    if(MDP.bDiscreteActions)
+    {
+      if(MPICommRank(distrib.world_comm) == 0) printf(
+      "==========================================================================\n"
+      "                           Discrete-action PPO                            \n"
+      "==========================================================================\n"
+      );
       using PPO_discrete = PPO<Discrete_policy, Uint>;
       MDP.policyVecDim = PPO_discrete::getnDimPolicy(&aInfo);
-      o << MDP.maxActionLabel << " " << MDP.policyVecDim;
+      o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);
       ret = std::make_unique<PPO_discrete>(MDP, settings, distrib);
-    } else {
+    }
+    else
+    {
+      if(MPICommRank(distrib.world_comm) == 0) printf(
+      "==========================================================================\n"
+      "                          Continuous-action PPO                           \n"
+      "==========================================================================\n"
+      );
       using PPO_continuous = PPO<Gaussian_policy, Rvec>;
       MDP.policyVecDim = PPO_continuous::getnDimPolicy(&aInfo);
       o << MDP.dimAction << " " << MDP.policyVecDim;
@@ -151,6 +191,11 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "ACER")
   {
+    if(MPICommRank(distrib.world_comm) == 0) printf(
+    "==========================================================================\n"
+    "                          Continuous-action ACER                          \n"
+    "==========================================================================\n"
+    );
     settings.bSampleSequences = true;
     if(MDP.bDiscreteActions)
       die("implemented ACER supports only continuous-action problems");
@@ -160,8 +205,14 @@ std::unique_ptr<Learner> createLearner(
     ret = std::make_unique<ACER>(MDP, settings, distrib);
   }
   else
-  if(settings.learner=="NFQ" || settings.learner=="DQN")
+  if(settings.learner=="DQN" || settings.learner=="NFQ")
   {
+    if(distrib.world_rank == 0) printf(
+    "==========================================================================\n"
+    "                          DQN : Deep Q Networks                           \n"
+    "==========================================================================\n"
+    );
+
     if(not MDP.bDiscreteActions)
       die("DQN supports only discrete-action problems");
     o << MDP.dimAction << " " << MDP.maxActionLabel;
@@ -172,6 +223,12 @@ std::unique_ptr<Learner> createLearner(
   else
   if (settings.learner == "NA" || settings.learner == "NAF")
   {
+    if(distrib.world_rank == 0) printf(
+    "==========================================================================\n"
+    "                   NAF : Normalized Advantage Functions                   \n"
+    "==========================================================================\n"
+    );
+
     MDP.policyVecDim = 2*MDP.dimAction;
     assert(not MDP.bDiscreteActions);
     o << MDP.dimAction << " " << MDP.policyVecDim;
@@ -190,13 +247,28 @@ std::unique_ptr<Learner> createLearner(
     //if( settings.ESpopSize % settings.nWorkers )
     //  die("CMA pop size must be multiple of nWorkers");
 
-    if(MDP.bDiscreteActions) {
+    if(MDP.bDiscreteActions)
+    {
+      if(distrib.world_rank == 0) printf(
+      "==========================================================================\n"
+      "            Discrete-action CMA : Covariance Matrix Adaptation            \n"
+      "==========================================================================\n"
+      );
+
       using CMA_discrete = CMALearner<Uint>;
       MDP.policyVecDim = CMA_discrete::getnDimPolicy(&aInfo);
-      o << MDP.maxActionLabel << " " << MDP.policyVecDim;
+      o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);
       ret = std::make_unique<CMA_discrete>(MDP, settings, distrib);
-    } else {
+    }
+    else
+    {
+      if(distrib.world_rank == 0) printf(
+      "==========================================================================\n"
+      "           Continuous-valued CMA : Covariance Matrix Adaptation           \n"
+      "==========================================================================\n"
+      );
+
       using CMA_continuous = CMALearner<Rvec>;
       MDP.policyVecDim = CMA_continuous::getnDimPolicy(&aInfo);
       if(settings.explNoise > 0) MDP.policyVecDim += MDP.dimAction;

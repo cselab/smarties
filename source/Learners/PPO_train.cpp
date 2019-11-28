@@ -31,9 +31,9 @@ void PPO<Policy_t, Action_t>::advanceEpochCounters()
   debugL("shift counters of epochs over the stored data");
   cntBatch += settings.batchSize;
   if(cntBatch >= nHorizon) {
-    using Utilities::annealRate;
-    const Real annlLR = annealRate(settings.learnrate, currStep, epsAnneal);
-    data_proc->updateRewardsStats(0.001, annlLR);
+    const Real LR = settings.learnrate, E = settings.epsAnneal;
+    const Real annealedLR = Utilities::annealRate(LR, currStep, E);
+    data_proc->updateRewardsStats(0.001, annealedLR);
     cntBatch = 0;
     cntEpoch++;
   }

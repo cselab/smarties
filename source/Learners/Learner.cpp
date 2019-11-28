@@ -18,8 +18,8 @@ namespace smarties
 {
 
 Learner::Learner(MDPdescriptor& MD, Settings& S, DistributionInfo& D):
-  distrib(D), settings(S), MDP(MD), ReFER_reduce(D, LDvec{0.,1.}),
-  ERFILTER(MemoryProcessing::readERfilterAlgo(S.ERoldSeqFilter, CmaxPol>0)),
+  distrib(D), settings(S), MDP(MD), ReFER_reduce(D, LDvec{0.,1.}), ERFILTER(
+    MemoryProcessing::readERfilterAlgo(S.ERoldSeqFilter, S.clipImpWeight>0) ),
   data_proc( new MemoryProcessing( data.get() ) ),
   data_coord( new DataCoordinator( data.get(), params ) ),
   data_get ( new Collector       ( data.get(), data_coord ) ) {}
@@ -40,7 +40,7 @@ void Learner::initializeLearner()
                        (long double)data->readNData()});
 
   if ( currStep > 0 ) {
-    warn("Skipping initialization for restartd learner.");
+    printf("Skipping initialization for restartd learner.\n");
     return;
   }
 
@@ -81,12 +81,26 @@ void Learner::processMemoryBuffer()
   profiler->start("PRNE");
   //shift data / gradient counters to maintain grad stepping to sample
   // collection ratio prescirbed by obsPerStep
+  Real C =settings.clipImpWeight, D =settings.penalTol, E =settings.epsAnneal;
 
-  CmaxRet = 1 + Utilities::annealRate(CmaxPol, currStep, epsAnneal);
+  if(ERFILTER == BATCHRL) {
+    const Real maxObsNum = settings.maxTotObsNum_local;
+    const Real obsNum = data->readNData();
+    const Real factorUp = std::max((Real) 1, obsNum / maxObsNum);
+    //const Real factorDw = std::min((Real)1, maxObsNum / obsNum);
+    //D *= factorUp;
+    //CmaxRet = 1 + C * factorDw
+    CmaxRet = 1 + Utilities::annealRate(C, currStep, E) * factorUp;
+  } else {
+    CmaxRet = 1 + Utilities::annealRate(C, currStep, E);
+  }
+
   CinvRet = 1 / CmaxRet;
-  const bool bRecomputeProperties = (currStep % 100) == 0;
-  if(CmaxRet<=1 and CmaxPol>0)
+  if(CmaxRet <= 1 and C > 0)
     die("Either run lasted too long or epsAnneal is wrong.");
+
+  const bool bRecomputeProperties = (currStep % 100) == 0;
+  //if (bRecomputeProperties) printf("Using C : %f\n", C);
   data_proc->prune(ERFILTER, CmaxRet, bRecomputeProperties);
 
   // use result from prev AllReduce to update rewards (before new reduce).
@@ -100,10 +114,16 @@ void Learner::processMemoryBuffer()
   const LDvec nFarGlobal = ReFER_reduce.get();
   const Real fracOffPol = nFarGlobal[0] / nFarGlobal[1];
 
-  if(fracOffPol>ReFtol) beta = (1-1e-4)*beta; // iter converges to 0
-  else beta = 1e-4 +(1-1e-4)*beta; //fixed point iter converge to 1
-  if(std::fabs(ReFtol-fracOffPol)<0.001) alpha = (1-1e-4)*alpha;
-  else alpha = 1e-4 + (1-1e-4)*alpha;
+  if(fracOffPol > D) //fixed point iter converges to 0:
+    beta = (1 - std::min(1e-4, beta) ) * beta;
+  else //fixed point iter converge to 1:
+    beta = 1e-4 + (1 - std::min(1e-4, beta) ) * beta;
+
+  // unused:
+  if(std::fabs(D - fracOffPol) < 0.001)
+    alpha = (1-1e-4)*alpha;
+  else
+    alpha = 1e-4 + (1-1e-4)*alpha;
 
   profiler->stop();
 }
@@ -136,6 +156,7 @@ void Learner::finalizeMemoryProcessing()
   profiler->stop_start("PRE");
   if(currStep%1000==0) // update state mean/std with net's learning rate
     data_proc->updateRewardsStats(1, 1e-3*(SMARTIES_OFFPOL_ADAPT_STSCALE>0));
+
   profiler->stop();
 }
 
@@ -173,8 +194,11 @@ void Learner::logStats()
   const Uint fProfl = freqPrint * PRFL_DMPFRQ;
   const Uint fBackup = std::ceil(settings.saveFreq / (Real)fProfl) * fProfl;
 
-  if(currStep % fProfl == 0 && learn_rank == 0)
+  if(currStep % fProfl == 0 && learn_rank == 0) {
     printf("%s\n", profiler->printStatAndReset().c_str() );
+    // TODO : separate histograms frequency from profiler
+    data_proc->histogramImportanceWeights();
+  }
 
   if(currStep % fBackup == 0 && learn_rank == 0) save();
 
@@ -265,18 +289,18 @@ void Learner::restart()
 
   char baseName[512];
   sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
-  const std::string dumpName(baseName);
-  FILE * fstat = fopen((dumpName+"_status.raw").c_str(), "r");
-  FILE * fdata = fopen((dumpName+"_data.raw").c_str(), "rb");
+  const std::string fName(baseName);
+  FILE* fstat = fopen((distrib.restart+"/"+fName+"_status.raw").c_str(), "r");
+  FILE* fdata = fopen((distrib.restart+"/"+fName+"_data.raw").c_str(), "rb");
 
   if(fstat == NULL || fdata == NULL)
   {
     if(fstat == NULL)
-      _warn("Learner status restart file %s not found\n", dumpName.c_str());
+      _warn("Learner status restart file %s not found\n", fName.c_str());
     else fclose(fstat);
 
     if(fdata == NULL)
-      _warn("Learner data restart file %s not found\n", dumpName.c_str());
+      _warn("Learner data restart file %s not found\n", fName.c_str());
     else fclose(fdata);
 
     chdir(currDirectory);
@@ -309,6 +333,7 @@ void Learner::restart()
     Sequence* const S = new Sequence();
     if( S->restart(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol()) )
       _die("Unable to find sequence %u\n", i);
+    S->updateCumulative(CmaxRet, CinvRet);
     data->set(S, i);
   }
   fclose(fdata);
@@ -325,8 +350,8 @@ void Learner::save()
   char baseName[512];
   sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
   const std::string dumpName(baseName);
-  FILE * fstat = fopen((dumpName + "status_backup.raw").c_str(), "w");
-  FILE * fdata = fopen((dumpName + "data_backup.raw").c_str(), "wb");
+  FILE * fstat = fopen((dumpName + "_status_backup.raw").c_str(), "w");
+  FILE * fdata = fopen((dumpName + "_data_backup.raw").c_str(), "wb");
 
   const long doneGradSteps = nGradSteps();
   const Uint nStoredEps = data->readNSeq();
@@ -347,10 +372,11 @@ void Learner::save()
   assert(fdata != NULL);
   for(Uint i = 0; i <nStoredEps; ++i)
     data->get(i)->save(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol() );
-  fflush(fdata); fclose(fdata);
+  fflush(fdata);
+  fclose(fdata);
 
-  Utilities::copyFile(dumpName + "status_backup.raw", dumpName + "status.raw");
-  Utilities::copyFile(dumpName + "data_backup.raw", dumpName + "data.raw");
+  Utilities::copyFile(dumpName + "_status_backup.raw", dumpName + "_status.raw");
+  Utilities::copyFile(dumpName + "_data_backup.raw", dumpName + "_data.raw");
 }
 
 }

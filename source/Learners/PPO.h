@@ -27,6 +27,7 @@ class PPO : public Learner_approximator
   const std::vector<Uint> pol_indices = Utilities::count_indices(pol_outputs);
   const long nHorizon = settings.maxTotObsNum;
   const long nEpochs = settings.batchSize/settings.obsPerStep;
+  const Real CmaxPol = settings.clipImpWeight;
 
   mutable long cntBatch = 0, cntEpoch = 0, cntKept = 0;
   mutable std::atomic<Real> DKL_target{ settings.klDivConstraint };

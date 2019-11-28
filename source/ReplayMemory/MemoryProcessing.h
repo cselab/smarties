@@ -29,9 +29,11 @@ private:
   //nnReal& stddev_reward = RM->stddev_reward;
   nnReal& invstd_reward = RM->invstd_reward;
 
-  Uint nPruned = 0, minInd = 0, nOffPol = 0;
-  Real avgDKL =  0;
-  Sint delPtr = -1;
+  Uint nPrunedEps = 0;
+  Uint oldestStoresTimeStamp = 0;
+  Uint nFarPolicySteps = 0;
+  Real avgKLdivergence =  0;
+  Sint indexOfEpisodeToDelete = -1;
 
   DelayedReductor<long double> Ssum1Rdx, Ssum2Rdx, Rsum2Rdx, Csum1Rdx;
   DelayedReductor<long> globalStep_reduce;
@@ -55,12 +57,13 @@ public:
   // Algorithm for maintaining and filtering dataset, and optional imp weight range parameter
   void prune(const FORGET ALGO, const Fval CmaxRho = 1, const bool recompute = false);
   void finalize();
+  void histogramImportanceWeights();
 
   void getMetrics(std::ostringstream& buff);
   void getHeaders(std::ostringstream& buff);
 
   Uint nFarPol() {
-    return nOffPol;
+    return nFarPolicySteps;
   }
 };
 

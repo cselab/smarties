@@ -21,7 +21,7 @@ namespace smarties
 
 class Sampling;
 // algorithm to filter past episodes:
-enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV};
+enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV, BATCHRL};
 
 class MemoryBuffer
 {

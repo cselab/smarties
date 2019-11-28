@@ -8,6 +8,7 @@
 
 #include "MemoryProcessing.h"
 #include "../Utils/SstreamUtilities.h"
+#include "ExperienceRemovalAlgorithms.h"
 #include "Sampling.h"
 #include <algorithm>
 
@@ -50,12 +51,13 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
       std::vector<long double> thNewSSum(dimS, 0), thNewSSqSum(dimS, 0);
       #pragma omp for schedule(dynamic) nowait
       for(Uint i=0; i<setSize; ++i) {
-        const Uint N = Set[i]->ndata();
+        const Sequence & EP = * Set[i];
+        const Uint N = EP.ndata();
         count += N;
         for(Uint j=0; j<N; ++j) {
-          newstdvr += std::pow(Set[i]->rewards[j+1], 2);
+          newstdvr += std::pow(EP.rewards[j+1], 2);
           for(Uint k=0; k<dimS && WS>0; ++k) {
-            const long double sk = Set[i]->states[j][k] - mean[k];
+            const long double sk = EP.states[j][k] - mean[k];
             thNewSSum[k] += sk; thNewSSqSum[k] += sk*sk;
           }
         }
@@ -110,68 +112,69 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   }
 }
 
-void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho, const bool recompute)
+void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho,
+                             const bool recompute)
 {
-  //checkNData();
   assert(CmaxRho>=1);
-  const Fval invC = 1/CmaxRho;
-  // vector indicating location of sequence to delete
-  int  oldP = -1, farP = -1, dklP = -1;
-  Real dklV = -1, farV = -1, oldV = 9e9;
-  Real _nOffPol = 0, _totDKL = 0;
+  const Fval invC = 1/CmaxRho, farPolTol = settings.penalTol;
+
+  MostOffPolicyEp totMostOff; OldestDatasetEp totFirstIn;
+  MostFarPolicyEp totMostFar; HighestAvgDklEp totHighDkl;
+
+  Real _totDKL = 0;
+  Uint _nOffPol = 0;
   const Uint setSize = RM->readNSeq();
   #pragma omp parallel reduction(+ : _nOffPol, _totDKL)
   {
-    std::pair<int, Real> farpol{-1, -1}, maxdkl{-1, -1}, oldest{-1, 9e9};
+    OldestDatasetEp locFirstIn; MostOffPolicyEp locMostOff;
+    MostFarPolicyEp locMostFar; HighestAvgDklEp locHighDkl;
+
     #pragma omp for schedule(static, 1) nowait
-    for(Uint i = 0; i < setSize; ++i)
+    for (Uint i = 0; i < setSize; ++i)
     {
-      if(recompute) {
-        Fval dbg_nOffPol = 0, dbg_sumKLDiv = 0, dbg_sum_mse = 0;
-        for(Uint j=0; j<Set[i]->ndata(); ++j) {
-          const auto& W = Set[i]->offPolicImpW[j];
-          dbg_sum_mse += Set[i]->SquaredError[j];
-          dbg_sumKLDiv += Set[i]->KullbLeibDiv[j];
-          assert(W >= 0);
-          // float precision may cause DKL to be slightly negative:
-          assert(Set[i]->KullbLeibDiv[j] >= -EPS);
-          // sequence is off policy if offPol W is out of 1/C : C
-          if(W>CmaxRho || W<invC) dbg_nOffPol += 1;
-        }
-        Set[i]->MSE = dbg_sum_mse;
-        Set[i]->nOffPol = dbg_nOffPol;
-        Set[i]->sumKLDiv = dbg_sumKLDiv;
-      }
-
-      const Real W_FAR = Set[i]->nOffPol /Set[i]->ndata();
-      const Real W_DKL = Set[i]->sumKLDiv/Set[i]->ndata();
-      _nOffPol += Set[i]->nOffPol; _totDKL += Set[i]->sumKLDiv;
-
-      if(Set[i]->ID<oldest.second) { oldest.second=Set[i]->ID; oldest.first=i; }
-      if(    W_FAR >farpol.second) { farpol.second= W_FAR;     farpol.first=i; }
-      if(    W_DKL >maxdkl.second) { maxdkl.second= W_DKL;     maxdkl.first=i; }
+      Sequence & EP = * Set[i];
+      if (recompute) EP.updateCumulative(CmaxRho, invC);
+      _nOffPol += EP.nFarPolicySteps();
+      _totDKL  += EP.sumKLDivergence;
+      locFirstIn.compare(EP, i); locMostOff.compare(EP, i);
+      locMostFar.compare(EP, i); locHighDkl.compare(EP, i);
     }
+
     #pragma omp critical
     {
-      if(oldest.second<oldV) { oldP=oldest.first; oldV=oldest.second; }
-      if(farpol.second>farV) { farP=farpol.first; farV=farpol.second; }
-      if(maxdkl.second>dklV) { dklP=maxdkl.first; dklV=maxdkl.second; }
+      totFirstIn.compare(locFirstIn); totMostOff.compare(locMostOff);
+      totMostFar.compare(locMostFar); totHighDkl.compare(locHighDkl);
     }
   }
 
-  if(CmaxRho<=1) _nOffPol = 0; //then this counter and its effects are skipped
-  avgDKL = _totDKL / RM->readNData();
-  nOffPol = _nOffPol;
-  minInd = oldV;
-  assert(oldP<(int)Set.size() && farP<(int)Set.size() && dklP<(int)Set.size());
-  assert( oldP >=  0 && farP >=  0 && dklP >=  0 );
-  switch(ALGO) {
-    case OLDEST:     delPtr = oldP; break;
-    case FARPOLFRAC: delPtr = farP; break;
-    case MAXKLDIV:   delPtr = dklP; break;
+  if (CmaxRho<=1) nFarPolicySteps = 0; //then this counter and its effects are skipped
+  avgKLdivergence = _totDKL / RM->readNData();
+  nFarPolicySteps = _nOffPol;
+  oldestStoresTimeStamp = totFirstIn.timestamp;
+
+  assert(totMostFar.ind >= 0 && totMostFar.ind < (int) setSize);
+  assert(totHighDkl.ind >= 0 && totHighDkl.ind < (int) setSize);
+  assert(totFirstIn.ind >= 0 && totFirstIn.ind < (int) setSize);
+
+  indexOfEpisodeToDelete = -1;
+  //if (recompute) printf("min imp w:%e\n", totMostOff.avgClipImpW);
+  switch (ALGO)
+  {
+    case OLDEST:      indexOfEpisodeToDelete = totFirstIn(); break;
+
+    case FARPOLFRAC: indexOfEpisodeToDelete = totMostFar(); break;
+
+    case MAXKLDIV: indexOfEpisodeToDelete = totHighDkl(); break;
+
+    case BATCHRL: indexOfEpisodeToDelete = totMostOff(farPolTol); break;
   }
-  // prevent any weird race condition from causing deletion of newest data:
-  if(Set[oldP]->ID + (int)setSize < Set[delPtr]->ID) delPtr = oldP;
+
+  if (indexOfEpisodeToDelete >= 0) {
+    // prevent any race condition from causing deletion of newest data:
+    const Sequence & EP2delete = * Set[indexOfEpisodeToDelete];
+    if (Set[totFirstIn.ind]->ID + (Sint) setSize < EP2delete.ID)
+        indexOfEpisodeToDelete = totFirstIn.ind;
+  }
 }
 
 void MemoryProcessing::finalize()
@@ -189,18 +192,20 @@ void MemoryProcessing::finalize()
   }
   for(int i=0; i<nB4; ++i) assert(RM->get(i)->just_sampled < 0);
 
-  // safety measure: do not delete trajectory if Nobs > Ntarget
-  // but if N > Ntarget even if we remove the trajectory
-  // done to avoid bugs if a sequence is longer than maxTotObsNum
-  // negligible effect if hyperparameters are chosen wisely
-  if(delPtr>=0)
+  // Safety measure: we don't use as delete condition "if Nobs > maxTotObsNum",
+  // We use "if Nobs - toDeleteEpisode.ndata() > maxTotObsNum".
+  // This avoids bugs if any single sequence is longer than maxTotObsNum.
+  // Has negligible effect if hyperparam maxTotObsNum is chosen appropriately.
+  if(indexOfEpisodeToDelete >= 0)
   {
-    const Uint maxTotObsNum_loc = settings.maxTotObsNum_local;
-    if(nTransitions.load()-Set[delPtr]->ndata() > maxTotObsNum_loc)
-      RM->removeSequence(delPtr);
-    delPtr = -1;
+    const Uint maxTotObsNum = settings.maxTotObsNum_local; // for MPI-learners
+    if(RM->readNData() - Set[indexOfEpisodeToDelete]->ndata() > maxTotObsNum) {
+      //warn("Deleting episode");
+      RM->removeSequence(indexOfEpisodeToDelete);
+    }
+    indexOfEpisodeToDelete = -1;
   }
-  nPruned += nB4 - RM->readNSeq();
+  nPrunedEps += nB4 - RM->readNSeq();
 
   // update sampling algorithm:
   RM->sampler->prepare(RM->needs_pass);
@@ -214,7 +219,7 @@ void MemoryProcessing::getMetrics(std::ostringstream& buff)
 
   Utilities::real2SS(buff, avgR/(nSeq+1e-7), 9, 0);
   Utilities::real2SS(buff, 1/invstd_reward, 6, 1);
-  Utilities::real2SS(buff, avgDKL, 5, 1);
+  Utilities::real2SS(buff, avgKLdivergence, 5, 1);
 
   buff<<" "<<std::setw(5)<<nSeq;
   buff<<" "<<std::setw(7)<<nTransitions.load();
@@ -222,73 +227,90 @@ void MemoryProcessing::getMetrics(std::ostringstream& buff)
   buff<<" "<<std::setw(8)<<nSeenTransitions.load();
   //buff<<" "<<std::setw(7)<<nSeenSequences_loc.load();
   //buff<<" "<<std::setw(8)<<nSeenTransitions_loc.load();
-  buff<<" "<<std::setw(7)<<minInd;
-  buff<<" "<<std::setw(6)<<(int)nOffPol;
+  buff<<" "<<std::setw(7)<<oldestStoresTimeStamp;
+  buff<<" "<<std::setw(4)<<nPrunedEps;
+  buff<<" "<<std::setw(6)<<nFarPolicySteps;
 
-  nPruned=0;
+  nPrunedEps = 0;
 }
 
 void MemoryProcessing::getHeaders(std::ostringstream& buff)
 {
   buff <<
-  "|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nFarP ";
+  //"|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nFarP ";
+  "|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
 }
 
 FORGET MemoryProcessing::readERfilterAlgo(const std::string setting,
   const bool bReFER)
 {
-  if(setting == "oldest")     return OLDEST;
-  if(setting == "farpolfrac") return FARPOLFRAC;
-  if(setting == "maxkldiv")   return MAXKLDIV;
+  if(setting == "oldest") {
+    printf("Experience Replay storage: First In First Out.\n");
+    return OLDEST;
+  }
+  if(setting == "farpolfrac") {
+    printf("Experience Replay storage: remove most 'far policy' episode.\n");
+    return FARPOLFRAC;
+  }
+  if(setting == "maxkldiv") {
+    printf("Experience Replay storage: remove highest average DKL episode.\n");
+    return MAXKLDIV;
+  }
+  if(setting == "batchrl") {
+    printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
+    return BATCHRL;
+  }
   //if(setting == "minerror")   return MINERROR; miriad ways this can go wrong
   if(setting == "default") {
-    if(bReFER) return FARPOLFRAC;
-    else       return OLDEST;
+    if(bReFER) {
+      printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
+      return BATCHRL;
+    }
+    else {
+      printf("Experience Replay storage: First In First Out.\n");
+      return OLDEST;
+    }
   }
   die("ERoldSeqFilter not recognized");
   return OLDEST; // to silence warning
 }
 
+void MemoryProcessing::histogramImportanceWeights()
+{
+  static constexpr Uint nBins = 81;
+  static constexpr Real beg = std::log(1e-3), end = std::log(50.0);
+  Fval bounds[nBins+1] = { 0 };
+  Uint counts[nBins]   = { 0 };
+  for (Uint i = 1; i < nBins; ++i)
+      bounds[i] = std::exp(beg + (end-beg) * (i-1.0)/(nBins-2.0) );
+  bounds[nBins] = std::numeric_limits<Fval>::max()-1e2; // -100 avoids inf later
+
+  const Uint setSize = RM->readNSeq();
+  #pragma omp parallel for schedule(dynamic, 1) reduction(+ : counts[:nBins])
+  for (Uint i = 0; i < setSize; ++i) {
+    const auto & EP = * Set[i];
+    for (Uint j=0; j < EP.ndata(); ++j) {
+      const auto rho = EP.offPolicImpW[j];
+      for (Uint b = 0; b < nBins; ++b)
+        if(rho >= bounds[b] && rho < bounds[b+1]) counts[b] ++;
+    }
+  }
+  const auto harmoncMean = [](const Fval a, const Fval b) {
+    return 2 * a * (b / (a + b));
+  };
+  std::ostringstream buff;
+  buff<<"_____________________________________________________________________";
+  buff<<"\nOFF-POLICY IMP WEIGHTS HISTOGRAMS\n";
+  buff<<"weight pi/mu (harmonic mean of histogram's bounds):\n";
+  for (Uint b = 0; b < nBins; ++b)
+    Utilities::real2SS(buff, harmoncMean(bounds[b], bounds[b+1]), 6, 1);
+  buff<<"\nfraction of dataset:\n";
+  const Real dataSize = RM->readNData();
+  for (Uint b = 0; b < nBins; ++b)
+    Utilities::real2SS(buff, counts[b]/dataSize, 6, 1);
+  buff<<"\n";
+  buff<<"_____________________________________________________________________";
+  printf("%s\n\n", buff.str().c_str());
 }
 
-
-#if 0 // ndef NDEBUG
-  if( settings.learner_rank == 0 ) {
-   std::ofstream outf("runningAverages.dat", std::ios::app);
-   outf<<count<<" "<<1/invstd_reward<<" "<<print(mean)<<" "<<print(std)<<std::endl;
-   outf.flush(); outf.close();
-  }
-  Uint cntSamp = 0;
-  for(Uint i=0; i<setSize; ++i) {
-    assert(Set[i] not_eq nullptr);
-    cntSamp += Set[i]->ndata();
-  }
-  assert(cntSamp==nTransitions.load());
-  if(WS>=1)
-  {
-    LDvec dbgStateSum(dimS,0), dbgStateSqSum(dimS,0);
-    #pragma omp parallel
-    {
-      LDvec thr_dbgStateSum(dimS), thr_dbgStateSqSum(dimS);
-      #pragma omp for schedule(dynamic)
-      for(Uint i=0; i<setSize; ++i)
-        for(Uint j=0; j<Set[i]->ndata(); ++j) {
-          const auto S = RM->standardize(Set[i]->states[j]);
-          for(Uint k=0; k<dimS; ++k) {
-            thr_dbgStateSum[k] += S[k]; thr_dbgStateSqSum[k] += S[k]*S[k];
-          }
-        }
-      #pragma omp critical
-      for(Uint k=0; k<dimS; ++k) {
-        dbgStateSum[k]   += thr_dbgStateSum[k];
-        dbgStateSqSum[k] += thr_dbgStateSqSum[k];
-      }
-    }
-    for(Uint k=0; k<dimS && settings.learner_rank == 0; ++k) {
-      const Real dbgMean = dbgStateSum[k]/cntSamp;
-      const Real dbgVar = dbgStateSqSum[k]/cntSamp - dbgMean*dbgMean;
-      if(std::fabs(dbgMean)>.001 || std::fabs(dbgVar-1)>.001)
-        std::cout <<k<<" mean:"<<dbgMean<<" std:"<<dbgVar<<"\n";
-    }
-  }
-#endif
+}

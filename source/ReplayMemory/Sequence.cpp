@@ -67,11 +67,6 @@ std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uin
 
   assert((Uint) (buf-ret.data()) == (dS+dA+dP+7) * seq_len);
 
-  *(buf++) = nOffPol; //fval
-  *(buf++) = MSE; //fval
-  *(buf++) = sumKLDiv; //fval
-  *(buf++) = totR; //fval
-
   char * charPos = (char*) buf;
   memcpy(charPos, &       ended, sizeof(bool)); charPos += sizeof(bool);
   memcpy(charPos, &          ID, sizeof(Sint)); charPos += sizeof(Sint);
@@ -115,11 +110,8 @@ void Sequence::unpackSequence(const std::vector<Fval>& data, const Uint dS,
   /////////////////////////////////////////////////////////////////////////////
   assert((Uint) (buf - data.data()) == (dS+dA+dP+7) * seq_len);
   priorityImpW = std::vector<float>(seq_len, 1);
+  totR = Utilities::sum(rewards);
   /////////////////////////////////////////////////////////////////////////////
-  nOffPol  = *(buf++);
-  MSE      = *(buf++);
-  sumKLDiv = *(buf++);
-  totR     = *(buf++);
 
   const char * charPos = (const char *) buf;
   memcpy(&       ended, charPos, sizeof(bool)); charPos += sizeof(bool);
@@ -167,16 +159,17 @@ bool Sequence::isEqual(const Sequence * const S) const
   if( isDifferent(S->actions     , actions     ) ) assert(false && "actions");
   if( isDifferent(S->policies    , policies    ) ) assert(false && "policies");
   if( isDifferent(S->rewards     , rewards     ) ) assert(false && "rewards");
+
   if( isDifferent(S->Q_RET       , Q_RET       ) ) assert(false && "Q_RET");
   if( isDifferent(S->action_adv  , action_adv  ) ) assert(false && "action_adv");
   if( isDifferent(S->state_vals  , state_vals  ) ) assert(false && "state_vals");
+
   if( isDifferent(S->SquaredError, SquaredError) ) assert(false && "SquaredError");
   if( isDifferent(S->offPolicImpW, offPolicImpW) ) assert(false && "offPolicImpW");
   if( isDifferent(S->KullbLeibDiv, KullbLeibDiv) ) assert(false && "KullbLeibDiv");
-  if( isDifferent(S->nOffPol     , nOffPol     ) ) assert(false && "nOffPol");
-  if( isDifferent(S->MSE         , MSE         ) ) assert(false && "MSE");
-  if( isDifferent(S->sumKLDiv    , sumKLDiv    ) ) assert(false && "sumKLDiv");
+
   if( isDifferent(S->totR        , totR        ) ) assert(false && "totR");
+
   if(S->ended        not_eq ended       ) assert(false && "ended");
   if(S->ID           not_eq ID          ) assert(false && "ID");
   if(S->just_sampled not_eq just_sampled) assert(false && "just_sampled");

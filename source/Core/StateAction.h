@@ -178,6 +178,9 @@ struct MDPdescriptor
           printf(" [ %lu : %s to (%.1f:%.1f) ]", i,
           bActionSpaceBounded[i] ? "bound" : "scaled",
           upperActionValue[i], lowerActionValue[i]);
+          // tidy-up fortmatting for very high-dim action spaces:
+          if( ((i+1) % 3) == 0 && i+1 < dimAction )
+            printf("\n                          ");
         }
         printf("\n");
       }

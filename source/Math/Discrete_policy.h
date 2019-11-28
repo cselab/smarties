@@ -82,7 +82,7 @@ struct Discrete_policy
     assert(unnorm.size()==nA);
     Real ret = 0;
     for (Uint j=0; j<nA; ++j) { ret += unnorm[j]; assert(unnorm[j]>0); }
-    return std::max(ret, nnEPS);
+    return std::max(ret, (Real) nnEPS);
   }
 
   Rvec extract_probabilities() const

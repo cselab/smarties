@@ -230,12 +230,6 @@ void DPG::setupTasks(TaskQueue& tasks)
 DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   Learner_approximator(MDP_, S_, D_)
 {
-  if(MPICommRank(distrib.world_comm) == 0) printf(
-  "==========================================================================\n"
-  "                DDPG : Deep Deterministic Policy Gradients                \n"
-  "==========================================================================\n"
-  );
-
   const bool bCreatedEncorder = createEncoder();
   assert(networks.size() == bCreatedEncorder? 1 : 0);
   Approximator* const encoder = bCreatedEncorder? networks[0] : nullptr;

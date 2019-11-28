@@ -18,7 +18,7 @@ class DPG : public Learner_approximator
 {
   const Uint nA = aInfo.dim();
   const Real explNoise = settings.explNoise;
-  const Real OrUhDecay = CmaxPol<=0? .85 : 0; // as in original
+  const Real OrUhDecay = settings.clipImpWeight <= 0 ? 0.85 : 0; // as in original
   //const Real OrUhDecay = 0; // no correlated noise
   std::vector<Rvec> OrUhState = std::vector<Rvec>(nAgents, Rvec(nA,0));
   Approximator* actor;

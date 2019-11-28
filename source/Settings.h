@@ -93,7 +93,7 @@ struct Settings
   //SETTINGS PERTAINING TO LEARNING ALGORITHM
   //////////////////////////////////////////////////////////////////////////////
   std::string learner = "VRACER";
-  std::string ERoldSeqFilter = "default";
+  std::string ERoldSeqFilter = "oldest";
   std::string dataSamplingAlgo = "uniform";
 
   Real explNoise = std::sqrt(0.2);

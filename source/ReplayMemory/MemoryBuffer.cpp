@@ -16,9 +16,9 @@
 namespace smarties
 {
 
-MemoryBuffer::MemoryBuffer(MDPdescriptor&M_, Settings&S_, DistributionInfo&D_):
-  MDP(M_), settings(S_), distrib(D_),
-  sampler( MemoryBuffer::prepareSampler(this, S_, D_) )
+MemoryBuffer::MemoryBuffer(MDPdescriptor& M, Settings& S, DistributionInfo& D) :
+  MDP(M), settings(S), distrib(D),
+  sampler( MemoryBuffer::prepareSampler(this, S, D) )
 {
   Set.reserve(settings.maxTotObsNum);
 }
@@ -271,7 +271,7 @@ void MemoryBuffer::pushBackSequence(Sequence*const seq)
 
   const auto ind = Set.size();
   seq->ID = nSeenSequences.load();
-  seq->prefix = ind>0? Set[ind-1]->prefix +Set[ind-1]->ndata() : 0;
+  seq->prefix = ind>0? Set[ind-1]->prefix + Set[ind-1]->ndata() : 0;
   Set.push_back(seq);
   nSequences++;
   nTransitions += seq->ndata();
@@ -308,37 +308,49 @@ void MemoryBuffer::checkNData()
 }
 
 std::unique_ptr<Sampling> MemoryBuffer::prepareSampler(MemoryBuffer* const R,
-                                                       Settings & S_,
-                                                       DistributionInfo & D_)
+                                                       Settings & S,
+                                                       DistributionInfo & D)
 {
   std::unique_ptr<Sampling> ret = nullptr;
 
-  if(S_.dataSamplingAlgo == "uniform") ret = std::make_unique<Sample_uniform>(
-    D_.generators, R, S_.bSampleSequences);
-
-  if(S_.dataSamplingAlgo == "impLen")  ret = std::make_unique<Sample_impLen>(
-    D_.generators, R, S_.bSampleSequences);
-
-  if(S_.dataSamplingAlgo == "shuffle") {
-    ret = std::make_unique<TSample_shuffle>(
-      D_.generators, R, S_.bSampleSequences);
-    if(S_.bSampleSequences) die("Change importance sampling algorithm");
+  if(S.dataSamplingAlgo == "uniform") {
+    printf("Experience Replay sampling algorithm: uniform probability.\n");
+    ret = std::make_unique<Sample_uniform>(D.generators,R,S.bSampleSequences);
   }
 
-  if(S_.dataSamplingAlgo == "PERrank") {
-    ret = std::make_unique<TSample_impRank>(
-      D_.generators, R, S_.bSampleSequences);
-    if(S_.bSampleSequences) die("Change importance sampling algorithm");
+  if(S.dataSamplingAlgo == "impLen") {
+    printf("Experience Replay sampling algorithm: "
+           "probability is proportional to episode-length.%s\n",
+           S.bSampleSequences? "" : " Equivalent to uniform probability.");
+    ret = std::make_unique<Sample_impLen>(D.generators,R,S.bSampleSequences);
   }
 
-  if(S_.dataSamplingAlgo == "PERerr") {
-    ret = std::make_unique<TSample_impErr>(
-      D_.generators, R, S_.bSampleSequences);
-    if(S_.bSampleSequences) die("Change importance sampling algorithm");
+  if(S.dataSamplingAlgo == "shuffle") {
+    printf("Experience Replay sampling algorithm: "
+           "shuffle-based uniform probability.\n");
+    ret = std::make_unique<TSample_shuffle>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
   }
 
-  if(S_.dataSamplingAlgo == "PERseq") ret = std::make_unique<Sample_impSeq>(
-    D_.generators, R, S_.bSampleSequences);
+  if(S.dataSamplingAlgo == "PERrank") {
+    printf("Experience Replay sampling algorithm: "
+           "rank based prioritized replay.\n");
+    ret = std::make_unique<TSample_impRank>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
+  }
+
+  if(S.dataSamplingAlgo == "PERerr") {
+    printf("Experience Replay sampling algorithm: "
+           "error value based prioritized replay.\n");
+    ret = std::make_unique<TSample_impErr>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
+  }
+
+  if(S.dataSamplingAlgo == "PERseq") {
+    printf("Experience Replay sampling algorithm: "
+           "episodes' mean squared error based prioritized replay.\n");
+    ret = std::make_unique<Sample_impSeq>(D.generators,R,S.bSampleSequences);
+  }
 
   assert(ret not_eq nullptr);
   return ret;

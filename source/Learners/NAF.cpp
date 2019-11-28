@@ -34,13 +34,6 @@ NAF::NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   nL( Param_advantage::compute_nL(& aInfo) ),
   stdParam(Gaussian_policy::initial_Stdev(& aInfo, S_.explNoise)[0])
 {
-  if(D_.world_rank == 0) {
-  printf(
-  "==========================================================================\n"
-  "                   NAF : Normalized Advantage Functions                   \n"
-  "==========================================================================\n"
-  ); }
-
   createEncoder();
   assert(networks.size() <= 1);
   if(networks.size()>0) {

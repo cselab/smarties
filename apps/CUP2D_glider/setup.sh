@@ -17,7 +17,7 @@ cat <<EOF >${RUNDIR}/runArguments00.sh
 EOF
 
 #copy restart files:
-cp glider_timeopt_rho2_noise005/agent* ${RUNDIR}/
+#cp glider_timeopt_rho2_noise005/agent* ${RUNDIR}/
 
 # command line args to find app-required settings, each to be used for fixed
 # number of steps so as to increase sim fidelity as training progresses
@@ -26,3 +26,4 @@ export EXTRA_LINE_ARGS=" --nStepPappSett 0 --restart . --bTrain 0 \
 
 # heavy application, benefits from dedicated processes, here just eval:
 export MPI_RANKS_PER_ENV=0
+#export EXECNAME=exec

@@ -28,6 +28,8 @@ class Sampling
   long nSequences() const;
   long nTransitions() const;
   void setMinMaxProb(const Real maxP, const Real minP);
+  void updatePrefixes();
+  void checkPrefixes();
 
  public:
   Sampling(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSampleSeqs);

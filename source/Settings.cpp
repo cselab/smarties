@@ -570,10 +570,8 @@ void Settings::check()
 void DistributionInfo::initialzePRNG()
 {
   if(nThreads<1) die("nThreads<1");
-  if(randSeed<=0)
-  {
-    std::random_device rdev; const Uint rdSeed = rdev();
-    randSeed = rdSeed % std::numeric_limits<Uint>::max();
+  if(randSeed<=0) {
+    std::random_device rdev; randSeed = rdev();
     MPI_Bcast(&randSeed, 1, MPI_UNSIGNED_LONG, 0, world_comm);
     if(world_rank==0) printf("Using seed %lu\n", randSeed);
   }

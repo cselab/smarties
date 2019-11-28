@@ -16,6 +16,7 @@
 #include <cmath> // log, exp, ...
 #include <cstring> // memset, memcpy, ...
 #include <string>
+#include <numeric> // accumulate
 
 namespace smarties
 {
@@ -241,6 +242,12 @@ inline Rvec trust_region_update(const Rvec& grad,
   //#endif
   for (Uint j=0; j<nA; ++j) ret[j] = grad[j]-proj*trust[j];
   return ret;
+}
+
+template<typename T>
+inline T sum(const std::vector<T> & vec)
+{
+  return std::accumulate(vec.begin(), vec.end(), (T) 0);
 }
 
 template<typename T>

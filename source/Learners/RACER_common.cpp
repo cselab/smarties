@@ -134,16 +134,13 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
 {
   if(D_.world_rank == 0) {
-  using Utilities::vec2string;
-  printf(
-  "==========================================================================\n"
-  "               Discrete-action RACER with Bernoulli policy                \n"
-  "==========================================================================\n"
-  "    Single net with outputs: [%lu] : V(s),\n"
-  "                             [%s] : policy mean and stdev,\n"
-  "                             [%s] : advantage\n"
-  "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
-    vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
+    using Utilities::vec2string;
+    printf(
+    "    Single net with outputs: [%lu] : V(s),\n"
+    "                             [%s] : policy mean and stdev,\n"
+    "                             [%s] : advantage\n"
+    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
+      vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
 }
@@ -191,16 +188,13 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
 {
   if(D_.world_rank == 0) {
-  using Utilities::vec2string;
-  printf(
-  "==========================================================================\n"
-  "               Continuous-action RACER with Gaussian policy               \n"
-  "==========================================================================\n"
-  "    Single net with outputs: [%lu] : V(s),\n"
-  "                             [%s] : policy mean and stdev,\n"
-  "                             [%s] : advantage\n"
-  "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
-    vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
+    using Utilities::vec2string;
+    printf(
+    "    Single net with outputs: [%lu] : V(s),\n"
+    "                             [%s] : policy mean and stdev,\n"
+    "                             [%s] : advantage\n"
+    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
+      vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
 
@@ -209,7 +203,7 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
     std::normal_distribution<Real> dist(0, 1);
 
     for(Uint i=0; i<mu.size(); ++i) mu[i] = dist(generators[0]);
-    for(Uint i=0; i<nA; ++i) mu[i+nA] = std::exp(0.5 * mu[i+nA] -1);
+    for(Uint i=0; i<nA; ++i) mu[i+nA] = Utilities::noiseMap_func(mu[i+nA]);
 
     for(Uint i=0; i<=nL; ++i) output[i] = 0.5 * dist(generators[0]);
     for(Uint i=0; i<nA; ++i)
@@ -267,15 +261,12 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
 {
   if(D_.world_rank == 0) {
-  using Utilities::vec2string;
-  printf(
-  "==========================================================================\n"
-  "              Continuous-action V-RACER with Gaussian policy              \n"
-  "==========================================================================\n"
-  "    Single net with outputs: [%lu] : V(s),\n"
-  "                             [%s] : policy mean and stdev,\n"
-  "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
-    vec2string(net_outputs).c_str());
+    using Utilities::vec2string;
+    printf(
+    "    Single net with outputs: [%lu] : V(s),\n"
+    "                             [%s] : policy mean and stdev,\n"
+    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
+      vec2string(net_outputs).c_str());
   }
   setupNet();
 
@@ -284,7 +275,7 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
     std::normal_distribution<Real> dist(0, 1);
 
     for(Uint i=0; i<mu.size(); ++i) mu[i] = dist(generators[0]);
-    for(Uint i=0; i<nA; ++i) mu[i+nA] = std::exp(0.5*mu[i+nA] -1);
+    for(Uint i=0; i<nA; ++i) mu[i+nA] = Utilities::noiseMap_func(mu[i+nA]);
 
     for(Uint i=0; i<nA; ++i)
       output[1+nL+i] = mu[i] + dist(generators[0])*mu[i+nA];
