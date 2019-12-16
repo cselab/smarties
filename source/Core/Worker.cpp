@@ -99,8 +99,7 @@ void Worker::runTraining()
     } else if(perc >= percentageReady+5) {
       percentageReady = perc;
       printf("\rCollected %ld environment episodes out of %lu " \
-        "(option --totNumSteps) environment sequences to evaluate " \
-        "restarted policies.", nEnvSeqs, distrib.totNumSteps);
+        " to evaluate restarted policies.", nEnvSeqs, distrib.totNumSteps);
       fflush(0);
     }
     return false;

@@ -14,6 +14,7 @@ set(ROOT_FOLDER ${CMAKE_CURRENT_LIST_DIR})
 option(COMPILE_SO "Compile shared library" ON)
 option(COMPILE_PY_SO "Compile Python bindings" ON)
 
+list(APPEND CMAKE_PREFIX_PATH $ENV{SMARTIES_ROOT}/extern/)
 ################################################################################
 # Pybind11.
 # Not using `python3-config` because it doesn't seem to work with `pip install --user`.
@@ -125,6 +126,15 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}
 
 # OpenBLAS
 find_package(BLAS REQUIRED)
+find_path(BLAS_INCLUDE_DIRS cblas.h
+  /usr/include
+  /usr/local/include
+  /usr/include/openblas
+  /opt/OpenBLAS/include
+  /usr/include/x86_64-linux-gnu
+  /path/to/mkl/include
+  $ENV{BLAS_HOME}/include
+  $ENV{SMARTIES_ROOT}/extern/include)
 include_directories(${BLAS_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_OPENBLAS")
 
