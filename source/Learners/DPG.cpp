@@ -22,11 +22,11 @@ namespace smarties
 {
 
 static inline Gaussian_policy prepare_policy(const Rvec & out,
-                                             const ActionInfo * const aInfo,
+                                             const ActionInfo & aInfo,
                                              const Rvec ACT = Rvec(),
                                              const Rvec MU  = Rvec())
 {
-  Gaussian_policy pol({0, aInfo->dim()}, aInfo, out);
+  Gaussian_policy pol({0, aInfo.dim()}, aInfo, out);
   if(ACT.size()) {
     assert(MU.size());
     pol.prepare(ACT, MU);
@@ -40,7 +40,7 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   if(thrID==0) profiler->start("FWD");
   const Rvec pvec = actor->forward(bID, t); // network compute
-  const auto POL = prepare_policy(pvec, &aInfo, MB.action(bID,t), MB.mu(bID,t));
+  const auto POL = prepare_policy(pvec, aInfo, MB.action(bID,t), MB.mu(bID,t));
   const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
   const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
@@ -112,14 +112,14 @@ void DPG::select(Agent& agent)
   if( agent.agentStatus < TERM ) // not end of sequence
   {
     //Compute policy and value on most recent element of the sequence.
-    Gaussian_policy POL = prepare_policy(actor->forward(agent), &aInfo);
+    Gaussian_policy POL = prepare_policy(actor->forward(agent), aInfo);
     Rvec MU = POL.getVector(); // vector-form current policy for storage
 
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
-    auto act = POL.finalize(bSamplePolicy, &generators[nThreads+agent.ID], MU);
+    auto act = POL.selectAction(agent, MU, settings.explNoise>0);
+
     if(OrUhDecay>0)
       act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
     agent.act(act);
@@ -241,7 +241,7 @@ DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   actor = networks.back();
   actor->buildFromSettings(nA);
   actor->setUseTargetNetworks();
-  const Rvec stdParam = Gaussian_policy::initial_Stdev(&aInfo, explNoise);
+  const Rvec stdParam = Gaussian_policy::initial_Stdev(aInfo, explNoise);
   actor->getBuilder().addParamLayer(nA, "Linear", stdParam);
   actor->initializeNetwork();
 

@@ -15,13 +15,13 @@
 inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
 {
   const unsigned maxStep = 500;
-  comm->set_num_agents(3); // predator prey
-  comm->agents_define_different_MDP(); // pred & prey learn different policies
+  comm->setNumAgents(3); // predator prey
+  comm->agentsDefineDifferentMDP(); // pred & prey learn different policies
   //Sim box has size EXTENT. Fraction of box that agent can traverse in 1 step:
   const double maxSpeed = 0.02 * EXTENT/dt;
-  comm->set_state_action_dims(6, 2, 0); // 6 state, 2 control variables
-  comm->set_state_action_dims(6, 2, 1); // 6 state, 2 control variables
-  comm->set_state_action_dims(6, 2, 2); // 6 state, 2 control variables
+  comm->setStateActionDims(6, 2, 0); // 6 state, 2 control variables
+  comm->setStateActionDims(6, 2, 1); // 6 state, 2 control variables
+  comm->setStateActionDims(6, 2, 2); // 6 state, 2 control variables
 
   std::mt19937 &rngPointer =  comm->getPRNG();
  

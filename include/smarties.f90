@@ -97,35 +97,35 @@ module smarties
   end interface
 
   interface
-    subroutine smarties_set_num_agents( &
+    subroutine smarties_setNumAgents( &
         ptr2comm, num_agents) &
-        bind(c, name='smarties_set_num_agents')
+        bind(c, name='smarties_setNumAgents')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
       integer(c_int), intent(in), value :: num_agents
-    end subroutine smarties_set_num_agents
+    end subroutine smarties_setNumAgents
   end interface
 
   interface
-    subroutine smarties_set_state_action_dims( &
+    subroutine smarties_setStateActionDims( &
         ptr2comm, state_dim, action_dim, agentID) &
-        bind(c, name='smarties_set_state_action_dims')
+        bind(c, name='smarties_setStateActionDims')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
       integer(c_int), intent(in), value :: state_dim
       integer(c_int), intent(in), value :: action_dim
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_state_action_dims
+    end subroutine smarties_setStateActionDims
   end interface
 
 
-  interface smarties_set_action_scales
-    subroutine smarties_set_action_scales_default( &
+  interface
+    subroutine smarties_setActionScales( &
         ptr2comm, upper_act_bound, lower_act_bound, &
         bounded, action_dim, agentID) &
-        bind(c, name='smarties_set_action_scales_default')
+        bind(c, name='smarties_setActionScales')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),     intent(in), value :: ptr2comm
@@ -134,12 +134,14 @@ module smarties
       logical(c_bool), intent(in), value :: bounded
       integer(c_int),  intent(in), value :: action_dim
       integer(c_int),  intent(in), optional :: agentID
-    end subroutine smarties_set_action_scales_default
-    !
-    subroutine smarties_set_action_scales_pointer( &
+    end subroutine smarties_setActionScales
+  end interface
+
+  interface
+    subroutine smarties_setActionScalesBounds( &
         ptr2comm, upper_act_bound, lower_act_bound, &
         bounded, action_dim, agentID) &
-        bind(c, name='smarties_set_action_scales_pointer')
+        bind(c, name='smarties_setActionScalesBounds')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),     intent(in), value :: ptr2comm
@@ -148,51 +150,52 @@ module smarties
       type(c_ptr),     intent(in), value :: bounded
       integer(c_int),  intent(in), value :: action_dim
       integer(c_int),  intent(in), optional :: agentID
-    end subroutine smarties_set_action_scales_pointer
-  end interface smarties_set_action_scales
+    end subroutine smarties_setActionScalesBounds
+  end interface
 
 
-  interface smarties_set_action_options
-    subroutine smarties_set_action_options_default( &
+  interface
+    subroutine smarties_setActionOptions( &
         ptr2comm, num_options, agentID) &
-        bind(c, name='smarties_set_action_options_default')
+        bind(c, name='smarties_setActionOptions')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),     intent(in), value :: ptr2comm
       integer(c_int),  intent(in), value :: num_options
       integer(c_int),  intent(in), optional :: agentID
-    end subroutine smarties_set_action_options_default
-    !
-    subroutine smarties_set_action_options_dim( &
+    end subroutine smarties_setActionOptions
+  end interface
+
+  interface
+    subroutine smarties_setActionOptionsPerDim( &
         ptr2comm, num_options, action_dim, agentID) &
-        bind(c, name='smarties_set_action_options_dim')
+        bind(c, name='smarties_setActionOptionsPerDim')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),     intent(in), value :: ptr2comm
       type(c_ptr),     intent(in), value :: num_options
       integer(c_int),  intent(in), value :: action_dim
       integer(c_int),  intent(in), optional :: agentID
-    end subroutine smarties_set_action_options_dim
-  end interface smarties_set_action_options
-
+    end subroutine smarties_setActionOptionsPerDim
+  end interface
 
   interface
-    subroutine smarties_set_state_observable( &
+    subroutine smarties_setStateObservable( &
         ptr2comm, b_observable, state_dim, agentID) &
-        bind(c, name='smarties_set_state_observable')
+        bind(c, name='smarties_setStateObservable')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
       type(c_ptr),    intent(in), value :: b_observable
       integer(c_int), intent(in), value :: state_dim
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_state_observable
+    end subroutine smarties_setStateObservable
   end interface
 
   interface
-    subroutine smarties_set_state_scales( &
+    subroutine smarties_setStateScales( &
         ptr2comm, upper_state_bound, lower_state_bound, state_dim, agentID) &
-        bind(c, name='smarties_set_state_scales')
+        bind(c, name='smarties_setStateScales')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
@@ -200,44 +203,44 @@ module smarties
       type(c_ptr),    intent(in), value :: lower_state_bound
       integer(c_int), intent(in), value :: state_dim
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_state_scales
+    end subroutine smarties_setStateScales
   end interface
 
   interface
-    subroutine smarties_set_is_partially_observable(ptr2comm, agentID) &
-        bind(c, name='smarties_set_is_partially_observable')
+    subroutine smarties_setIsPartiallyObservable(ptr2comm, agentID) &
+        bind(c, name='smarties_setIsPartiallyObservable')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_is_partially_observable
+    end subroutine smarties_setIsPartiallyObservable
   end interface
 
   interface
-    subroutine smarties_finalize_problem_description(ptr2comm) &
-        bind(c, name='smarties_finalize_problem_description')
+    subroutine smarties_finalizeProblemDescription(ptr2comm) &
+        bind(c, name='smarties_finalizeProblemDescription')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
-    end subroutine smarties_finalize_problem_description
+    end subroutine smarties_finalizeProblemDescription
   end interface
 
   interface
-    subroutine smarties_env_has_distributed_agents(ptr2comm) &
-        bind(c, name='smarties_env_has_distributed_agents')
+    subroutine smarties_envHasDistributedAgents(ptr2comm) &
+        bind(c, name='smarties_envHasDistributedAgents')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
-    end subroutine smarties_env_has_distributed_agents
+    end subroutine smarties_envHasDistributedAgents
   end interface
 
   interface
-    subroutine smarties_agents_define_different_MDP(ptr2comm) &
-        bind(c, name='smarties_agents_define_different_MDP')
+    subroutine smarties_agentsDefineDifferentMDP(ptr2comm) &
+        bind(c, name='smarties_agentsDefineDifferentMDP')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
-    end subroutine smarties_agents_define_different_MDP
+    end subroutine smarties_agentsDefineDifferentMDP
   end interface
 
   interface
@@ -253,10 +256,10 @@ module smarties
   end interface
 
   interface
-    subroutine smarties_set_preprocessing_conv2d( &
+    subroutine smarties_setPreprocessingConv2d( &
         ptr2comm, input_width, input_height, input_features, &
         kernels_num, filters_size, stride, agentID) &
-        bind(c, name='smarties_set_preprocessing_conv2d')
+        bind(c, name='smarties_setPreprocessingConv2d')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
@@ -267,19 +270,45 @@ module smarties
       integer(c_int), intent(in), value :: filters_size
       integer(c_int), intent(in), value :: stride
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_preprocessing_conv2d
+    end subroutine smarties_setPreprocessingConv2d
   end interface
 
   interface
-    subroutine smarties_set_num_appended_past_observations( &
+    subroutine smarties_setNumAppendedPastObservations( &
         ptr2comm, n_appended, agentID) &
-        bind(c, name='smarties_set_num_appended_past_observations')
+        bind(c, name='smarties_setNumAppendedPastObservations')
       use, intrinsic :: iso_c_binding
       implicit none
       type(c_ptr),    intent(in), value :: ptr2comm
       integer(c_int), intent(in), value :: n_appended
       integer(c_int), intent(in), optional :: agentID
-    end subroutine smarties_set_num_appended_past_observations
+    end subroutine smarties_setNumAppendedPastObservations
+  end interface
+
+  interface
+    subroutine smarties_getUniformRandom( &
+        ptr2comm, range_begin, range_end, sampled) &
+        bind(c, name='smarties_getUniformRandom')
+      use, intrinsic :: iso_c_binding
+      implicit none
+      type(c_ptr),    intent(in),  value    :: ptr2comm
+      real(c_double), intent(in),  optional :: range_begin
+      real(c_double), intent(in),  optional :: range_end
+      real(c_double), intent(out), optional :: sampled(*)
+    end subroutine smarties_getUniformRandom
+  end interface
+
+  interface
+    subroutine smarties_getNormalRandom( &
+        ptr2comm, mean, stdev, sampled) &
+        bind(c, name='smarties_getNormalRandom')
+      use, intrinsic :: iso_c_binding
+      implicit none
+      type(c_ptr),    intent(in),  value    :: ptr2comm
+      real(c_double), intent(in),  optional :: mean
+      real(c_double), intent(in),  optional :: stdev
+      real(c_double), intent(out), optional :: sampled(*)
+    end subroutine smarties_getNormalRandom
   end interface
 
 end module smarties

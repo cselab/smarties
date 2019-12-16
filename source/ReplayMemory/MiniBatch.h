@@ -32,25 +32,25 @@ struct MiniBatch
   MiniBatch& operator=(const MiniBatch &p) = delete;
 
   std::vector<Sequence*> episodes;
-  std::vector<Uint> begTimeStep;
-  std::vector<Uint> endTimeStep;
-  std::vector<Uint> sampledTimeStep;
-  Uint sampledBegStep(const Uint b) const { return begTimeStep[b]; }
-  Uint sampledEndStep(const Uint b) const { return endTimeStep[b]; }
-  Uint sampledTstep(const Uint b) const { return sampledTimeStep[b]; }
-  Uint sampledNumSteps(const Uint b) const {
+  std::vector<Sint> begTimeStep;
+  std::vector<Sint> endTimeStep;
+  std::vector<Sint> sampledTimeStep;
+  Sint sampledBegStep(const Uint b) const { return begTimeStep[b]; }
+  Sint sampledEndStep(const Uint b) const { return endTimeStep[b]; }
+  Sint sampledTstep(const Uint b) const { return sampledTimeStep[b]; }
+  Sint sampledNumSteps(const Uint b) const {
     assert(begTimeStep.size() > b);
     assert(endTimeStep.size() > b);
     return endTimeStep[b] - begTimeStep[b];
   }
-  Uint mapTime2Ind(const Uint b, const Uint t) const
+  Sint mapTime2Ind(const Uint b, const Sint t) const
   {
     assert(begTimeStep.size() >  b);
     assert(begTimeStep[b]     <= t);
     //ind is mapping from time stamp along trajectoy and along alloc memory
     return t - begTimeStep[b];
   }
-  Uint mapInd2Time(const Uint b, const Uint k) const
+  Sint mapInd2Time(const Uint b, const Sint k) const
   {
     assert(begTimeStep.size() > b);
     //ind is mapping from time stamp along trajectoy and along alloc memory
@@ -67,27 +67,27 @@ struct MiniBatch
     return * episodes[b];
   }
 
-  NNvec& state(const Uint b, const Uint t)
+  NNvec& state(const Uint b, const Sint t)
   {
     return S[b][mapTime2Ind(b, t)];
   }
-  const NNvec& state(const Uint b, const Uint t) const
+  const NNvec& state(const Uint b, const Sint t) const
   {
     return S[b][mapTime2Ind(b, t)];
   }
-  Real& reward(const Uint b, const Uint t)
+  Real& reward(const Uint b, const Sint t)
   {
     return R[b][mapTime2Ind(b, t)];
   }
-  const Real& reward(const Uint b, const Uint t) const
+  const Real& reward(const Uint b, const Sint t) const
   {
     return R[b][mapTime2Ind(b, t)];
   }
-  nnReal& PERweight(const Uint b, const Uint t)
+  nnReal& PERweight(const Uint b, const Sint t)
   {
     return PERW[b][mapTime2Ind(b, t)];
   }
-  const nnReal& PERweight(const Uint b, const Uint t) const
+  const nnReal& PERweight(const Uint b, const Sint t) const
   {
     return PERW[b][mapTime2Ind(b, t)];
   }
@@ -106,8 +106,11 @@ struct MiniBatch
   std::vector<nnReal> Q_RET(const Uint dt = 0) const
   {
     std::vector<nnReal> ret(size, 0);
-    for(Uint b=0; b<size; ++b)
-      ret[b] = episodes[b]->Q_RET[sampledTstep(b)-dt];
+    for(Uint b=0; b<size; ++b) {
+      const auto t = sampledTstep(b);
+      assert(t >= (Sint) dt);
+      ret[b] = episodes[b]->Q_RET[t-dt];
+    }
     return ret;
   }
   nnReal& value(const Uint b, const Uint t) const

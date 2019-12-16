@@ -74,17 +74,17 @@ policyGradient(const Rvec& MU, const Policy_t& POL,
   const Real rho_cur = POL.sampImpWeight;
   #if defined(RACER_TABC) // apply ACER's var trunc and bias corr trick
     //compute quantities needed for trunc import sampl with bias correction
-    const Action_t sample = POL.sample(&generators[thrID]);
+    const Action_t sample = POL.sample(generators[thrID]);
     const Real polProbOnPolicy = POL.evalLogProbability(sample);
-    const Real polProbBehavior = Policy_t::evalBehavior(sample, MU);
-    const Real rho_pol = safeExp(polProbOnPolicy-polProbBehavior);
+    const Real polProbBehavior = POL.evalLogBehavior(sample, MU);
+    const Real rho_pol = Utilities::safeExp(polProbOnPolicy-polProbBehavior);
     const Real A_pol = ADV.computeAdvantage(sample);
     const Real gain1 = A_RET*std::min((Real)1, rho_cur);
     const Real gain2 = A_pol*std::max((Real)0, 1-1/rho_pol);
 
     const Rvec gradAcer_1 = POL.policy_grad(POL.sampAct, gain1);
     const Rvec gradAcer_2 = POL.policy_grad(sample,      gain2);
-    return sum2Grads(gradAcer_1, gradAcer_2);
+    return Utilities::sum2Grads(gradAcer_1, gradAcer_2);
   #else
     // all these min(CmaxRet,rho_cur) have no effect with ReFer enabled
     return POL.policy_grad(POL.sampAct, A_RET*std::min(CmaxRet,rho_cur));

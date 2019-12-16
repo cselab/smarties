@@ -50,8 +50,8 @@ void PPO<Policy_t, Action_t>::select(Agent& agent)
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
-    auto act = POL.finalize(bSamplePolicy, &generators[nThreads+agent.ID], MU);
+    auto act = POL.selectAction(agent, MU, settings.explNoise>0);
+
     agent.act(act);
     data_get->add_action(agent, MU);
   }

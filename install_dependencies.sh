@@ -8,8 +8,8 @@ PHYSICAL_CORE_COUNT=$([[ $(uname) = 'Darwin' ]] && sysctl -n hw.physicalcpu_max 
 
 # Parameters modifiable from environment.
 JOBS=${JOBS:-$PHYSICAL_CORE_COUNT}
-SOURCES=${SOURCES:-$PWD/extern}
-INSTALL_PATH=${INSTALL_PATH:-$PWD/extern/build}
+SOURCES=${SMARTIES_ROOT}/extern
+INSTALL_PATH=${SMARTIES_ROOT}/extern/
 CC=${CC:-gcc}
 CXX=${CXX:-g++}
 # Shorthands for versions.
@@ -39,6 +39,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [ -z "$SMARTIES_ROOT" ]; then
+   echo " \
+This script (and many other functionalities of smarties) requires setting the
+environment variable SMARTIES_ROOT=/path/to/smarties/dir/ .
+"
+exit
+fi
 
 if [ -z "$INSTALL_MPICH" -a -z "$INSTALL_OBLAS" -a -z "$PRINT_EXPORT" -o -n "$UNKNOWN_ARGUMENT" ]; then
     echo "Usage:
@@ -62,19 +69,19 @@ fi
 
 BASEPWD=$PWD
 
-
 if [ -n "$INSTALL_MPICH" ]; then
     echo "Installing mpich ${MPICH_VERSION}..."
     wget -nc http://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz -P $SOURCES
     cd $SOURCES
-#    $TAR -xzvf mpich-${MPICH_VERSION}.tar.gz
+    $TAR -xzvf mpich-${MPICH_VERSION}.tar.gz
+    rm mpich-${MPICH_VERSION}.tar.gz
     cd mpich-${MPICH_VERSION}
-    CC=${CC} CXX=${CXX} ./configure \
-      --prefix=$INSTALL_PATH/mpich-${MPICH_VERSION}/ \
+    CC=${CC} CXX=${CXX} ./configure --prefix=$INSTALL_PATH/ \
       --enable-fast=all --enable-fortran=no --enable-threads=multiple
     make -j${JOBS}
     make install -j${JOBS}
     cd $BASEPWD
+    rm -rf $SOURCES/mpich*
 fi
 
 if [ -n "$INSTALL_OBLAS" ]; then
@@ -83,16 +90,8 @@ if [ -n "$INSTALL_OBLAS" ]; then
     git clone https://github.com/xianyi/OpenBLAS
     cd OpenBLAS
     make CC=${CC} FC=${CC} NUM_THREADS=1 USE_THREAD=0 USE_OPENMP=0 -j${JOBS}
-    make PREFIX=$INSTALL_PATH/OpenBLAS/ install
+    make PREFIX=$INSTALL_PATH/ install
     cd $BASEPWD
+    rm -rf $SOURCES/OpenBLAS
 fi
 
-#if [ -n "$INSTALL_MPICH" ]; then
-#    echo
-#    echo "======================================================================"
-#    echo "Done! Run or add to ~/.bashrc the following command:"
-#    echo
-#fi
-#if [ -n "$INSTALL_MPICH" -o -n "$PRINT_EXPORT" ]; then
-#    echo "export PATH=$INSTALL_PATH/mpich-${MPICH_VERSION}/bin:\$PATH"
-#fi

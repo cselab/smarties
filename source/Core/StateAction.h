@@ -62,7 +62,7 @@ struct MDPdescriptor
   nnReal rewardsStdDev=1, rewardsScale=1;
 
   // TODO: vector describing shape of state. To enable environment having
-  // separate preprocessing for sight as opposed to otehr sensors.
+  // separate preprocessing for sight as opposed to other sensors.
   // This is vector of vectors because each input type will have a vector
   // describing its shape. ( eg. [84 84 1] for atari )
   // std::vector<std::vector<int>> stateShape;
@@ -91,6 +91,14 @@ struct MDPdescriptor
   Uint nAppendedObs = 0;
   bool isPartiallyObservable = false;
 
+  // In the common case where act = policy (or mean) + stdev * N(0,1)
+  // The following option allows sampling N(0,1) only once per time step
+  // and share its value among all agents. Application in RL for LES model:
+  // many agents (grid points) collaborate to dissipate right amount of energy
+  // across the grid. Having different noise values makes the problem harder.
+  bool bAgentsShareNoise = false;
+  Rvec sharedNoiseVecTic, sharedNoiseVecToc;
+
   std::vector<Conv2D_Descriptor> conv2dDescriptors;
 
   void synchronize(const std::function<void(void*, size_t)>& sendRecvFunc )
@@ -109,6 +117,7 @@ struct MDPdescriptor
       die("Application did not set up dimensionality of action vector.");
 
     sendRecvFunc(&bDiscreteActions, 1 * sizeof(bool) );
+    sendRecvFunc(&bAgentsShareNoise, 1 * sizeof(bool) );
 
     sendRecvFunc(&nAppendedObs,            1 * sizeof(Uint) );
     sendRecvFunc(&isPartiallyObservable,   1 * sizeof(bool) );

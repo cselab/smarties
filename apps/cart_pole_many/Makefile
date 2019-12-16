@@ -1,4 +1,7 @@
-CC = g++
+CXX ?= g++
+ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
+CXX=${SMARTIES_ROOT}/extern/bin/mpic++
+endif
 
 LIBS+= -L${SMARTIES_ROOT}/lib -lsmarties
 CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_ROOT}/include
@@ -10,13 +13,13 @@ CPPFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -Wno-div-by-zero
 .DEFAULT_GOAL := cart-pole
 
 cart-pole: cart-pole.o
-	$(CC) $(extra) -o $@ $^ ${LIBS}
+	$(CXX) $(extra) -o $@ $^ ${LIBS}
 
 %.o: %.cpp
-	$(CC) $(extra)  $(CPPFLAGS) -c $< -o $@
+	$(CXX) $(extra)  $(CPPFLAGS) -c $< -o $@
 
 %.d: %.cpp
-	$(CC) $(extra)  $(CPPFLAGS) -MD -c $<
+	$(CXX) $(extra)  $(CPPFLAGS) -MD -c $<
 
 #vpath %.cpp $(DIRS)
 #vpath %.h   $(DIRS)

@@ -17,16 +17,16 @@ namespace smarties
 
 struct Quadratic_advantage: public Quadratic_term
 {
-  const ActionInfo* const aInfo;
+  const ActionInfo& aInfo;
   const Gaussian_policy* const policy;
 
   //Normalized quadratic advantage, with own mean
   Quadratic_advantage(const std::vector<Uint>&starts,
-                      const ActionInfo*const aI,
+                      const ActionInfo& aI,
                       const Rvec& out,
                       const Gaussian_policy*const pol = nullptr) :
-    Quadratic_term(starts[0],starts.size()>1? starts[1]:0,
-                   aI->dim(),compute_nL(aI), out,
+    Quadratic_term(starts[0], starts.size()>1? starts[1] : 0,
+                   aI.dim(), compute_nL(aI), out,
                    pol==nullptr ? Rvec(): pol->mean),
                    aInfo(aI), policy(pol)
   {
@@ -70,7 +70,7 @@ struct Quadratic_advantage: public Quadratic_term
           val += Qer * matrix[nA*a + i] * (dAct[i]-dPol[i]);
 
         netGradient[start_mean+a] = val;
-        if ( aInfo->isBounded(a) )
+        if ( aInfo.isBounded(a) )
         {
           if(mean[a]> BOUNDACT_MAX && netGradient[start_mean+a]>0)
             netGradient[start_mean+a] = 0;

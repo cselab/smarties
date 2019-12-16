@@ -33,7 +33,6 @@ struct DistributionInfo
   int parse();
 
   void initialzePRNG();
-  void finalizePRNG(const Uint nAgents_local);
   void figureOutWorkersPattern();
 
   char initial_runDir[1024];

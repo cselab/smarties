@@ -23,9 +23,9 @@ struct Quadratic_term
   const Uint start_matrix, start_mean, nA, nL;
   const Rvec netOutputs;
   const Rvec L, mean, matrix;
-  static Uint compute_nL(const ActionInfo* const aI)
+  static Uint compute_nL(const ActionInfo& aI)
   {
-    return (aI->dim()*aI->dim() + aI->dim())/2;
+    return (aI.dim() * aI.dim() + aI.dim())/2;
   }
 
   Rvec getParam() const
@@ -86,7 +86,7 @@ protected:
     //printf("%lu vec:%s\n", tmp.size(), print(tmp).c_str()); fflush(0);
     if(tmp.size() == nA) { assert(start_mean==0); return tmp; }
     assert(start_mean!=0 && netOutputs.size()>=start_mean+nA);
-    return Rvec(&(netOutputs[start_mean]),&(netOutputs[start_mean])+nA);
+    return Rvec(&(netOutputs[start_mean]), &(netOutputs[start_mean])+nA);
   }
 
   Rvec extract_matrix() const //fill positive definite matrix P == L * L'

@@ -1,4 +1,7 @@
 CXX ?= g++
+ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
+CXX=${SMARTIES_ROOT}/extern/bin/mpic++
+endif
 
 extra ?=
 smart ?= 1

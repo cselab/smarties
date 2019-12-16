@@ -22,7 +22,7 @@ template<typename Policy_t, typename Action_t>
 class PPO : public Learner_approximator
 {
  protected:
-  const Uint nA = Policy_t::compute_nA(&aInfo);
+  const Uint nA = Policy_t::compute_nA(aInfo);
   const std::vector<Uint> pol_outputs;
   const std::vector<Uint> pol_indices = Utilities::count_indices(pol_outputs);
   const long nHorizon = settings.maxTotObsNum;
@@ -43,7 +43,7 @@ class PPO : public Learner_approximator
                           const Rvec  ACT = Rvec(),
                           const Rvec  MU  = Rvec()) const
   {
-    Policy_t pol(pol_indices, &aInfo, O);
+    Policy_t pol(pol_indices, aInfo, O);
     if(ACT.size()) {
       assert(MU.size());
       pol.prepare(ACT, MU);

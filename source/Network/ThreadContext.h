@@ -75,7 +75,7 @@ struct ThreadContext
       NET->allocTimeSeries(activations[i], batch->sampledNumSteps(batchIndex));
   }
 
-  void overwrite(const Uint t, const Sint sample) const
+  void overwrite(const Sint t, const Sint sample) const
   {
     if(sample<0) target(t)->written = false;
     else activation(t, sample)->written = false; // what about backprop?
@@ -96,7 +96,7 @@ struct ThreadContext
     if(sample<0) return _addedInputType.back();
     else return _addedInputType[sample];
   }
-  NNvec& addedInputVec(const Uint t, const Sint sample = 0) {
+  NNvec& addedInputVec(const Sint t, const Sint sample = 0) {
     assert(sample<0 || _addedInputVec.size() > (Uint) sample);
     if(sample<0) return _addedInputVec.back()[ mapTime2Ind(t) ];
     else return _addedInputVec[sample][ mapTime2Ind(t) ];
@@ -117,40 +117,40 @@ struct ThreadContext
     if(sample<0) return _addedInputType.back();
     else return _addedInputType[sample];
   }
-  const NNvec& addedInputVec(const Uint t, const Sint sample = 0) const {
+  const NNvec& addedInputVec(const Sint t, const Sint sample = 0) const {
     assert(sample<0 || _addedInputVec.size() > (Uint) sample);
     if(sample<0) return _addedInputVec.back()[ mapTime2Ind(t) ];
     else return _addedInputVec[sample][ mapTime2Ind(t) ];
   }
 
-  Activation* activation(const Uint t, const Sint sample) const
+  Activation* activation(const Sint t, const Sint sample) const
   {
     assert(sample<0 || activations.size() > (Uint) sample);
     const auto& timeSeries = sample<0? activations.back() : activations[sample];
-    assert( timeSeries.size() > mapTime2Ind(t) );
+    assert( timeSeries.size() > (Uint) mapTime2Ind(t) );
     return timeSeries[ mapTime2Ind(t) ].get();
   }
-  Activation* target(const Uint t) const
+  Activation* target(const Sint t) const
   {
     assert(bHaveTargetW);
     return activation(t, -1);
   }
-  Uint mapTime2Ind(const Uint t) const
+  Sint mapTime2Ind(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->mapTime2Ind(batchIndex, t);
   }
-  Uint mapInd2Time(const Uint k) const
+  Sint mapInd2Time(const Sint k) const
   {
     assert(batch not_eq nullptr);
     return batch->mapInd2Time(batchIndex, k);
   }
-  const NNvec& getState(const Uint t) const
+  const NNvec& getState(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->state(batchIndex, t);
   }
-  const Rvec& getAction(const Uint t) const
+  const Rvec& getAction(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->action(batchIndex, t);
@@ -194,7 +194,7 @@ struct AgentContext
     _addedInputVec.resize(batch->sampledNumSteps(0));
   }
 
-  void overwrite(const Uint t, const Sint sample = -1) const
+  void overwrite(const Sint t, const Sint sample = -1) const
   {
     activation(t)->written = false; // what about backprop?
   }
@@ -208,7 +208,7 @@ struct AgentContext
   ADDED_INPUT& addedInputType(const Sint sample =-1) {
     return _addedInputType;
   }
-  NNvec& addedInputVec(const Uint t, const Sint sample = -1)
+  NNvec& addedInputVec(const Sint t, const Sint sample = -1)
   {
     return _addedInputVec[ mapTime2Ind(t) ];
   }
@@ -221,30 +221,30 @@ struct AgentContext
   const ADDED_INPUT& addedInputType(const Sint sample =-1) const {
     return _addedInputType;
   }
-  const NNvec& addedInputVec(const Uint t, const Sint sample = -1) const {
+  const NNvec& addedInputVec(const Sint t, const Sint sample = -1) const {
     return _addedInputVec[ mapTime2Ind(t) ];
   }
 
-  Activation* activation(const Uint t, const Sint sample = -1) const
+  Activation* activation(const Sint t, const Sint sample = -1) const
   {
     return activations[ mapTime2Ind(t) ].get();
   }
-  Uint mapTime2Ind(const Uint t) const
+  Sint mapTime2Ind(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->mapTime2Ind(0, t);
   }
-  Uint mapInd2Time(const Uint k) const
+  Sint mapInd2Time(const Sint k) const
   {
     assert(batch not_eq nullptr);
     return batch->mapInd2Time(0, k);
   }
-  const NNvec& getState(const Uint t) const
+  const NNvec& getState(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->state(0, t);
   }
-  const Rvec& getAction(const Uint t) const
+  const Rvec& getAction(const Sint t) const
   {
     assert(batch not_eq nullptr);
     return batch->action(0, t);

@@ -38,6 +38,7 @@ struct Zero_advantage;
 
 #define RACER_simpleSigma
 #define RACER_singleNet
+//#define RACER_TABC
 
 template<typename Advantage_t, typename Policy_t, typename Action_t>
 class RACER : public Learner_approximator
@@ -45,7 +46,7 @@ class RACER : public Learner_approximator
   template<typename _pol_t>
   _pol_t prepare_policy(const Rvec& O, const Rvec ACT=Rvec(), const Rvec MU=Rvec()) const
   {
-    _pol_t pol(pol_start, &aInfo, O);
+    _pol_t pol(pol_start, aInfo, O);
     if(ACT.size()) {
       assert(MU.size());
       pol.prepare(ACT, MU);
@@ -56,15 +57,15 @@ class RACER : public Learner_approximator
   template<typename _adv_t, typename _pol_t>
   _adv_t prepare_advantage(const Rvec& out, const _pol_t*const pol) const
   {
-    return _adv_t(adv_start, &aInfo, out, pol);
+    return _adv_t(adv_start, aInfo, out, pol);
   }
 
  protected:
   // continuous actions: dimensionality of action vectors
   // discrete actions: number of options
-  const Uint nA = Policy_t::compute_nA(&aInfo);
+  const Uint nA = Policy_t::compute_nA(aInfo);
   // number of parameters of advantage approximator
-  const Uint nL = Advantage_t::compute_nL(&aInfo);
+  const Uint nL = Advantage_t::compute_nL(aInfo);
 
   // tgtFrac_param: target fraction of off-pol samples
 
@@ -101,30 +102,30 @@ class RACER : public Learner_approximator
   //  return POL.control_grad(&ADV, eta);
   //}
 
-  static std::vector<Uint> count_outputs(const ActionInfo*const aI);
-  static std::vector<Uint> count_pol_starts(const ActionInfo*const aI);
-  static std::vector<Uint> count_adv_starts(const ActionInfo*const aI);
+  static std::vector<Uint> count_outputs(const ActionInfo& aI);
+  static std::vector<Uint> count_pol_starts(const ActionInfo& aI);
+  static std::vector<Uint> count_adv_starts(const ActionInfo& aI);
   void setupNet();
  public:
-  RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_);
+  RACER(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D);
 
   void select(Agent& agent) override;
   void setupTasks(TaskQueue& tasks) override;
-  static Uint getnOutputs(const ActionInfo*const aI);
-  static Uint getnDimPolicy(const ActionInfo*const aI);
+  static Uint getnOutputs(const ActionInfo& aI);
+  static Uint getnDimPolicy(const ActionInfo& aI);
 };
 
 template<> Uint
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-getnDimPolicy(const ActionInfo*const aI);
+getnDimPolicy(const ActionInfo& aI);
 
 template<> Uint
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-getnDimPolicy(const ActionInfo*const aI);
+getnDimPolicy(const ActionInfo& aI);
 
 template<> Uint
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-getnDimPolicy(const ActionInfo*const aI);
+getnDimPolicy(const ActionInfo& aI);
 
 }
 #endif

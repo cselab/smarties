@@ -54,8 +54,8 @@ DQN::DQN(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
       output[i] = Qmu + 0.01 * dist(generators[0]);
     }
 
-    Discrete_policy pol({0}, &aInfo, output);
-    Uint act = pol.finalize(1, &generators[0], mu);
+    Discrete_policy pol({0}, aInfo, output);
+    Uint act = pol.sample(generators[0], mu);
     pol.prepare(aInfo.label2actionMessage(act), mu);
     pol.test(act, mu);
   }
@@ -67,7 +67,6 @@ void DQN::select(Agent& agent)
   data_get->add_state(agent);
   Sequence& EP = * data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(&EP);
-  auto & rngen = generators[nThreads+agent.ID];
 
   if( agent.agentStatus < TERM )
   {
@@ -77,10 +76,9 @@ void DQN::select(Agent& agent)
     auto outVec = networks[0]->forward(agent);
 
     #ifdef DQN_USE_POLICY
-      Discrete_policy POL({0}, &aInfo, outVec);
+      Discrete_policy POL({0}, aInfo, outVec);
       Rvec MU = POL.getVector();
-      const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
-      Uint act = POL.finalize(bSamplePol, & rngen, MU);
+      Uint act = POL.selectAction(agent, MU, settings.explNoise>0);
       agent.act(act);
     #else
       const Real anneal = annealingFactor(), explNoise = settings.explNoise;
@@ -88,8 +86,8 @@ void DQN::select(Agent& agent)
       const Uint greedyAct = Utilities::maxInd(outVec);
 
       std::uniform_real_distribution<Real> dis(0.0, 1.0);
-      if(dis(rngen) < annealedEps)
-        agent.act(nA * dis(rngen));
+      if(dis(agent.generator) < annealedEps)
+        agent.act(nA * dis(agent.generator));
       else agent.act(greedyAct);
 
       Rvec MU(policyVecDim, annealedEps/nA);
@@ -160,14 +158,14 @@ void DQN::setupTasks(TaskQueue& tasks)
 }
 
 static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
-                                 const ActionInfo*const aI)
+                                 const ActionInfo& aI)
 {
-  assert( aI->dimDiscrete() == Qhats.size() );
-  assert( aI->dimDiscrete() == Qhats.size() );
+  assert( aI.dimDiscrete() == Qhats.size() );
+  assert( aI.dimDiscrete() == Qhats.size() );
   #ifdef DQN_USE_POLICY
     Discrete_policy pol({0}, aI, Qhats);
     Real ret = 0;
-    for(Uint i=0; i<aI->dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
+    for(Uint i=0; i<aI.dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
     return ret;
   #else
     return Qtildes[ Utilities::maxInd(Qhats) ];
@@ -192,7 +190,7 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
     const Rvec Qtildes = settings.targetDelay <= 0 ? Qhats // no target nets
                          : networks[0]->forward_tgt(bID, t+1);
     //v_s = r + gamma * Q(greedy action) :
-    Vsnew += gamma * expectedValue(Qhats, Qtildes, & aInfo);
+    Vsnew += gamma * expectedValue(Qhats, Qtildes, aInfo);
   }
   const Real ERR = Vsnew - Qs[actt];
 
@@ -200,7 +198,7 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   gradient[actt] = ERR;
 
   #ifdef DQN_USE_POLICY
-    Discrete_policy POL({0}, &aInfo, Qs);
+    Discrete_policy POL({0}, aInfo, Qs);
     POL.prepare(MB.action(bID,t), MB.mu(bID,t));
     const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
     const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);

@@ -135,7 +135,7 @@ void Engine::run(const std::function<void(Communicator*const,
                                           MPI_Comm,
                                           int, char **      )> & callback)
 {
-  distrib->forkableApplication = distrib->workerProcessesPerEnv == 1;
+  distrib->forkableApplication = distrib->workerProcessesPerEnv <= 1;
   init();
   if(distrib->bIsMaster)
   {

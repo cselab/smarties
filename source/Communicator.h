@@ -128,6 +128,8 @@ public:
 
   VISIBLE void disableDataTrackingForAgents(int agentStart, int agentEnd);
 
+  VISIBLE void agentsShareExplorationNoise(const int agentID = 0);
+
   VISIBLE void setPreprocessingConv2d(
     const int input_width, const int input_height, const int input_features,
     const int kernels_num, const int filters_size, const int stride,
@@ -160,6 +162,8 @@ public:
   ////////////////////////////// UTILITY METHODS ///////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
   VISIBLE std::mt19937& getPRNG();
+  VISIBLE Real getUniformRandom(const Real begin = 0, const Real end = 1);
+  VISIBLE Real getNormalRandom(const Real mean = 0, const Real stdev = 1);
 
   VISIBLE bool isTraining() const;
 

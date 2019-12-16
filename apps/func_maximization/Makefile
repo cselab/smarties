@@ -1,28 +1,20 @@
 CXX ?= g++
+ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
+CXX=${SMARTIES_ROOT}/extern/bin/mpic++
+endif
 
 extra ?=
 OBJ_FILES = test-fit.o
-SRC_DIR = ./
-COM_DIR = ../../source/
-VPATH := $(SRC_DIR):$(COM_DIR)
-CPPFLAGS+= -std=c++14 -Wall -O2 -I$(COM_DIR)
-#CPPFLAGS+= -std=c++14 -Wall -O0 -g -I$(COM_DIR)
+LIBS+= -L${SMARTIES_ROOT}/lib -lsmarties
+CPPFLAGS+= -std=c++14 -Wall -O2 -I${SMARTIES_ROOT}/include
 CPPFLAGS+= -Wextra -Wfloat-equal -Wundef -Wcast-align
 CPPFLAGS+= -Wwrite-strings -Wlogical-op -Wmissing-declarations -Wredundant-decls
 CPPFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -Wno-div-by-zero
 
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S), Darwin)
-ifeq ($(CXX), c++)
-#LD=g++-9
-#CXX=g++-9
-endif
-endif
-
 .DEFAULT_GOAL := test-fit
 
 test-fit: $(OBJ_FILES)
-	$(CXX) $(extra) -L../../makefiles/ -o $@ $^ -lsmarties
+	$(CXX) $(extra) -L../../makefiles/ -o $@ $^ ${LIBS}
 
 %.o: %.cpp
 	$(CXX) $(extra) $(CPPFLAGS) -c $< -o $@

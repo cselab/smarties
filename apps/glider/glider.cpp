@@ -11,16 +11,16 @@ inline void app_main(smarties::Communicator*const comm)
   #endif
   std::cout << ".\n";
 
-  comm->set_state_action_dims(10, 1);
+  comm->setStateActionDims(10, 1);
   std::mt19937& gen = comm->getPRNG();
 
   bool bounded = true;
   std::vector<double> upper_action_bound{1}, lower_action_bound{-1};
-  comm->set_action_scales(upper_action_bound, lower_action_bound, bounded);
+  comm->setActionScales(upper_action_bound, lower_action_bound, bounded);
   std::vector<bool> b_observable = {1, 1, 1, 1, 1, 1, 1, 0, 0, 0};
   //vector<bool> b_observable = {0, 0, 0, 1, 1, 1, 1, 0, 0, 0};
-  comm->set_state_observable(b_observable);
-  comm->finalize_problem_description();
+  comm->setStateObservable(b_observable);
+  comm->finalizeProblemDescription();
 
   Glider env;
 

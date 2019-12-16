@@ -168,8 +168,6 @@ bool Sequence::isEqual(const Sequence * const S) const
   if( isDifferent(S->offPolicImpW, offPolicImpW) ) assert(false && "offPolicImpW");
   if( isDifferent(S->KullbLeibDiv, KullbLeibDiv) ) assert(false && "KullbLeibDiv");
 
-  if( isDifferent(S->totR        , totR        ) ) assert(false && "totR");
-
   if(S->ended        not_eq ended       ) assert(false && "ended");
   if(S->ID           not_eq ID          ) assert(false && "ID");
   if(S->just_sampled not_eq just_sampled) assert(false && "just_sampled");

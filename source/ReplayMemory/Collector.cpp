@@ -100,7 +100,7 @@ void Collector::terminate_seq(Agent&a)
   if(a.trackSequence == false) return; // do not store seq
   // fill empty action and empty policy: last step of episode never has actions
   const Rvec dummyAct = Rvec(aI.dim(), 0), dummyPol = Rvec(aI.dimPol(), 0);
-
+  a.resetActionNoise();
   a.act(dummyAct);
   inProgress[a.ID]->actions.push_back( dummyAct );
   inProgress[a.ID]->policies.push_back( dummyPol );

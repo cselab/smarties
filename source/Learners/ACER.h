@@ -19,7 +19,7 @@ class ACER : public Learner_approximator
 protected:
   const Uint nA = aInfo.dim();
   const Real explNoise = settings.explNoise;
-  const Real acerTrickPow = 1. / std::sqrt(nA);
+  const Real acerTrickPow = 1.0 / std::sqrt(nA);
   //const Real acerTrickPow = 1. / nA;
   static constexpr Uint nAexpectation = 5;
   Approximator * encoder = nullptr;

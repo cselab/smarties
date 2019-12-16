@@ -114,16 +114,19 @@ void Learner::processMemoryBuffer()
   const LDvec nFarGlobal = ReFER_reduce.get();
   const Real fracOffPol = nFarGlobal[0] / nFarGlobal[1];
 
-  if(fracOffPol > D) //fixed point iter converges to 0:
-    beta = (1 - std::min(1e-4, beta) ) * beta;
-  else //fixed point iter converge to 1:
-    beta = 1e-4 + (1 - std::min(1e-4, beta) ) * beta;
+  const auto fixPointIter = [] (const Real val, const bool goTo0) {
+    if (goTo0) // fixed point iter converging to 0:
+      return (1 - std::min(1e-4, val)) * val;
+    else       // fixed point iter converging to 1:
+      return (1 - std::min(1e-4, val)) * val + std::min(1e-4, 1-val);
+  };
 
-  // unused:
-  if(std::fabs(D - fracOffPol) < 0.001)
-    alpha = (1-1e-4)*alpha;
-  else
-    alpha = 1e-4 + (1-1e-4)*alpha;
+  // if too much far policy data, increase weight of Dkl penalty
+  beta = fixPointIter(beta, fracOffPol > D);
+
+  // USED ONLY FOR CMA: how do we weight cirit cost and policy cost?
+  // if we satisfy too strictly far-pol constrain, reduce weight of policy
+  alpha = fixPointIter(alpha, std::fabs(D - fracOffPol) < 0.001);
 
   profiler->stop();
 }

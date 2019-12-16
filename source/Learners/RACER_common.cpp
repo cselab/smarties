@@ -53,7 +53,7 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupNet()
   const std::type_info& actT = typeid(Action_t);
   const std::type_info& vecT = typeid(Rvec);
   const bool isContinuous = actT.hash_code() == vecT.hash_code();
-  std::vector<Uint> nouts = count_outputs(&aInfo);
+  std::vector<Uint> nouts = count_outputs(aInfo);
   #ifdef RACER_simpleSigma // variance not dependent on state
     const Uint varianceSize = nouts.back();
     if(isContinuous) nouts.pop_back();
@@ -75,15 +75,15 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupNet()
   {
     Rvec  biases = Rvec(1, 0);
     const Real explNoise = settings.explNoise;
-    Advantage_t::setInitial(&aInfo, biases);
-    Policy_t::setInitial_noStdev(&aInfo, biases);
+    Advantage_t::setInitial(aInfo, biases);
+    Policy_t::setInitial_noStdev(aInfo, biases);
 
     #ifdef RACER_simpleSigma // sigma not linked to state: param output
       networkBuilder.setLastLayersBias(biases);
-      const Rvec stdParam = Policy_t::initial_Stdev(&aInfo, explNoise);
+      const Rvec stdParam = Policy_t::initial_Stdev(aInfo, explNoise);
       networkBuilder.addParamLayer(varianceSize, "Linear", stdParam);
     #else
-      Policy_t::setInitial_Stdev(&aInfo, biases, explNoise);
+      Policy_t::setInitial_Stdev(aInfo, biases, explNoise);
       networkBuilder.setLastLayersBias(biases);
     #endif
   }
@@ -100,41 +100,41 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupNet()
 
 template<> std::vector<Uint>
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-count_outputs(const ActionInfo*const aI) {
-  return std::vector<Uint>{1, aI->dimDiscrete(), aI->dimDiscrete()};
+count_outputs(const ActionInfo& aI) {
+  return std::vector<Uint>{1, aI.dimDiscrete(), aI.dimDiscrete()};
 }
 template<> std::vector<Uint>
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-count_pol_starts(const ActionInfo*const aI) {
+count_pol_starts(const ActionInfo& aI) {
   const std::vector<Uint> sizes = count_outputs(aI);
   const std::vector<Uint> indices = Utilities::count_indices(sizes);
   return std::vector<Uint>{indices[2]};
 }
 template<> std::vector<Uint>
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-count_adv_starts(const ActionInfo*const aI) {
+count_adv_starts(const ActionInfo& aI) {
   const std::vector<Uint> sizes = count_outputs(aI);
   const std::vector<Uint> indices = Utilities::count_indices(sizes);
   return std::vector<Uint>{indices[1]};
 }
 template<> Uint
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-getnOutputs(const ActionInfo*const aI) {
-  return 1 + aI->dimDiscrete() + aI->dimDiscrete();
+getnOutputs(const ActionInfo& aI) {
+  return 1 + aI.dimDiscrete() + aI.dimDiscrete();
 }
 template<> Uint
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-getnDimPolicy(const ActionInfo*const aI) {
-  return aI->dimDiscrete();
+getnDimPolicy(const ActionInfo& aI) {
+  return aI.dimDiscrete();
 }
 
 template<>
 RACER<Discrete_advantage, Discrete_policy, Uint>::
-RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
-  Learner_approximator(MDP_, S_, D_), net_outputs(count_outputs(&aInfo)),
-  pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
+RACER(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
+  Learner_approximator(MDP_, S, D), net_outputs(count_outputs(aInfo)),
+  pol_start(count_pol_starts(aInfo)), adv_start(count_adv_starts(aInfo))
 {
-  if(D_.world_rank == 0) {
+  if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
     "    Single net with outputs: [%lu] : V(s),\n"
@@ -152,43 +152,43 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
 
 template<> std::vector<Uint>
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-count_outputs(const ActionInfo*const aI) {
+count_outputs(const ActionInfo& aI) {
   const Uint nL = Param_advantage::compute_nL(aI);
-  return std::vector<Uint>{1, nL, aI->dim(), aI->dim()};
+  return std::vector<Uint>{1, nL, aI.dim(), aI.dim()};
 }
 template<> std::vector<Uint>
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-count_pol_starts(const ActionInfo*const aI) {
+count_pol_starts(const ActionInfo& aI) {
   const std::vector<Uint> sizes = count_outputs(aI);
   const std::vector<Uint> indices = Utilities::count_indices(sizes);
   return std::vector<Uint>{indices[2], indices[3]};
 }
 template<> std::vector<Uint>
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-count_adv_starts(const ActionInfo*const aI) {
+count_adv_starts(const ActionInfo& aI) {
   const std::vector<Uint> sizes = count_outputs(aI);
   const std::vector<Uint> indices = Utilities::count_indices(sizes);
   return std::vector<Uint>{indices[1]};
 }
 template<> Uint
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-getnOutputs(const ActionInfo*const aI) {
+getnOutputs(const ActionInfo& aI) {
   const Uint nL = Param_advantage::compute_nL(aI);
-  return 1 + nL + 2*aI->dim();
+  return 1 + nL + 2*aI.dim();
 }
 template<> Uint
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-getnDimPolicy(const ActionInfo*const aI) {
-  return 2*aI->dim();
+getnDimPolicy(const ActionInfo& aI) {
+  return 2*aI.dim();
 }
 
 template<>
 RACER<Param_advantage, Gaussian_policy, Rvec>::
-RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
-  Learner_approximator(MDP_, S_, D_), net_outputs(count_outputs(&aInfo)),
-  pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
+RACER(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
+  Learner_approximator(MDP_, S, D), net_outputs(count_outputs(aInfo)),
+  pol_start(count_pol_starts(aInfo)), adv_start(count_adv_starts(aInfo))
 {
-  if(D_.world_rank == 0) {
+  if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
     "    Single net with outputs: [%lu] : V(s),\n"
@@ -200,22 +200,25 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   setupNet();
 
   {  // TEST FINITE DIFFERENCES:
-    Rvec output(networks[0]->nOutputs()), mu(getnDimPolicy(&aInfo));
+    Rvec output(networks[0]->nOutputs()), mu(2*nA), noise(nA);
     std::normal_distribution<Real> dist(0, 1);
 
-    for(Uint i=0; i<mu.size(); ++i) mu[i] = dist(generators[0]);
-    for(Uint i=0; i<nA; ++i) mu[i+nA] = Utilities::noiseMap_func(mu[i+nA]);
-
     for(Uint i=0; i<=nL; ++i) output[i] = 0.5 * dist(generators[0]);
-    for(Uint i=0; i<nA; ++i)
-      output[1+nL+i] = mu[i] + dist(generators[0])*mu[i+nA];
-    for(Uint i=0; i<nA; ++i) {
-      const Real muVar = Utilities::noiseMap_inverse(mu[i+nA]);
-      output[1+nL+i+nA] = muVar + 0.1 * dist(generators[0]);
+
+    for(Uint i=0; i<nA; ++i) //generate random nn output, behavior, action noise
+    {
+      mu[i] = dist(generators[0]);
+      noise[i] = dist(generators[0]);
+      // stdev is a normal network output, mapped onto R+ by pos def function:
+      const Real prePositive_StdDev = dist(generators[0]);
+      mu[i+nA] = Utilities::noiseMap_func(prePositive_StdDev);
+      // emulate network output that is slightly different than behavior mu:
+      output[1+nL+i] = mu[i] + dist(generators[0]) * mu[i+nA];
+      output[1+nL+i+nA] = prePositive_StdDev + 0.1 * dist(generators[0]);
     }
 
     auto pol = prepare_policy<Gaussian_policy>(output);
-    Rvec act = pol.finalize(1, &generators[0], mu);
+    Rvec act = pol.selectAction(noise, mu);
     auto adv = prepare_advantage<Param_advantage>( output, &pol );
     adv.test(act, &generators[0]);
     pol.prepare(act, mu);
@@ -229,39 +232,39 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
 
 template<> std::vector<Uint>
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-count_outputs(const ActionInfo*const aI) {
-  return std::vector<Uint>{1, aI->dim(), aI->dim()};
+count_outputs(const ActionInfo& aI) {
+  return std::vector<Uint>{1, aI.dim(), aI.dim()};
 }
 template<> std::vector<Uint>
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-count_pol_starts(const ActionInfo*const aI) {
+count_pol_starts(const ActionInfo& aI) {
   const std::vector<Uint> sizes = count_outputs(aI);
   const std::vector<Uint> indices = Utilities::count_indices(sizes);
   return std::vector<Uint>{indices[1], indices[2]};
 }
 template<> std::vector<Uint>
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-count_adv_starts(const ActionInfo*const aI) {
+count_adv_starts(const ActionInfo& aI) {
   return std::vector<Uint>();
 }
 template<> Uint
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-getnOutputs(const ActionInfo*const aI) {
-  return 1 + 2*aI->dim();
+getnOutputs(const ActionInfo& aI) {
+  return 1 + 2*aI.dim();
 }
 template<> Uint
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-getnDimPolicy(const ActionInfo*const aI) {
-  return 2*aI->dim();
+getnDimPolicy(const ActionInfo& aI) {
+  return 2*aI.dim();
 }
 
 template<>
 RACER<Zero_advantage, Gaussian_policy, Rvec>::
-RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
-  Learner_approximator(MDP_, S_, D_), net_outputs(count_outputs(&aInfo)),
-  pol_start(count_pol_starts(&aInfo)), adv_start(count_adv_starts(&aInfo))
+RACER(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
+  Learner_approximator(MDP_, S, D), net_outputs(count_outputs(aInfo)),
+  pol_start(count_pol_starts(aInfo)), adv_start(count_adv_starts(aInfo))
 {
-  if(D_.world_rank == 0) {
+  if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
     "    Single net with outputs: [%lu] : V(s),\n"
@@ -272,21 +275,23 @@ RACER(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   setupNet();
 
   {  // TEST FINITE DIFFERENCES:
-    Rvec output(networks[0]->nOutputs()), mu(getnDimPolicy(&aInfo));
+    Rvec output(networks[0]->nOutputs()), mu(2*nA), noise(nA);
     std::normal_distribution<Real> dist(0, 1);
 
-    for(Uint i=0; i<mu.size(); ++i) mu[i] = dist(generators[0]);
-    for(Uint i=0; i<nA; ++i) mu[i+nA] = Utilities::noiseMap_func(mu[i+nA]);
-
-    for(Uint i=0; i<nA; ++i)
-      output[1+nL+i] = mu[i] + dist(generators[0])*mu[i+nA];
-    for(Uint i=0; i<nA; ++i) {
-      const Real muVar = Utilities::noiseMap_inverse(mu[i+nA]);
-      output[1+nL+i+nA] = muVar + .1*dist(generators[0]);
+    for(Uint i=0; i<nA; ++i) //generate random nn output, behavior, action noise
+    {
+      mu[i] = dist(generators[0]);
+      noise[i] = dist(generators[0]);
+      // stdev is a normal network output, mapped onto R+ by pos def function:
+      const Real prePositive_StdDev = dist(generators[0]);
+      mu[i+nA] = Utilities::noiseMap_func(prePositive_StdDev);
+      // emulate network output that is slightly different than behavior mu:
+      output[1+nL+i] = mu[i] + dist(generators[0]) * mu[i+nA];
+      output[1+nL+i+nA] = prePositive_StdDev + 0.1 * dist(generators[0]);
     }
 
     auto pol = prepare_policy<Gaussian_policy>(output);
-    Rvec act = pol.finalize(1, &generators[0], mu);
+    Rvec act = pol.selectAction(noise, mu);
     pol.prepare(act, mu);
     pol.test(act, mu);
   }

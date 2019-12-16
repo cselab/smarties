@@ -221,15 +221,6 @@ struct Approximator
     //const int ind = mapTime2Ind(samp, thrID);
     //assert(act[ind]->written == true && relay not_eq nullptr);
     const Rvec ret = net->backPropToLayer(gradient, auxInputAttachLayer, A, W);
-    #if 0
-    if(batchID == 0) {
-      const auto pret = Rvec(&ret[inputSize], &ret[inputSize + m_auxInputSize]);
-      const auto inp = A->getInput();
-      const auto pinp = Rvec(&inp[inputSize], &inp[inputSize + m_auxInputSize]);
-      printf("G:%s Inp:%s\n", Utilities::vec2string(pret).c_str(),
-                              Utilities::vec2string(pinp).c_str());
-    }
-    #endif
     if(auxInputAttachLayer>0) return ret;
     else return Rvec(& ret[inputSize], & ret[inputSize + m_auxInputSize]);
   }

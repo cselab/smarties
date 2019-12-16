@@ -77,8 +77,8 @@ void Discrete_policy::test(const Uint act, const Rvec& beta) const
     Discrete_policy p2(std::vector<Uint>{start_prob}, aInfo, out_2);
     //const Real A_1 = p1.computeAdvantage(act);
     //const Real A_2 = p2.computeAdvantage(act);
-    const Real p_1 = p1.logProbability(act);
-    const Real p_2 = p2.logProbability(act);
+    const Real p_1 = p1.evalLogProbability(act);
+    const Real p_2 = p2.evalLogProbability(act);
     const Real d_1 = p1.kl_divergence(beta);
     const Real d_2 = p2.kl_divergence(beta);
 

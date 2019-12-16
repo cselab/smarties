@@ -174,7 +174,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
 
   #pragma omp parallel for schedule(static) // collapse(2)
   for(Uint b=0; b<batchSize; ++b)
-  for(Uint t=ret.begTimeStep[b]; t<ret.endTimeStep[b]; ++t)
+  for(Sint t=ret.begTimeStep[b]; t<ret.endTimeStep[b]; ++t)
   {
     ret.state(b, t)  = standardizedState<nnReal>(sampleE[b], t);
     ret.reward(b, t) = scaledReward(sampleE[b], t);
@@ -218,7 +218,7 @@ MiniBatch MemoryBuffer::agentToMinibatch(Sequence* const inProgress) const
   // number of states to process ( also, see why we used sampleT[b]+2 )
   const Uint nSteps = ret.endTimeStep[0] - ret.begTimeStep[0];
   ret.resizeStep(0, nSteps);
-  for(Uint t=ret.begTimeStep[0]; t<ret.endTimeStep[0]; ++t)
+  for(Sint t=ret.begTimeStep[0]; t<ret.endTimeStep[0]; ++t)
   {
     ret.state(0, t) = standardizedState<nnReal>(inProgress, t);
     ret.reward(0, t) = scaledReward(inProgress, t);

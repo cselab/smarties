@@ -131,8 +131,8 @@ def applicationSetup(parsed, absRunPath):
   else:
     print('FATAL: Unable to locate application executable')
 
-  if os.path.getmtime(app) < os.path.getmtime( SMARTIES_ROOT + '/lib/libsmarties.so'):
-    print("WARNING: Application is older then smarties, make sure used libraries still match.")
+  #if os.path.getmtime(app) < os.path.getmtime( SMARTIES_ROOT + '/lib/libsmarties.so'):
+  #  print("WARNING: Application is older then smarties, make sure used libraries still match.")
 
 def setComputationalResources(parsed):
   # if launched with --nProcesses N default behavior is to have N-1 workers
@@ -194,6 +194,8 @@ def setEnvironmentFlags(parsed):
         "export OPENBLAS_NUM_THREADS=1 \n" \
         "export CRAY_CUDA_MPS=1 \n" \
         "export PYTHONPATH=${PYTHONPATH}:${SMARTIES_ROOT}/lib \n" \
+        "export PATH=${PATH}:${SMARTIES_ROOT}/extern/bin \n" \
+        "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${SMARTIES_ROOT}/extern/lib \n" \
         "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${SMARTIES_ROOT}/lib \n" \
         "export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}:${SMARTIES_ROOT}/lib \n " \
         % parsed.nThreads
@@ -248,7 +250,7 @@ def setLaunchCommand(parsed, absRunPath):
 
   elif isDaint() and parsed.interactive is True:
     nTaskPerNode, nNodes = parsed.nTaskPerNode, nProcesses / parsed.nTaskPerNode
-    cmd = "srun -C gpu -u -n %d --nodes %d --ntasks-per-node %d ./%s %s" \
+    cmd = "srun -C gpu -u -p debug -n %d --nodes %d --ntasks-per-node %d ./%s %s" \
           % (nProcesses, nNodes, nTaskPerNode, parsed.execname, parsed.args)
   return cmd
 
@@ -383,6 +385,6 @@ if __name__ == '__main__':
   cmd = 'cd ${RUNDIR} \n'
   cmd = cmd + setEnvironmentFlags(parsed)
   cmd = cmd + setLaunchCommand(parsed, absRunPath)
-  #print('COMMAND:' + parsed.args )
+  # print('COMMAND:' + cmd )
   signal.signal(signal.SIGINT, signal_handler)
   subprocess.run(cmd, executable=parsed.shell, shell=True)

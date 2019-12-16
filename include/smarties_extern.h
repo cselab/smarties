@@ -89,6 +89,12 @@ extern "C" VISIBLE void smarties_setPreprocessingConv2d(void*const ptr2comm,
 extern "C" VISIBLE void smarties_setNumAppendedPastObservations(
   void*const ptr2comm, const int n_appended, const int agentID);
 
+extern "C" VISIBLE void smarties_getUniformRandom(void*const ptr2comm,
+  const double begin, const double end, double * sampled);
+
+extern "C" VISIBLE void smarties_getNormalRandom(void*const ptr2comm,
+  const double mean, const double stdev, double * sampled);
+
 // TODO DISCUSS PRNG, RETURN VALUES
 //=============================================================================
 

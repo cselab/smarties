@@ -20,7 +20,7 @@ def Lorenz96(x):
   return d # return the state derivatives
 
 def app_main(comm):
-  comm.set_state_action_dims(N//2, N//2)
+  comm.setStateActionDims(N//2, N//2)
 
   while(True):
     s = np.random.normal(F, 0.1, N) # equilibrium (s=F) + perturbation

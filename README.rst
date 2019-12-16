@@ -99,7 +99,7 @@ The basic structure of a C++ based application for smarties is structured as:
     
     inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
     {
-      comm->set_state_action_dims(state_dimensionality, action_dimensionality);
+      comm->setStateActionDims(state_dimensionality, action_dimensionality);
       Environment env;
     
       while(true) { //train loop
@@ -144,7 +144,7 @@ smarties uses pybind11 for seamless compatibility with python. The structure of 
     import smarties as rl
     
     def app_main(comm):
-      comm.set_state_action_dims(state_dimensionality, action_dimensionality)
+      comm.setStateActionDims(state_dimensionality, action_dimensionality)
       env = Environment()
     
       while 1: #train loop

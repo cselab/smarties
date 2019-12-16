@@ -31,15 +31,13 @@ ifeq "$(findstring lair,$(shell hostname))" "lair"
 include make.lair
 endif
 
-#ifeq "$(MPICXX)" ""
-#CURPWD := $(shell pwd)
-#CPPFLAGS+= -I$(CURPWD)/../extern/build/mpich-3.3/include/
-#LIBS+= -L$(CURPWD)/../extern/build/mpich-3.3/lib/
-#MPICXX=$(CURPWD)/../extern/build/mpich-3.3/bin/mpic++
-#LD=$(CURPWD)/../extern/build/mpich-3.3/bin/mpic++
-#else
+ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
+MPICXX=${SMARTIES_ROOT}/extern/bin/mpic++
+CPPFLAGS+= -I${SMARTIES_ROOT}/extern/include/ -DUSE_OPENBLAS
+LIBS+= -L${SMARTIES_ROOT}/extern/lib/ -lopenblas
+endif
+
 LD=$(MPICXX)
-#endif
 
 ifeq "$(shell $(MPICXX) --version | grep -ci 'icpc')" "0"
 ifeq "$(shell $(MPICXX) --version | grep -ci 'llvm')" "0"

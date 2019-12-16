@@ -10,9 +10,11 @@
 #define smarties_Agent_h
 
 #include "StateAction.h"
+#include "../Utils/Bund.h"
 #include <cstring> // memcpy
 
 #include <atomic>
+#include <random>
 #define OUTBUFFSIZE 65536
 
 namespace smarties
@@ -54,6 +56,10 @@ struct Agent
   std::vector<double> action = std::vector<double>(MDP.dimAction, 0);
   double reward; // current reward
   double cumulativeRewards = 0;
+
+  std::mt19937 generator;
+  std::normal_distribution<Real> distribution;
+  std::uniform_real_distribution<Real> safety;
 
   Agent(Uint _ID, Uint workID, Uint _localID, MDPdescriptor& _MDP) :
     ID(_ID), workerID(workID), localID(_localID), MDP(_MDP) {}
@@ -271,6 +277,62 @@ struct Agent
       for (Uint j=0; j<state.size(); ++j) assertValid(state[j]);
       assertValid(reward);
     #endif
+  }
+
+  void initializeActionSampling(std::mt19937 & gen)
+  {
+    MDP.sharedNoiseVecTic = std::vector<Real>(aInfo.dim());
+    MDP.sharedNoiseVecToc = std::vector<Real>(aInfo.dim());
+    generator = std::mt19937( gen() );
+    distribution = std::normal_distribution<Real>(0.0, 1.0);
+    safety = std::uniform_real_distribution<Real>(-NORMDIST_MAX, NORMDIST_MAX);
+    resetActionNoise();
+  }
+
+  void resetActionNoise()
+  {
+    // only one agent (0) needs to set a noise vector, and
+    // if noise is non shared then this does not matter:
+    if(localID > 0 or not MDP.bAgentsShareNoise) return;
+    for(Uint i=0; i<aInfo.dim(); ++i) {
+      Real samp = distribution(generator);
+      if(samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(generator);
+      MDP.sharedNoiseVecTic[i] = samp;
+    }
+    for(Uint i=0; i<aInfo.dim(); ++i) {
+      Real samp = distribution(generator);
+      if(samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(generator);
+      MDP.sharedNoiseVecToc[i] = samp;
+    }
+  }
+
+  Rvec sampleActionNoise()
+  {
+    if(MDP.bAgentsShareNoise)
+    {
+      // tic toc scheme to avoid race conditions:
+      const bool bTic = timeStepInEpisode % 2;
+      if(localID == 0)
+      {
+        auto& nextNoise = bTic? MDP.sharedNoiseVecToc : MDP.sharedNoiseVecTic;
+        for(Uint i=0; i<aInfo.dim(); ++i) {
+          nextNoise[i] = distribution(generator);
+          if(nextNoise[i] >  NORMDIST_MAX || nextNoise[i] < -NORMDIST_MAX)
+            nextNoise[i] = safety(generator);
+        }
+      }
+      return bTic? MDP.sharedNoiseVecTic : MDP.sharedNoiseVecToc;
+    }
+    else
+    {
+      Rvec sample(aInfo.dim());
+      for(Uint i=0; i<aInfo.dim(); ++i) {
+        sample[i] = distribution(generator);
+        if(sample[i] >  NORMDIST_MAX || sample[i] < -NORMDIST_MAX)
+          sample[i] = safety(generator);
+      }
+      return sample;
+    }
   }
 };
 

@@ -1,4 +1,7 @@
-CXX = g++
+CXX ?= g++
+ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
+CXX=${SMARTIES_ROOT}/extern/bin/mpic++
+endif
 
 OBJ_FILES = boatNav.o odeSolve.o
 LIBS+= -L${SMARTIES_ROOT}/lib -lsmarties

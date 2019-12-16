@@ -25,10 +25,10 @@ namespace smarties
 template<> void CMALearner<Uint>::
 computeAction(Agent& agent, const Rvec netOutput) const
 {
-  Discrete_policy POL({0}, & aInfo, netOutput);
+  Discrete_policy POL({0}, aInfo, netOutput);
   Rvec MU = POL.getVector();
-  const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
-  Uint act = POL.finalize(bSamplePol, &generators[nThreads+agent.ID], MU);
+  Uint act = POL.selectAction(agent, MU, settings.explNoise>0);
+
   agent.act(act);
   data_get->add_action(agent, MU);
 }
@@ -48,7 +48,7 @@ computeAction(Agent& agent, const Rvec netOutput) const
     for(Uint i=0; i<nA; ++i) {
       // map policy output into pos-definite stdev:
       pol[i+nA] = Gaussian_policy::extract_stdev(pol[i+nA]);
-      act[i] += pol[i+nA] * D(generators[nThreads + agent.ID]);
+      act[i] += pol[i+nA] * D(agent.generator);
     }
   }
   //printf("%s\n", print(pol).c_str());
@@ -224,7 +224,7 @@ Learner_approximator(MDP_, S_, D_)
   }
   networks[0]->buildFromSettings(aInfo.dim());
   if(settings.explNoise>0) {
-    Rvec stdParam = Gaussian_policy::initial_Stdev(&aInfo, settings.explNoise);
+    Rvec stdParam = Gaussian_policy::initial_Stdev(aInfo, settings.explNoise);
     networks[0]->getBuilder().addParamLayer(aInfo.dim(), "Linear", stdParam);
   }
   networks[0]->initializeNetwork();

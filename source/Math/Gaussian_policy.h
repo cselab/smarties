@@ -10,6 +10,7 @@
 #define smarties_Gaussian_policy_h
 
 #include "../Network/Layers/Functions.h"
+#include "../Core/Agent.h"
 
 #ifndef PosDefMapping_f
 #define PosDefMapping_f SoftPlus
@@ -20,7 +21,7 @@ namespace smarties
 
 struct Gaussian_policy
 {
-  const ActionInfo* const aInfo;
+  const ActionInfo & aInfo;
   const Uint start_mean, start_prec, nA;
   //const Real P_trunc = (1-std::erf(NORMDIST_MAX/std::sqrt(2)))/(2*NORMDIST_MAX);
   const Rvec netOutputs;
@@ -36,11 +37,11 @@ struct Gaussian_policy
 
   Rvec map_action(const Rvec& sent) const
   {
-    return aInfo->scaledAction2action(sent);
+    return aInfo.scaledAction2action(sent);
   }
-  static Uint compute_nA(const ActionInfo* const aI)
+  static Uint compute_nA(const ActionInfo& aI)
   {
-    assert(aI->dim()); return aI->dim();
+    assert(aI.dim()); return aI.dim();
   }
 
   static Real extract_stdev(const Real unbounbed)
@@ -53,11 +54,11 @@ struct Gaussian_policy
   }
 
   Gaussian_policy(const std::vector<Uint>& start,
-                    const ActionInfo*const aI,
-                    const Rvec&out) :
+                  const ActionInfo& aI,
+                  const Rvec& out) :
     aInfo(aI), start_mean(start[0]),
     start_prec(start.size()>1 ? start[1] : 0),
-    nA(aI->dim()), netOutputs(out),
+    nA(aI.dim()), netOutputs(out),
     mean(extract_mean()), stdev(extract_stdev()),
     variance(extract_variance()),
     invStdev(extract_invStdev()) {}
@@ -67,7 +68,7 @@ struct Gaussian_policy
   Rvec extract_mean() const
   {
     assert(netOutputs.size() >= start_mean + nA);
-    return Rvec(&(netOutputs[start_mean]),&(netOutputs[start_mean+nA]));
+    return Rvec(&(netOutputs[start_mean]), &(netOutputs[start_mean+nA]));
   }
 
   Rvec extract_invStdev() const
@@ -94,7 +95,7 @@ struct Gaussian_policy
     return ret;
   }
 
-  static long double oneDnormal(const Real A,const Real M,const Real P)
+  static long double oneDnormal(const Real A, const Real M, const Real P)
   {
     const long double arg = std::pow(A-M,2) * P / 2;
     return std::sqrt(P/M_PI/2)*std::exp(-arg);
@@ -102,12 +103,12 @@ struct Gaussian_policy
 
 public:
 
-  static void setInitial_noStdev(const ActionInfo* const aI, Rvec& initBias)
+  static void setInitial_noStdev(const ActionInfo& aI, Rvec& initBias)
   {
-    for(Uint e=0; e<aI->dim(); e++) initBias.push_back(0);
+    for(Uint e=0; e<aI.dim(); e++) initBias.push_back(0);
   }
 
-  static void setInitial_Stdev(const ActionInfo*const aI, Rvec&O, Real S)
+  static void setInitial_Stdev(const ActionInfo& aI, Rvec&O, Real S)
   {
     if(S<=0) {
       printf("Tried to initialize invalid pos-def mapping. Unless not training this should not be happening. Revise setting explNoise.\n");
@@ -118,12 +119,12 @@ public:
     #else
       const Real invFS = PosDefMapping_f::_inv(S);
     #endif
-    for(Uint e=0; e<aI->dim(); ++e) O.push_back(invFS);
+    for(Uint e=0; e<aI.dim(); ++e) O.push_back(invFS);
   }
 
-  static Rvec initial_Stdev(const ActionInfo*const aI, const Real S)
+  static Rvec initial_Stdev(const ActionInfo& aI, const Real S)
   {
-    Rvec ret; ret.reserve(aI->dim());
+    Rvec ret; ret.reserve(aI.dim());
     setInitial_Stdev(aI, ret, S);
     return ret;
   }
@@ -175,34 +176,6 @@ public:
       p += std::log( invStdev[i]*invStdev[i] / M_PI / 2 );
     }
     return p / 2;
-  }
-
-  static Rvec sample(std::mt19937*const gen, const Rvec& beta)
-  {
-    assert(beta.size() / 2 > 0 && beta.size() % 2 == 0);
-    Rvec ret(beta.size()/2);
-    std::normal_distribution<Real> dist(0, 1);
-    std::uniform_real_distribution<Real> safety(-NORMDIST_MAX, NORMDIST_MAX);
-
-    for(Uint i=0; i<beta.size()/2; ++i) {
-      Real samp = dist(*gen);
-      if (samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(*gen);
-      ret[i] = beta[i] + beta[beta.size()/2 + i]*samp;
-    }
-    return ret;
-  }
-  Rvec sample(std::mt19937*const gen) const
-  {
-    Rvec ret(nA);
-    std::normal_distribution<Real> dist(0, 1);
-    std::uniform_real_distribution<Real> safety(-NORMDIST_MAX, NORMDIST_MAX);
-
-    for(Uint i=0; i<nA; ++i) {
-      Real samp = dist(*gen);
-      if (samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(*gen);
-      ret[i] = mean[i] + stdev[i]*samp;
-    }
-    return ret;
   }
 
   Rvec policy_grad(const Real F) const
@@ -291,7 +264,7 @@ public:
       sampAct[i] += state[i];
       state[i] += noise;
     }
-    return aInfo->action2scaledAction(sampAct);
+    return aInfo.action2scaledAction(sampAct);
   }
 
   void finalize_grad(const Rvec& grad, Rvec& netGradient) const
@@ -301,7 +274,7 @@ public:
       netGradient[start_mean+j] = grad[j];
       //if bounded actions pass through tanh!
       //helps against NaNs in converting from bounded to unbounded action space:
-      if( aInfo->isBounded(j) )  {
+      if( aInfo.isBounded(j) )  {
         if(mean[j]> BOUNDACT_MAX && grad[j]>0) netGradient[start_mean+j] = 0;
         else
         if(mean[j]<-BOUNDACT_MAX && grad[j]<0) netGradient[start_mean+j] = 0;
@@ -317,7 +290,7 @@ public:
   Rvec finalize_grad(const Rvec& grad) const
   {
     Rvec ret = grad;
-    for (Uint j=0; j<nA; ++j) if( aInfo->isBounded(j) ) {
+    for (Uint j=0; j<nA; ++j) if( aInfo.isBounded(j) ) {
       if(mean[j]> BOUNDACT_MAX && grad[j]>0) ret[j]=0;
       else
       if(mean[j]<-BOUNDACT_MAX && grad[j]<0) ret[j]=0;
@@ -341,20 +314,61 @@ public:
   Rvec getBest() const {
     return mean;
   }
-  Rvec finalize(const bool bSample, std::mt19937*const gen, Rvec& MU)
-  { //scale back to action space size:
-    for(Uint i=0; i<nA; ++i)
-      if ( aInfo->isBounded(i) ) {
-        MU[i] = std::max(-(Real)BOUNDACT_MAX, MU[i]);
-        MU[i] = std::min( (Real)BOUNDACT_MAX, MU[i]);
-      }
-    sampAct = bSample ? sample(gen, MU) : mean;
-    return aInfo->action2scaledAction(sampAct);
-  }
 
   Rvec getVector() const {
     Rvec ret = getMean();
     ret.insert(ret.end(), stdev.begin(), stdev.end());
+    return ret;
+  }
+
+  Rvec selectAction(Agent& agent, Rvec & MU, const bool bTrain)
+  {
+    for (Uint i=0; i<nA; ++i) if ( aInfo.isBounded(i) )
+      MU[i] =std::max(-(Real)BOUNDACT_MAX, std::min((Real)BOUNDACT_MAX, MU[i]));
+
+    if (bTrain && agent.trackSequence)
+      return selectAction(agent.sampleActionNoise(), MU);
+    else {
+      sampAct = mean;
+      return aInfo.action2scaledAction(sampAct); //scale back to action space
+    }
+  }
+
+  Rvec selectAction(const Rvec & noise, const Rvec & MU)
+  {
+    sampAct = Rvec(nA);
+    for (Uint i=0; i<nA; ++i) sampAct[i] = MU[i] + MU[nA + i] * noise[i];
+    return aInfo.action2scaledAction(sampAct); //scale back to action space
+  }
+
+  /*
+  static Rvec sample(std::mt19937& gen, const Rvec& beta)
+  {
+    assert(beta.size() / 2 > 0 && beta.size() % 2 == 0);
+    Rvec ret(beta.size()/2);
+    std::normal_distribution<Real> dist(0, 1);
+    std::uniform_real_distribution<Real> safety(-NORMDIST_MAX, NORMDIST_MAX);
+
+    for(Uint i=0; i<beta.size()/2; ++i) {
+      Real samp = dist(gen);
+      if (samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(gen);
+      ret[i] = beta[i] + beta[beta.size()/2 + i]*samp;
+    }
+    return ret;
+  }
+  */
+
+  Rvec sample(std::mt19937& gen) const
+  {
+    Rvec ret(nA);
+    std::normal_distribution<Real> dist(0, 1);
+    std::uniform_real_distribution<Real> safety(-NORMDIST_MAX, NORMDIST_MAX);
+
+    for(Uint i=0; i<nA; ++i) {
+      Real samp = dist(gen);
+      if (samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(gen);
+      ret[i] = mean[i] + stdev[i]*samp;
+    }
     return ret;
   }
 

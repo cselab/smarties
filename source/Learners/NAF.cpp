@@ -24,15 +24,14 @@ namespace smarties
 {
 
 static inline Param_advantage prepare_advantage(const Rvec&O,
-  const ActionInfo*const aI, const std::vector<Uint>& net_inds)
+  const ActionInfo& aI, const std::vector<Uint>& net_inds)
 {
   return Param_advantage(std::vector<Uint>{net_inds[1], net_inds[2]}, aI, O);
 }
 
-NAF::NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
-  Learner_approximator(MDP_, S_, D_),
-  nL( Param_advantage::compute_nL(& aInfo) ),
-  stdParam(Gaussian_policy::initial_Stdev(& aInfo, S_.explNoise)[0])
+NAF::NAF(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
+  Learner_approximator(MDP_, S, D), nL( Param_advantage::compute_nL(aInfo) ),
+  stdParam(Gaussian_policy::initial_Stdev(aInfo, S.explNoise)[0])
 {
   createEncoder();
   assert(networks.size() <= 1);
@@ -43,7 +42,7 @@ NAF::NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   }
 
   networks[0]->setUseTargetNetworks();
-  const Uint nOutp = 1 + aInfo.dim() + Param_advantage::compute_nL(&aInfo);
+  const Uint nOutp = 1 + aInfo.dim() + Param_advantage::compute_nL(aInfo);
   assert(nOutp == net_outputs[0] + net_outputs[1] + net_outputs[2]);
   networks[0]->buildFromSettings(nOutp);
   networks[0]->initializeNetwork();
@@ -57,7 +56,7 @@ NAF::NAF(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
     const int thrID = omp_get_thread_num();
     for(Uint i = 0; i<aInfo.dim(); ++i) act[i] = act_dis(generators[thrID]);
     for(Uint i = 0; i<nOutp; ++i) out[i] = out_dis(generators[thrID]);
-    Param_advantage A = prepare_advantage(out, &aInfo, net_indices);
+    Param_advantage A = prepare_advantage(out, aInfo, net_indices);
     A.test(act, &generators[thrID]);
   }
 }
@@ -76,12 +75,12 @@ void NAF::select(Agent& agent)
     Rvec polvec = Rvec(&output[net_indices[2]], &output[net_indices[2]] + nA);
     // add stdev to the policy vector representation:
     polvec.resize(2*nA, stdParam);
-    Gaussian_policy POL({0, nA}, & aInfo, polvec);
+    Gaussian_policy POL({0, nA}, aInfo, polvec);
 
     Rvec MU = POL.getVector();
-    const bool bSamplePolicy = settings.explNoise>0 && agent.trackSequence;
     //cout << print(MU) << endl;
-    Rvec act = POL.finalize(bSamplePolicy, &generators[nThreads+agent.ID], MU);
+    Rvec act = POL.selectAction(agent, MU, settings.explNoise>0);
+
     if(OrUhDecay>0)
       act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
 
@@ -160,10 +159,10 @@ void NAF::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   if(thrID==0) profiler->stop_start("CMP");
   // prepare advantage and policy
-  const auto ADV = prepare_advantage(output, &aInfo, net_indices);
+  const auto ADV = prepare_advantage(output, aInfo, net_indices);
   Rvec polvec = ADV.getMean();           assert(polvec.size() == 1 * nA);
   polvec.resize(policyVecDim, stdParam); assert(polvec.size() == 2 * nA);
-  Gaussian_policy POL({0, nA}, &aInfo, polvec);
+  Gaussian_policy POL({0, nA}, aInfo, polvec);
   POL.prepare(MB.action(bID,t), MB.mu(bID,t));
   const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
   //cout << POL.sampImpWeight << " " << POL.sampKLdiv << " " << CmaxRet << endl;

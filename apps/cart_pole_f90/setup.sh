@@ -1,3 +1,3 @@
 make
 
-cp cart-pole ${RUNDIR}/exec
+cp exec ${RUNDIR}/

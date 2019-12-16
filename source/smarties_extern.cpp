@@ -172,4 +172,17 @@ extern "C" void smarties_setNumAppendedPastObservations(void*const ptr2comm,
     n_appended, agentID);
 }
 
+extern "C" void smarties_getUniformRandom(void*const ptr2comm,
+  const double begin, const double end, double * sampled)
+{
+  (*sampled) = static_cast<smarties::Communicator*>(ptr2comm)->getUniformRandom(
+    begin, end);
+}
+extern "C" void smarties_getNormalRandom(void*const ptr2comm,
+  const double mean, const double stdev, double * sampled)
+{
+  (*sampled) = static_cast<smarties::Communicator*>(ptr2comm)->getNormalRandom(
+    mean, stdev);
+}
+
 //=============================================================================

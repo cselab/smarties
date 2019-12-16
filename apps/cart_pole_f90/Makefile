@@ -1,5 +1,5 @@
-F90 = mpif90
-CXX = mpic++
+F90=mpif90
+CXX=mpic++
 
 F90FLAGS+= -Wall -Wextra -Wconversion -pedantic -O2 #-g -O0
 LIBS+= -lgfortran -lmpifort
@@ -27,10 +27,10 @@ post-build: main-build
 	@echo "Done."
 
 main-build: pre-build
-	@$(MAKE) --no-print-directory cart_pole
+	@$(MAKE) --no-print-directory exec
 
 
-cart-pole: main.o app_main.o cart_pole.o smarties.o
+exec: main.o app_main.o cart_pole.o smarties.o
 	$(CXX) $(extra) -o $@ $^ ${LIBS}
 
 app_main.o: cart_pole.o smarties.o
@@ -45,4 +45,4 @@ app_main.o: cart_pole.o smarties.o
 	$(CXX) $(extra) $(CPPFLAGS) -MD -c $<
 
 clean:
-	rm -f *.o *.s *.d *.mod smarties.f90 cart-pole
+	rm -f *.o *.s *.d *.mod smarties.f90 exec

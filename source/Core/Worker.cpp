@@ -264,10 +264,10 @@ void Worker::synchronizeEnvironments()
 
   ENV.synchronizeEnvironments(recvBuffer, distrib.nOwnedEnvironments);
 
-  for(Uint i=0; i<ENV.nAgents; ++i) COMM->initOneCommunicationBuffer();
-
-  // now i know nAgents, might need more generators:
-  distrib.finalizePRNG(ENV.nAgents);
+  for(Uint i=0; i<ENV.nAgents; ++i) {
+    COMM->initOneCommunicationBuffer();
+    agents[i]->initializeActionSampling( distrib.generators[0] );
+  }
   distrib.nAgents = ENV.nAgents;
 
   // return if this process should not host the learning algorithms

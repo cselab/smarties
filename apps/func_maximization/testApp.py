@@ -10,7 +10,7 @@ sigma = 1
 maxStep = 1000
 
 def app_main(comm):
-  comm.set_state_action_dims(N, N)
+  comm.setStateActionDims(N, N)
 
   while(True):
     s = np.random.normal(0, sigma, N) # initial state is observation

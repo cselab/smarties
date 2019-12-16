@@ -16,22 +16,22 @@ namespace smarties
 
 struct Discrete_advantage
 {
-  const ActionInfo* const aInfo;
+  const ActionInfo& aInfo;
   const Uint start_adv, nA;
   const Rvec& netOutputs;
   const Rvec advantages;
   const Discrete_policy* const policy;
 
-  static Uint compute_nL(const ActionInfo* const aI)
+  static Uint compute_nL(const ActionInfo& aI)
   {
-   assert(aI->dimDiscrete());
-   return aI->dimDiscrete();
+   assert(aI.dimDiscrete());
+   return aI.dimDiscrete();
   }
-  static void setInitial(const ActionInfo* const aI, Rvec& initBias) { }
+  static void setInitial(const ActionInfo& aI, Rvec& initBias) { }
 
-  Discrete_advantage(const std::vector<Uint>& starts, const ActionInfo*const aI,
+  Discrete_advantage(const std::vector<Uint>& starts, const ActionInfo& aI,
    const Rvec& out, const Discrete_policy*const pol = nullptr) : aInfo(aI),
-   start_adv(starts[0]), nA(aI->dimDiscrete()), netOutputs(out),
+   start_adv(starts[0]), nA(aI.dimDiscrete()), netOutputs(out),
    advantages(extract(out)), policy(pol) {}
 
 protected:

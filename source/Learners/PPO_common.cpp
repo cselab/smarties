@@ -44,7 +44,7 @@ void PPO<Policy_t, Action_t>::setupNet()
   actor->buildFromSettings(nA);
   if(isContinuous) {
     const Real explNoise = settings.explNoise;
-    const Rvec stdParam = Policy_t::initial_Stdev(&aInfo, explNoise);
+    const Rvec stdParam = Policy_t::initial_Stdev(aInfo, explNoise);
     actor->getBuilder().addParamLayer(nA, "Linear", stdParam);
   }
   actor->initializeNetwork();
