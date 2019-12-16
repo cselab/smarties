@@ -239,7 +239,7 @@ The applications that are already included are:
     * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.    
     * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.    
 
-- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem. Can be run as above, as simply as ``mkdir test && ../cart_pole.py`` or  ``mkdir test && python3 ../cart_pole.py`.  
+- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem. Can be run similarly to the C++ code: ``mkdir test && ../cart_pole.py`` or  ``mkdir test && python3 ../cart_pole.py``.  
 
 - ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem  
 
