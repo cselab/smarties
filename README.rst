@@ -233,12 +233,13 @@ The applications that are already included are:
 
 - ``apps/cart_pole_cpp``: simple C++ example of a cart-pole balancing problem.  
     Assuming, all steps in the Install section were successful, compile the application: ``cd apps/cart_pole_cpp && make``.  
-    As described above, running this application can be done as:
-    * From the ``cart_pole_cpp`` directory, ``mkdir test && ../cart_pole``. Here we create a new directoy, where all logging, saving, and postprocessing files will be created by smarties, and run the application directly. Because we do not use MPI, smarties will fork two processes, one running the environment (described by the application cart_pole) and one will run the training.  
-    * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.  
-    * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.  
+    As described above, running this application can be done as:    
+    
+    * From the ``cart_pole_cpp`` directory, ``mkdir test && ../cart_pole``. Here we create a new directoy, where all logging, saving, and postprocessing files will be created by smarties, and run the application directly. Because we do not use MPI, smarties will fork two processes, one running the environment (described by the application cart_pole) and one will run the training.    
+    * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.    
+    * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.    
 
-- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem  
+- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem. Can be run as above, as simply as ``mkdir test && ../cart_pole.py`` or  ``mkdir test && python3 ../cart_pole.py`.  
 
 - ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem  
 
@@ -277,6 +278,7 @@ Examples of solved problems
 
     <a href="https://www.youtube.com/watch?v=GiS9mxQ4m0I"><img src="https://img.youtube.com/vi/GiS9mxQ4m0I/0.jpg" alt="Fish behind a  D-section cylinder"></a>
 
+
 .. raw:: html
 
     <a href="https://www.youtube.com/watch?v=NEOhS0kPrSk"><img src="https://img.youtube.com/vi/NEOhS0kPrSk/0.jpg" alt="Smart swimmer following an erratic leader to minimize swimming effort."></a>
@@ -284,6 +286,11 @@ Examples of solved problems
 .. raw:: html
 
     <a href="https://www.youtube.com/watch?v=8pKhMgPm5p0"><img src="https://img.youtube.com/vi/8pKhMgPm5p0/0.jpg" alt="3D fish schooling"></a>
+
+* The first two visualizations are from G. Novati and P. Koumoutsakos, “Remember and forget for experience replay," in Proceedings of the 36th international conference on machine learning, 2019.  
+* The fifth is from S. Verma, G. Novati, and P. Koumoutsakos, “Efficient collective swimming by harnessing vortices through deep reinforcement learning," Proceedings of the national academy of sciences, p. 201800923, 2018.  
+* The fourth is from  G. Novati, S. Verma, D. Alexeev, D. Rossinelli, W. M. van Rees, and P. Koumoutsakos, “Synchronisation through learning for two self-propelled swimmers," Bioinspiration & biomimetics, vol. 12, iss. 3, p. 36001, 2017.  
+* Se also G. Novati, L. Mahadevan, and P. Koumoutsakos, “Controlled gliding and perching through deep-reinforcement-learning," Physical review fluids, vol. 4, iss. 9, 2019 for an introduction to using deep RL to obtain optimal control policies in fluid mechanics problems.   
 
 
 Outputs and postprocessing
