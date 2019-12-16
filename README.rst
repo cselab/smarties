@@ -42,7 +42,9 @@ Moreover, after the compilation steps for either Linux or Mac OS, add the path t
     echo 'export SMARTIES_ROOT=/path/to/smarties/folder/' >> ~/.bash_profile
     echo 'export PATH=${SMARTIES_ROOT}/bin:${PATH}' >> ~/.bash_profile
     echo 'export LD_LIBRARY_PATH=${SMARTIES_ROOT}/lib:${LD_LIBRARY_PATH}' >> ~/.bash_profile
+    echo 'export PYTHONPATH=${PYTHONPATH}:${SMARTIES_ROOT}/lib' >>  ~/.bash_profile
 
+On Mac, ``LD_LIBRARY_PATH`` has to be replaced with ``DYLD_LIBRARY_PATH``.
 The environment variable ``SMARTIES_ROOT`` is used to compile most of the applications in the 'apps' folder.
 
 Linux
@@ -86,7 +88,7 @@ Then we are ready to get and install smarties:
     make -j
 
 
-User code samples
+Environment code samples
 =================
 
 C++
@@ -167,60 +169,6 @@ smarties uses pybind11 for seamless compatibility with python. The structure of 
       e.run( app_main )
 
 
-Code examples
---------------
-The ``apps`` folder contains a number of examples showing the various use-cases of smarties. Each folder contains the files required to define and run a different application. While it is generally possible to run each case as ``./exec`` or ``./exec.py``, smarties will create a number of log files, simulation folders and restart files. Therefore it is recommended to manually create a run directory or use the launch scripts contained in the ``launch`` directory.
-
-The applications that are already included are:
-
-- ``apps/cart_pole_cpp``: simple C++ example of a cart-pole balancing problem  
-
-- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem  
-
-- ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem  
-
-- ``apps/cart_pole_many``: example of two cart-poles that define different decision processes: one performs the opposite of the action sent by smarties and the other hides some of the state variables from the learner (partially observable) and tehrefore requires recurrent networks.  
-
-- ``apps/cart_pole_distribEnv``: example of a distributed environment which requires MPI. The application requests M ranks to run each simulation. If the executable is ran as ``mpirun -n N exec``, (N-1)/M teams of processes will be created, each with its own MPI communicator. Each simulation process contains one or more agents.  
-
-- ``apps/cart_pole_distribAgent``: example of a problem where the agent themselves are distributed. Meaning that the agents exist across the team of processes that run a simulation and get the same action to perform. For example flow actuation problems where there is only one control variable (eg. some inflow parameter), but the entire simulation requires multiple CPUs to run.  
-
-- ``apps/predator_prey``: example of agents competing.  
-
-- ``apps/glider``: example of an ODE-based control problem that requires precise controls, used for the paper [Deep-Reinforcement-Learning for Gliding and Perching Bodies](https://arxiv.org/abs/1807.03671)  
-
-- ``apps/func_maximization/``: example of function fitting and maximization, most naturally approached with CMA.  
-
-- ``apps/OpenAI_gym``: code to run most gym application, including the MuJoCo based robotic benchmarks shown in [Remember and Forget for Experience Replay](https://arxiv.org/abs/1807.05827)  
-
-- ``apps/OpenAI_gym_atari``: code to run the Atari games, which automatically creates the required convolutional pre-processing  
-
-- ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
-
-- ``apps/CUP2D_2fish``: and similarly named applications require `CubismUP 2D <https://github.com/novatig/CubismUP_2D>`_.
-
-Examples of solved problems
----------------------------
-
-.. raw:: html
-
-    <a href="https://www.youtube.com/watch?v=H9xL9nNQJnc"><img src="https://img.youtube.com/vi/H9xL9nNQJnc/0.jpg" alt="V-RACER trained on OpenAI gym's Humanoid-v2"></a>
-
-.. raw:: html
-
-    <a href="https://www.youtube.com/watch?v=5mK9HoCDIYQ"><img src="https://img.youtube.com/vi/5mK9HoCDIYQ/0.jpg" alt="Smart ellipse behind a D-section cylinder. Trained with V-RACER."></a>
-
-.. raw:: html
-
-    <a href="https://www.youtube.com/watch?v=GiS9mxQ4m0I"><img src="https://img.youtube.com/vi/GiS9mxQ4m0I/0.jpg" alt="Fish behind a  D-section cylinder"></a>
-
-.. raw:: html
-
-    <a href="https://www.youtube.com/watch?v=NEOhS0kPrSk"><img src="https://img.youtube.com/vi/NEOhS0kPrSk/0.jpg" alt="Smart swimmer following an erratic leader to minimize swimming effort."></a>
-
-.. raw:: html
-
-    <a href="https://www.youtube.com/watch?v=8pKhMgPm5p0"><img src="https://img.youtube.com/vi/8pKhMgPm5p0/0.jpg" alt="3D fish schooling"></a>
 
 Launching
 =========
@@ -274,6 +222,69 @@ Most useful options:
 * ``--nEnvironments N`` will spawn ``N`` processes running environment simulations. If the environment requires (or benefits from) one or more dedicated MPI ranks (recommended for clusters and expensive simulations) this can be set with ``--mpiProcsPerEnv M``. In this case, 1+N*M MPI processes will run the training: one learner and N teams of M processes to handle the N simulations. If the network update needs to be parallelized (distributed SGD), use the option ``--nLearners K``. 
 
 Note for evaluating trained policies. For safety, use the option ``--restart`` or copy all the ``agent_[...].raw`` files onto a new folder in order to not overwrite any file of the training directory. Make sure the policy is read correctly (eg. if code was compiled with different features or run with different algorithms)  comparing the ``restarted_[...]`` files and the originals (e.g. ``diff /path/eval/run/restarted_agent_00_net_weights.raw /path/train/run/agent_00_net_weights.raw``).
+
+
+Hands-on examples
+--------------
+
+The ``apps`` folder contains a number of examples showing the various use-cases of smarties. Each folder contains the files required to define and run a different application. While it is generally possible to run each case as ``./exec`` or ``./exec.py``, smarties will create a number of log files, simulation folders and restart files. Therefore it is recommended to manually create a run directory or use the launch scripts contained in the ``launch`` directory.
+
+The applications that are already included are:
+
+- ``apps/cart_pole_cpp``: simple C++ example of a cart-pole balancing problem.  
+    Assuming, all steps in the Install section were successful, compile the application: ``cd apps/cart_pole_cpp && make``.  
+    As described above, running this application can be done as:
+    * From the ``cart_pole_cpp`` directory, ``mkdir test && ../cart_pole``. Here we create a new directoy, where all logging, saving, and postprocessing files will be created by smarties, and run the application directly. Because we do not use MPI, smarties will fork two processes, one running the environment (described by the application cart_pole) and one will run the training.  
+    * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.  
+    * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.  
+
+- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem  
+
+- ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem  
+
+- ``apps/cart_pole_many``: example of two cart-poles that define different decision processes: one performs the opposite of the action sent by smarties and the other hides some of the state variables from the learner (partially observable) and tehrefore requires recurrent networks.  
+
+- ``apps/cart_pole_distribEnv``: example of a distributed environment which requires MPI. The application requests M ranks to run each simulation. If the executable is ran as ``mpirun -n N exec``, (N-1)/M teams of processes will be created, each with its own MPI communicator. Each simulation process contains one or more agents.  
+
+- ``apps/cart_pole_distribAgent``: example of a problem where the agent themselves are distributed. Meaning that the agents exist across the team of processes that run a simulation and get the same action to perform. For example flow actuation problems where there is only one control variable (eg. some inflow parameter), but the entire simulation requires multiple CPUs to run.  
+
+- ``apps/predator_prey``: example of agents competing.  
+
+- ``apps/glider``: example of an ODE-based control problem that requires precise controls, used for the paper [Deep-Reinforcement-Learning for Gliding and Perching Bodies](https://arxiv.org/abs/1807.03671)  
+
+- ``apps/func_maximization/``: example of function fitting and maximization, most naturally approached with CMA.  
+
+- ``apps/OpenAI_gym``: code to run most gym application, including the MuJoCo based robotic benchmarks shown in [Remember and Forget for Experience Replay](https://arxiv.org/abs/1807.05827)  
+
+- ``apps/OpenAI_gym_atari``: code to run the Atari games, which automatically creates the required convolutional pre-processing  
+
+- ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
+
+- ``apps/CUP2D_2fish``: and similarly named applications require `CubismUP 2D <https://github.com/novatig/CubismUP_2D>`_.
+
+Examples of solved problems
+---------------------------
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=H9xL9nNQJnc"><img src="https://img.youtube.com/vi/H9xL9nNQJnc/0.jpg" alt="V-RACER trained on OpenAI gym's Humanoid-v2"></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=5mK9HoCDIYQ"><img src="https://img.youtube.com/vi/5mK9HoCDIYQ/0.jpg" alt="Smart ellipse behind a D-section cylinder. Trained with V-RACER."></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=GiS9mxQ4m0I"><img src="https://img.youtube.com/vi/GiS9mxQ4m0I/0.jpg" alt="Fish behind a  D-section cylinder"></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=NEOhS0kPrSk"><img src="https://img.youtube.com/vi/NEOhS0kPrSk/0.jpg" alt="Smart swimmer following an erratic leader to minimize swimming effort."></a>
+
+.. raw:: html
+
+    <a href="https://www.youtube.com/watch?v=8pKhMgPm5p0"><img src="https://img.youtube.com/vi/8pKhMgPm5p0/0.jpg" alt="3D fish schooling"></a>
+
 
 Outputs and postprocessing
 ==========================
