@@ -299,11 +299,11 @@ void Learner::restart()
   if(fstat == NULL || fdata == NULL)
   {
     if(fstat == NULL)
-      _warn("Learner status restart file %s not found\n", fName.c_str());
+      printf("Learner status restart file %s not found\n", fName.c_str());
     else fclose(fstat);
 
     if(fdata == NULL)
-      _warn("Learner data restart file %s not found\n", fName.c_str());
+      printf("Learner data restart file %s not found\n", fName.c_str());
     else fclose(fdata);
 
     chdir(currDirectory);
