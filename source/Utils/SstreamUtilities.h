@@ -40,6 +40,13 @@ inline std::string vec2string(const std::vector<T> vals, const int width = -1)
   return o.str();
 }
 
+inline std::string num2str(const int i, const int width)
+{
+  std::stringstream o;
+  o << std::setfill('0') << std::setw(width) << i;
+  return o.str();
+}
+
 inline void real2SS(std::ostringstream&B,const Real V,const int W, const bool bPos)
 {
   B<<" "<<std::setw(W);

@@ -1,6 +1,6 @@
-CXX ?= mpic++
+MPICXX ?= mpic++
 ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
-CXX=${SMARTIES_ROOT}/extern/bin/mpic++
+MPICXX=${SMARTIES_ROOT}/extern/bin/mpic++
 endif
 
 
@@ -14,13 +14,13 @@ CPPFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -Wno-div-by-zero
 .DEFAULT_GOAL := cart-pole
 
 cart-pole: cart-pole.o
-	$(CXX) $(extra) -o $@ $^ ${LIBS}
+	$(MPICXX) $(extra) -o $@ $^ ${LIBS}
 
 %.o: %.cpp
-	$(CXX) $(extra) $(CPPFLAGS) -c $< -o $@
+	$(MPICXX) $(extra) $(CPPFLAGS) -c $< -o $@
 
 %.d: %.cpp
-	$(CXX) $(extra) $(CPPFLAGS) -MD -c $<
+	$(MPICXX) $(extra) $(CPPFLAGS) -MD -c $<
 
 clean:
 	rm -f *.o *.s *.d cart-pole

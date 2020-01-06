@@ -164,5 +164,46 @@ struct OldestDatasetEp
   }
 };
 
+
+FORGET MemoryProcessing::readERfilterAlgo(const std::string setting, const bool bReFER)
+{
+  const int world_rank = MPICommRank(MPI_COMM_WORLD);
+  if(setting == "oldest") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: First In First Out.\n");
+    return OLDEST;
+  }
+  if(setting == "farpolfrac") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove most 'far policy' episode.\n");
+    return FARPOLFRAC;
+  }
+  if(setting == "maxkldiv") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove highest average DKL episode.\n");
+    return MAXKLDIV;
+  }
+  if(setting == "batchrl") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
+    return BATCHRL;
+  }
+  //if(setting == "minerror")   return MINERROR; miriad ways this can go wrong
+  if(setting == "default") {
+    if(bReFER) {
+      if(world_rank == 0)
+      printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
+      return BATCHRL;
+    }
+    else {
+      if(world_rank == 0)
+      printf("Experience Replay storage: First In First Out.\n");
+      return OLDEST;
+    }
+  }
+  die("ERoldSeqFilter not recognized");
+  return OLDEST; // to silence warning
+}
+
 }
 #endif // smarties_ExperienceRemovalAlgorithms_h

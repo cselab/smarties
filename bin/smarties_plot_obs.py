@@ -101,18 +101,19 @@ if __name__ == '__main__':
     if parsed.nLastPlotT>0 and term>parsed.nLastPlotT: break
 
     print("Plotting episode starting from step %d to step %d." % (init,term) )
-    span = range(init+1, term, 1)
     if parsed.xAxisVar >= 0:
+      span = range(init, term+1, 1)
       xes  = DATA[span, parsed.xAxisVar]
-      xtrm = DATA[term, parsed.xAxisVar]
-      xini = DATA[init, parsed.xAxisVar]
     else:
+      span = range(init+1, term, 1)
       xes, xtrm, xini = span, term, init
 
     if DATA[term,1] > 3: color='mo' # truncated state
     else: color='ro' # proper terminal state
 
-    if initialized:
+    if parsed.xAxisVar >= 0:
+      plt.plot(xes,  DATA[span, ICOL], 'b.', ms=1)
+    elif initialized:
       plt.plot(xes,  DATA[span, ICOL], 'b-')
       plt.plot(xini, DATA[init, ICOL], 'go')
       plt.plot(xtrm, DATA[term, ICOL], color)

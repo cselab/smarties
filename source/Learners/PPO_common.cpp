@@ -123,7 +123,7 @@ void PPO<Policy_t, Action_t>::initializeGAE()
   const Fval invstdR = data->scaledReward(1);
   #pragma omp parallel for schedule(dynamic)
   for(Uint i = 0; i < setSize; ++i) {
-    Sequence& EP = * data->get(i);
+    Sequence& EP = data->get(i);
     assert(EP.ndata() >= 1 && EP.state_vals.size() == EP.ndata()+1);
     assert(EP.action_adv.size() >= EP.ndata() && EP.Q_RET.size() >= EP.ndata());
     for (Uint j=0; j<EP.action_adv.size(); ++j) EP.action_adv[j] *= invstdR;
@@ -132,7 +132,7 @@ void PPO<Policy_t, Action_t>::initializeGAE()
 
   const Uint todoSize = data_get->nInProgress();
   for(Uint i = 0; i < todoSize; ++i) {
-    Sequence& EP = * data_get->get(i);
+    Sequence& EP = data_get->get(i);
     if(EP.states.size() <= 1) continue;
     for (Uint j=0; j<EP.action_adv.size(); ++j) EP.action_adv[j] *= invstdR;
     for (Uint j=0; j<EP.Q_RET.size();      ++j) EP.Q_RET[j]      *= invstdR;

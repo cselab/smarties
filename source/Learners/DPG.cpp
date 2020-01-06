@@ -102,8 +102,8 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 void DPG::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = * data_get->get(agent.ID);
-  const MiniBatch MB = data->agentToMinibatch(&EP);
+  Sequence& EP = data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(EP);
   for (const auto & net : networks ) net->load(MB, agent, 0);
   #ifdef DPG_RETRACE_TGT
     const Uint currStep = EP.nsteps() - 1; assert(EP.nsteps()>0);

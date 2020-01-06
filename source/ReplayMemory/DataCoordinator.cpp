@@ -18,10 +18,6 @@ DataCoordinator::DataCoordinator(MemoryBuffer*const RM, ParameterBlob & P)
 {
   episodes.reserve(distrib.nAgents);
 
-  // if all masters have socketed workers, no need for the coordinator
-  //if(distrib.workerless_masters_comm == MPI_COMM_NULL &&
-  //   distrib.learnersOnWorkers == false) return;
-
   sharingComm = MPICommDup(distrib.workerless_masters_comm);
   sharingSize = MPICommSize(sharingComm);
   sharingRank = MPICommRank(sharingComm);
@@ -65,7 +61,6 @@ DataCoordinator::~DataCoordinator()
 {
   if(sharingComm not_eq MPI_COMM_NULL) MPI_Comm_free(&sharingComm);
   if(workerComm not_eq MPI_COMM_NULL) MPI_Comm_free(&workerComm);
-  for(auto & S : episodes) Utilities::dispose_object(S);
 }
 
 void DataCoordinator::setupTasks(TaskQueue& tasks)
@@ -98,17 +93,16 @@ void DataCoordinator::distributePendingEpisodes()
   std::lock_guard<std::mutex> lockQueue(complete_mutex);
   while ( episodes.size() )
   {
-    Sequence* const EP = episodes.back();
+    Sequence & EP = episodes.back();
     if (sharingDest == sharingRank) replay->pushBackSequence(EP);
     else {
       assert(bLearnersEpsSharing);
       const int dest = sharingDest, tag = 737283+MDPID;
       if( sharingReq[dest] not_eq MPI_REQUEST_NULL)
         MPI(Wait, & sharingReq[dest], MPI_STATUS_IGNORE);
-      sharingSeq[dest] = EP->packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
+      sharingSeq[dest] = EP.packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
       MPI(Isend, sharingSeq[dest].data(), sharingSeq[dest].size(),
           SMARTIES_MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
-      Utilities::dispose_object(EP);
     }
     episodes.pop_back();
     // who's turn is next to receive an episode?
@@ -139,8 +133,7 @@ void DataCoordinator::mastersRecvEpisodes()
   {
     const Fvec sharedEP = recvEp(sharingComm, status);
     if(sharedEP.size()) {
-      Sequence * const tmp = new Sequence();
-      tmp->unpackSequence(sharedEP, sI.dimObs(), aI.dim(), aI.dimPol());
+      Sequence tmp(sharedEP, sI.dimObs(), aI.dim(), aI.dimPol());
       replay->pushBackSequence(tmp);
     }
   }
@@ -169,9 +162,8 @@ void DataCoordinator::mastersRecvEpisodes()
 
     // data sharing among masters:
     if (sharingDest == sharingRank) { // keep the episode
-      Sequence * const tmp = new Sequence();
-      tmp->unpackSequence(workersEP, sI.dimObs(), aI.dim(), aI.dimPol());
-      assert(nStep == tmp->ndata() + 1);
+      Sequence tmp(workersEP, sI.dimObs(), aI.dim(), aI.dimPol());
+      assert(nStep == tmp.ndata() + 1);
       //_warn("%lu storing new sequence of size %lu", MDPID,tmp->ndata());
       replay->pushBackSequence(tmp);
     } else {                          // send the episode to an other master
@@ -196,29 +188,26 @@ void DataCoordinator::mastersRecvEpisodes()
 }
 
 // called externally
-void DataCoordinator::addComplete(Sequence* const EP, const bool bUpdateParams)
+void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
 {
   if(bLearnersEpsSharing)
   {
     assert(distrib.bIsMaster);
     std::lock_guard<std::mutex> lock(complete_mutex);
-    episodes.push_back(EP);
+    episodes.emplace_back(std::move(EP));
   }
-  else
-  if(bRunParameterServer)
+  else if(bRunParameterServer)
   {
     // if we created data structures for worker to send eps to master
     // this better be a worker!
     assert(workerRank>0 && workerSize>1 && not distrib.bIsMaster);
-    const Fvec MSG = EP->packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
+    const Fvec MSG = EP.packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
     #ifndef NDEBUG
-      Sequence * const tmp = new Sequence();
-      tmp->unpackSequence(MSG, sI.dimObs(), aI.dim(), aI.dimPol());
+      const Sequence tmp(MSG, sI.dimObs(), aI.dim(), aI.dimPol());
       //_warn("storing new sequence of size %lu", tmp->ndata());
-      assert(EP->isEqual(tmp));
-      delete tmp;
+      assert(EP.isEqual(tmp));
     #endif
-    delete EP;
+    EP.clear();
 
     //in theory this lock is unnecessary because all ops here are locking and
     //master processes one after the other (i.e. other threads will wait)

@@ -14,7 +14,7 @@ namespace smarties
 {
 
 Sampling::Sampling(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSeq)
-: gens(G), RM(R), Set(RM->Set), bSampleSequences(bSeq) {}
+: gens(G), RM(R), episodes(RM->episodes), bSampleSequences(bSeq) {}
 
 long Sampling::nSequences() const { return RM->readNSeq(); }
 long Sampling::nTransitions() const { return RM->readNData(); }
@@ -31,7 +31,7 @@ void Sampling::IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
   for (Uint k = 0, cntO = 0, i = 0; k<nSeqs; ++k) {
     while(1) {
       assert(ret[i] >= cntO && i < Bsize);
-      if(ret[i] < cntO + Set[k]->ndata()) { // is ret[i] in sequence k?
+      if(ret[i] < cntO + episodes[k].ndata()) { // is ret[i] in sequence k?
         obs[i] = ret[i] - cntO; //if ret[i]==cntO then obs 0 of k and so forth
         seq[i] = k;
         ++i; // next iteration remember first i-1 were already found
@@ -39,9 +39,9 @@ void Sampling::IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
       else break;
       if(i == Bsize) break; // then found all elements of sequence k
     }
-    //assert(cntO == Set[k]->prefix);
+    //assert(cntO == episodes[k].prefix);
     if(i == Bsize) break; // then found all elements of ret
-    cntO += Set[k]->ndata(); // advance observation counter
+    cntO += episodes[k].ndata(); // advance observation counter
     if(k+1 == nSeqs) die(" "); // at last iter we must have found all
   }
 }
@@ -55,11 +55,12 @@ void Sampling::IDtoSeqStep_par(std::vector<Uint>& seq, std::vector<Uint>& obs,
     #pragma omp for schedule(static)
     for (Uint k=0; k<nSeqs; ++k) {
       // sample i lies before start of episode k:
-      while(i < ret.size() && ret[i] < Set[k]->prefix) ++i;
+      while(i < ret.size() && ret[i] < episodes[k].prefix) ++i;
 
-      while(i < ret.size() && ret[i] < Set[k]->prefix + Set[k]->ndata()) {
+      while(i < ret.size() && ret[i] < episodes[k].prefix + episodes[k].ndata())
+      {
         // if ret[i]==prefix then obs 0 of k and so forth:
-        obs[i] = ret[i] - Set[k]->prefix;
+        obs[i] = ret[i] - episodes[k].prefix;
         seq[i] = k;
         ++i; // next iteration remember first i-1 were already found
       }
@@ -71,8 +72,8 @@ void Sampling::updatePrefixes()
 {
   const long nSeqs = nSequences();
   for(long i=0, locPrefix=0; i<nSeqs; ++i) {
-    Set[i]->prefix = locPrefix;
-    locPrefix += Set[i]->ndata();
+    episodes[i].prefix = locPrefix;
+    locPrefix += episodes[i].ndata();
   }
 }
 
@@ -80,10 +81,10 @@ void Sampling::checkPrefixes()
 {
   #ifndef NDEBUG
     const long nSeqs = nSequences(), nData = nTransitions();
-    assert(Set.size() == (size_t) nSeqs);
+    assert(episodes.size() == (size_t) nSeqs);
     for(long i=0, locPrefix=0; i<nSeqs; ++i) {
-      assert(Set[i]->prefix == (Uint) locPrefix);
-      locPrefix += Set[i]->ndata();
+      assert(episodes[i].prefix == (Uint) locPrefix);
+      locPrefix += episodes[i].ndata();
       if(i+1 == nSeqs) assert(locPrefix == nData);
     }
   #endif
@@ -118,10 +119,10 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
     }
 
     const auto compare = [&](const Uint a, const Uint b) {
-      return Set[a]->ndata() > Set[b]->ndata();
+      return episodes[a].ndata() > episodes[b].ndata();
     };
     std::sort(seq.begin(), seq.end(), compare);
-    for (long i=0; i<nBatch; ++i) obs[i] = Set[seq[i]]->ndata() - 1;
+    for (long i=0; i<nBatch; ++i) obs[i] = episodes[seq[i]].ndata() - 1;
   }
   else
   {
@@ -180,10 +181,10 @@ void Sample_impLen::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
       it = std::unique( seq.begin(), seq.end() );
     }
     const auto compare = [&](const Uint a, const Uint b) {
-      return Set[a]->ndata() > Set[b]->ndata();
+      return episodes[a].ndata() > episodes[b].ndata();
     };
     std::sort(seq.begin(), seq.end(), compare);
-    for (Uint i=0; i<nBatch; ++i) obs[i] = Set[seq[i]]->ndata() - 1;
+    for (Uint i=0; i<nBatch; ++i) obs[i] = episodes[seq[i]].ndata() - 1;
   }
   else
   {
@@ -194,7 +195,7 @@ void Sample_impLen::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
     {
       std::generate(it, S.end(), [&] () {
           const Uint seqID = dist(gens[0]);
-          const Uint stepID = distStep(gens[0]) * Set[seqID]->ndata();
+          const Uint stepID = distStep(gens[0]) * episodes[seqID].ndata();
           return std::pair<Uint, Uint> {seqID, stepID};
         }
       );
@@ -215,7 +216,7 @@ void Sample_impLen::prepare(std::atomic<bool>& needs_pass)
   std::vector<float> probs(nSeqs, 0);
 
   #pragma omp parallel for schedule(static)
-  for (Uint i=0; i<nSeqs; ++i) probs[i] = Set[i]->ndata();
+  for (Uint i=0; i<nSeqs; ++i) probs[i] = episodes[i].ndata();
 
   dist = std::discrete_distribution<Uint>(probs.begin(), probs.end());
 }
@@ -236,7 +237,7 @@ void TSample_shuffle::prepare(std::atomic<bool>& needs_pass)
 
   #pragma omp parallel for schedule(dynamic)
   for(long i = 0; i < nSeqs; ++i)
-    for(Uint j=0, k=Set[i]->prefix; j<Set[i]->ndata(); ++j, ++k)
+    for(Uint j=0, k=episodes[i].prefix; j<episodes[i].ndata(); ++j, ++k)
       samples[k] = std::pair<unsigned, unsigned>{i, j};
 
   //const auto RNG = [&](const int max) {
@@ -292,7 +293,7 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
   std::vector<TupEST> errors(nData);
   // 1)
   for(unsigned i=0, locPrefix=0; i<nSeqs; ++i) {
-    auto & EP = * Set[i];
+    auto & EP = episodes[i];
     EP.prefix = locPrefix;
     const unsigned epNsteps = EP.ndata();
     const auto err_i = errors.data() + locPrefix;
@@ -317,7 +318,7 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
     //const float P = std::get<0>(errors[i])>0 ? approxRsqrt(i+1) : 1;
     const float P = std::get<0>(errors[i])>0 ? 1.0/std::cbrt(i+1) : 1;
     const unsigned seq = std::get<1>(errors[i]), t = std::get<2>(errors[i]);
-    auto & EP = * Set[seq];
+    auto & EP = episodes[seq];
     probs[EP.prefix + t] = P;
     EP.priorityImpW[t] = P;
     minP = std::min(minP, P);
@@ -366,18 +367,19 @@ void TSample_impErr::prepare(std::atomic<bool>& needs_pass)
   #pragma omp parallel for schedule(dynamic) reduction(min:minP) reduction(max:maxP)
   for(long i=0; i<nSeqs; ++i)
   {
-    const Uint ndata = Set[i]->ndata();
-    const auto probs_i = probs.data() + Set[i]->prefix;
+    const Uint ndata = episodes[i].ndata();
+    const auto probs_i = probs.data() + episodes[i].prefix;
 
-    for(Uint j=0; j<ndata; ++j) {
-      const float deltasq = (float) Set[i]->SquaredError[j];
+    for(Uint j=0; j<ndata; ++j)
+    {
+      const float deltasq = (float) episodes[i].SquaredError[j];
       // do sqrt(delta^2)^alpha with alpha = 0.5
       const float P = deltasq>0.0f? std::sqrt(std::sqrt(deltasq+EPS)) : 0.0f;
       const float Pe = P + EPS;
       const float Qe = deltasq>0.0f? P + EPS : 1.0e9f ; // avoid nans in impW
       minP = std::min(minP, Qe);
       maxP = std::max(maxP, Pe);
-      Set[i]->priorityImpW[j] = P;
+      episodes[i].priorityImpW[j] = P;
       probs_i[j] = P;
     }
   }
@@ -426,19 +428,20 @@ void Sample_impSeq::prepare(std::atomic<bool>& needs_pass)
 
   Real maxMSE = 0;
   for(long i=0; i<nSeqs; ++i)
-    maxMSE = std::max(maxMSE, Set[i]->sumSquaredErr / Set[i]->ndata());
+    maxMSE = std::max(maxMSE, episodes[i].sumSquaredErr / episodes[i].ndata());
 
   float minP = 1e9, maxP = 0;
   #pragma omp parallel for schedule(dynamic) reduction(min:minP) reduction(max:maxP)
   for(long i=0; i<nSeqs; ++i)
   {
-    const Uint ndata = Set[i]->ndata();
-    float sumErrors = Set[i]->sumSquaredErr;
+    auto & EP = episodes[i];
+    const Uint ndata = EP.ndata();
+    float sumErrors = EP.sumSquaredErr;
     for(Uint j=0; j<ndata; ++j)
-      if( std::fabs( Set[i]->SquaredError[j] ) <= 0 ) sumErrors += maxMSE;
+      if( std::fabs( EP.SquaredError[j] ) <= 0 ) sumErrors += maxMSE;
     //sampling P is episode's RMSE to the power beta=.5 times length of episode
     const float P = std::sqrt( std::sqrt( (sumErrors + EPS)/ndata ) ) * ndata;
-    std::fill(Set[i]->priorityImpW.begin(), Set[i]->priorityImpW.end(), P);
+    std::fill(EP.priorityImpW.begin(), EP.priorityImpW.end(), P);
     minP = std::min(minP, P); // avoid nans in impW
     maxP = std::max(maxP, P);
     probs[i] = P;
@@ -464,10 +467,10 @@ void Sample_impSeq::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
       it = std::unique( seq.begin(), seq.end() );
     }
     const auto compare = [&](const Uint a, const Uint b) {
-      return Set[a]->ndata() > Set[b]->ndata();
+      return episodes[a].ndata() > episodes[b].ndata();
     };
     std::sort(seq.begin(), seq.end(), compare);
-    for (Uint i=0; i<nBatch; ++i) obs[i] = Set[seq[i]]->ndata() - 1;
+    for (Uint i=0; i<nBatch; ++i) obs[i] = episodes[seq[i]].ndata() - 1;
   }
   else
   {
@@ -477,7 +480,8 @@ void Sample_impSeq::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
     std::vector<std::pair<Uint, Uint>>::iterator it = S.begin();
     while(it not_eq S.end()) {
       std::generate(it, S.end(), [&] () {
-         const Uint _s = distObs(gens[0]), _t = distT(gens[0]) * Set[_s]->ndata();
+         const Uint _s = distObs(gens[0]);
+         const Uint _t = distT(gens[0]) * episodes[_s].ndata();
          return std::pair<Uint, Uint> {_s, _t};
         }
       );
@@ -489,5 +493,60 @@ void Sample_impSeq::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
   }
 }
 bool Sample_impSeq::requireImportanceWeights() { return true; }
+
+std::unique_ptr<Sampling> Sampling::prepareSampler(MemoryBuffer* const R,
+                                                   Settings & S,
+                                                   DistributionInfo & D)
+{
+  std::unique_ptr<Sampling> ret = nullptr;
+
+  if(S.dataSamplingAlgo == "uniform") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: uniform probability.\n");
+    ret = std::make_unique<Sample_uniform>(D.generators,R,S.bSampleSequences);
+  }
+
+  if(S.dataSamplingAlgo == "impLen") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: "
+           "probability is proportional to episode-length.%s\n",
+           S.bSampleSequences? "" : " Equivalent to uniform probability.");
+    ret = std::make_unique<Sample_impLen>(D.generators,R,S.bSampleSequences);
+  }
+
+  if(S.dataSamplingAlgo == "shuffle") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: "
+           "shuffle-based uniform probability.\n");
+    ret = std::make_unique<TSample_shuffle>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
+  }
+
+  if(S.dataSamplingAlgo == "PERrank") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: "
+           "rank based prioritized replay.\n");
+    ret = std::make_unique<TSample_impRank>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
+  }
+
+  if(S.dataSamplingAlgo == "PERerr") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: "
+           "error value based prioritized replay.\n");
+    ret = std::make_unique<TSample_impErr>(D.generators,R,S.bSampleSequences);
+    if(S.bSampleSequences) die("Change importance sampling algorithm");
+  }
+
+  if(S.dataSamplingAlgo == "PERseq") {
+    if(D.world_rank == 0)
+    printf("Experience Replay sampling algorithm: "
+           "episodes' mean squared error based prioritized replay.\n");
+    ret = std::make_unique<Sample_impSeq>(D.generators,R,S.bSampleSequences);
+  }
+
+  assert(ret not_eq nullptr);
+  return ret;
+}
 
 }

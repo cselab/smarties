@@ -28,7 +28,7 @@ private:
   //const StateInfo& sI = replay->sI;
   const ActionInfo& aI = replay->aI;
 
-  std::vector<Sequence*> inProgress;
+  std::vector<Sequence> inProgress;
 
   std::atomic<long>& nSeenSequences_loc = replay->nSeenSequences_loc;
   std::atomic<long>& nSeenTransitions_loc = replay->nSeenTransitions_loc;
@@ -39,9 +39,9 @@ public:
   void add_state(Agent&a);
   void add_action(const Agent& a, const Rvec pol);
   void terminate_seq(Agent&a);
-  void push_back(const int & agentId);
+  void push_back(const size_t agentId);
 
-  inline Sequence* get(const Uint ID) const {
+  inline Sequence& get(const Uint ID) {
     return inProgress[ID];
   }
   inline Uint nInProgress() const {

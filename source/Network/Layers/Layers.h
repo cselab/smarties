@@ -36,18 +36,27 @@ inline static void GEMVomp(const Uint NX, const Uint NY, const Uint S,
                            const T * __restrict__ const _X,
                                  T * __restrict__ const _Y)
 {
-  typedef __attribute__((aligned(VEC_WIDTH))) T alignT;
-  static constexpr Uint safelen_ = VEC_WIDTH / sizeof(T);
-  const alignT * __restrict__ const W_ = static_cast<const alignT *>(_W);
-  const alignT * __restrict__ const X_ = static_cast<const alignT *>(_X);
-  for (Uint o=0; o<NY; ++o)
-  {
-    const alignT* __restrict__ const W = W_ + S * o;
-    T Y = 0;
-    #pragma omp simd aligned(X_,W : VEC_WIDTH) safelen(safelen_) reduction(+:Y)
-    for (Uint i=0; i<NX; ++i) Y += W[i] * X_[i];
-    _Y[o] += Y;
-  }
+  assert(_W not_eq nullptr && _X not_eq nullptr && _Y not_eq nullptr);
+  #if 0
+    for (Uint o=0; o<NY; ++o) {
+      const T* __restrict__ const W = _W + S * o;
+      T Y = 0;
+      #pragma omp simd aligned(_X, W : VEC_WIDTH) reduction(+:Y)
+      for (Uint i=0; i<NX; ++i) Y += W[i] * _X[i];
+      _Y[o] += Y;
+    }
+  #else
+    static constexpr Uint cacheLineLen = 64 / sizeof(T);
+    for (Uint I=0; I<NX; I+=cacheLineLen)
+      for (Uint o=0; o<NY; ++o) {
+        const T* __restrict__ const W = _W + S * o;
+        T Y = 0;
+        const Uint Ninner = std::min(NX, I+cacheLineLen);
+        #pragma omp simd aligned(_X, W : VEC_WIDTH) reduction(+:Y)
+        for (Uint i=I; i<Ninner; ++i) Y += W[i] * _X[i];
+        _Y[o] += Y;
+      }
+  #endif
 }
 #endif
 
@@ -126,11 +135,9 @@ class Layer
             nnReal* const errors = curr->E(ID-link);
       const nnReal* const weight = para->W(ID);
       #ifdef USE_OMPSIMD_BLAS
-        GEMVomp(NO, NI, NOsimd, weight, deltas, errors);
-        // TODO : THERE IS AN ALIGNMENT ISSUE HERE:
-        //GEMVomp(NO, spanCompInpGrads, NOsimd,
-        //        weight + startCompInpGrads * NOsimd,
-        //        deltas, errors + startCompInpGrads);
+        GEMVomp(NO, spanCompInpGrads, NOsimd,
+                weight + startCompInpGrads * NOsimd,
+                deltas, errors + startCompInpGrads);
       #else
         SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, NO, 1,
           weight + startCompInpGrads * NOsimd, NOsimd,
@@ -323,7 +330,7 @@ class ParametricResidualLayer: public Layer
                 const Parameters*const para) const override
   {
     nnReal* const ret = curr->Y(ID);
-    assert(curr->sizes[ID-1] == size);
+    assert(curr->sizes[ID-1] >= size);
     memcpy(ret, curr->Y(ID-1), size * sizeof(nnReal));
 
     const nnReal* const W = para->W(ID);
@@ -342,7 +349,7 @@ class ParametricResidualLayer: public Layer
                   const Parameters*const para) const override
   {
     const nnReal* const delta = curr->E(ID);
-    assert(curr->sizes[ID-1] == size);
+    assert(curr->sizes[ID-1] >= size);
     memcpy(curr->E(ID-1), delta, size * sizeof(nnReal) );
     nnReal* const gradInp = curr->E(ID-2);
     const nnReal* const W = para->W(ID);

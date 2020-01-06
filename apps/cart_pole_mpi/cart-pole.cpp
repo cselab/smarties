@@ -68,11 +68,11 @@ inline void app_main(smarties::Communicator*const comm, // communicator with sma
       const double reward = env.getReward();
 
       //prof.stop_start("smarties");
-      if(terminated) { //tell smarties that this is a terminal state
+      if( env.is_failed() ) //tell smarties that this is a terminal state
         comm->sendTermState(state, reward);
-        //prof.stop();
-        //break;
-      } else comm->sendState(state, reward);
+      else if ( env.is_over() )
+        comm->sendLastState(state, reward);
+      else  comm->sendState(state, reward);
 
       if(comm->terminateTraining()) return; // exit program
       if(terminated) break; // go back up to reset

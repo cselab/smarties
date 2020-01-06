@@ -18,7 +18,7 @@ namespace smarties
 {
 
 Learner::Learner(MDPdescriptor& MD, Settings& S, DistributionInfo& D):
-  distrib(D), settings(S), MDP(MD), ReFER_reduce(D, LDvec{0.,1.}), ERFILTER(
+  distrib(D), settings(S), MDP(MD), ERFILTER(
     MemoryProcessing::readERfilterAlgo(S.ERoldSeqFilter, S.clipImpWeight>0) ),
   data_proc( new MemoryProcessing( data.get() ) ),
   data_coord( new DataCoordinator( data.get(), params ) ),
@@ -36,9 +36,6 @@ void Learner::initializeLearner()
 {
   const Uint currStep = nGradSteps();
 
-  ReFER_reduce.update({(long double)data_proc->nFarPol(),
-                       (long double)data->readNData()});
-
   if ( currStep > 0 ) {
     printf("Skipping initialization for restartd learner.\n");
     return;
@@ -52,7 +49,7 @@ void Learner::initializeLearner()
   _nObsB4StartTraining = nObsB4StartTraining;
   //data_proc->updateRewardsStats(1, 1e-3, true);
   if(learn_rank==0) printf("Initial reward std %e\n", 1/data->scaledReward(1));
-
+  fflush(0);
   data->initialize();
 
   if( not computeQretrace ) {
@@ -67,7 +64,7 @@ void Learner::initializeLearner()
   const Uint setSize = data->readNSeq();
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i=0; i<setSize; ++i) {
-    Sequence& SEQ = * data->get(i);
+    Sequence& SEQ = data->get(i);
     for(Uint j = SEQ.ndata(); j>0; --j)
         SEQ.propagateRetrace(j, gamma, data->scaledReward(SEQ, j));
   }
@@ -76,59 +73,11 @@ void Learner::initializeLearner()
 
 void Learner::processMemoryBuffer()
 {
-  const Uint currStep = nGradSteps()+1; //base class will advance this
-
-  profiler->start("PRNE");
-  //shift data / gradient counters to maintain grad stepping to sample
-  // collection ratio prescirbed by obsPerStep
-  Real C =settings.clipImpWeight, D =settings.penalTol, E =settings.epsAnneal;
-
-  if(ERFILTER == BATCHRL) {
-    const Real maxObsNum = settings.maxTotObsNum_local;
-    const Real obsNum = data->readNData();
-    const Real factorUp = std::max((Real) 1, obsNum / maxObsNum);
-    //const Real factorDw = std::min((Real)1, maxObsNum / obsNum);
-    //D *= factorUp;
-    //CmaxRet = 1 + C * factorDw
-    CmaxRet = 1 + Utilities::annealRate(C, currStep, E) * factorUp;
-  } else {
-    CmaxRet = 1 + Utilities::annealRate(C, currStep, E);
-  }
-
-  CinvRet = 1 / CmaxRet;
-  if(CmaxRet <= 1 and C > 0)
-    die("Either run lasted too long or epsAnneal is wrong.");
-
-  const bool bRecomputeProperties = (currStep % 100) == 0;
+  profiler->start("FILTER");
   //if (bRecomputeProperties) printf("Using C : %f\n", C);
-  data_proc->prune(ERFILTER, CmaxRet, bRecomputeProperties);
-
-  // use result from prev AllReduce to update rewards (before new reduce).
-  // Assumption is that the number of off Pol trajectories does not change
-  // much each step. Especially because here we update the off pol W only
-  // if an obs is actually sampled. Therefore at most this fraction
-  // is wrong by batchSize / nTransitions ( ~ 0 )
-  // In exchange we skip an mpi implicit barrier point.
-  ReFER_reduce.update({(long double)data_proc->nFarPol(),
-                       (long double)data->readNData()});
-  const LDvec nFarGlobal = ReFER_reduce.get();
-  const Real fracOffPol = nFarGlobal[0] / nFarGlobal[1];
-
-  const auto fixPointIter = [] (const Real val, const bool goTo0) {
-    if (goTo0) // fixed point iter converging to 0:
-      return (1 - std::min(1e-4, val)) * val;
-    else       // fixed point iter converging to 1:
-      return (1 - std::min(1e-4, val)) * val + std::min(1e-4, 1-val);
-  };
-
-  // if too much far policy data, increase weight of Dkl penalty
-  beta = fixPointIter(beta, fracOffPol > D);
-
-  // USED ONLY FOR CMA: how do we weight cirit cost and policy cost?
-  // if we satisfy too strictly far-pol constrain, reduce weight of policy
-  alpha = fixPointIter(alpha, std::fabs(D - fracOffPol) < 0.001);
-
+  data_proc->selectEpisodeToDelete(ERFILTER);
   profiler->stop();
+  data_proc->updateReFERpenalization();
 }
 
 void Learner::updateRetraceEstimates()
@@ -139,7 +88,7 @@ void Learner::updateRetraceEstimates()
 
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i = 0; i < setSize; ++i) {
-    Sequence& SEQ = * data->get(sampled[i]);
+    Sequence& SEQ = data->get(sampled[i]);
     assert(std::fabs(SEQ.Q_RET[SEQ.ndata()]) < 1e-16);
     assert(std::fabs(SEQ.action_adv[SEQ.ndata()]) < 1e-16);
     if( SEQ.isTerminal(SEQ.ndata()) )
@@ -154,7 +103,7 @@ void Learner::finalizeMemoryProcessing()
 {
   const Uint currStep = nGradSteps()+1; //base class will advance this
   profiler->start("FIND");
-  data_proc->finalize();
+  data_proc->prepareNextBatchAndDeleteStaleEp();
 
   profiler->stop_start("PRE");
   if(currStep%1000==0) // update state mean/std with net's learning rate
@@ -261,21 +210,9 @@ void Learner::processStats()
   fflush(0);
 }
 
-void Learner::getMetrics(std::ostringstream& buf) const
-{
-  if(CmaxRet>1) {
-    //Utilities::real2SS(buf, alpha, 6, 1);
-    Utilities::real2SS(buf, beta, 6, 1);
-  }
-}
+void Learner::getMetrics(std::ostringstream& buf) const {}
 
-void Learner::getHeaders(std::ostringstream& buf) const
-{
-  if(CmaxRet>1) {
-    //buf << "| alph | beta ";
-    buf << "| beta ";
-  }
-}
+void Learner::getHeaders(std::ostringstream& buf) const {}
 
 void Learner::restart()
 {
@@ -283,103 +220,12 @@ void Learner::restart()
   if(!learn_rank) printf("Restarting from saved policy...\n");
 
   data->restart(distrib.restart+"/"+learner_name);
-
-  data->save("restarted_"+learner_name, 0, false);
-
-  char currDirectory[512];
-  getcwd(currDirectory, 512);
-  chdir(distrib.initial_runDir);
-
-  char baseName[512];
-  sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
-  const std::string fName(baseName);
-  FILE* fstat = fopen((distrib.restart+"/"+fName+"_status.raw").c_str(), "r");
-  FILE* fdata = fopen((distrib.restart+"/"+fName+"_data.raw").c_str(), "rb");
-
-  if(fstat == NULL || fdata == NULL)
-  {
-    if(fstat == NULL)
-      printf("Learner status restart file %s not found\n", fName.c_str());
-    else fclose(fstat);
-
-    if(fdata == NULL)
-      printf("Learner data restart file %s not found\n", fName.c_str());
-    else fclose(fdata);
-
-    chdir(currDirectory);
-    return;
-  }
-
-  Uint nStoredEps = 0, nStoredObs = 0, nLocalSeenEps = 0, nLocalSeenObs = 0;
-  long nInitialData = data->nGatheredB4Startup, doneGradSteps = 0;
-  Uint pass = 1;
-  pass = pass && 1 == fscanf(fstat, "nStoredEps: %lu\n",    & nStoredEps);
-  pass = pass && 1 == fscanf(fstat, "nStoredObs: %lu\n",    & nStoredObs);
-  pass = pass && 1 == fscanf(fstat, "nLocalSeenEps: %lu\n", & nLocalSeenEps);
-  pass = pass && 1 == fscanf(fstat, "nLocalSeenObs: %lu\n", & nLocalSeenObs);
-  pass = pass && 1 == fscanf(fstat, "nInitialData: %ld\n",  & nInitialData);
-  pass = pass && 1 == fscanf(fstat, "nGradSteps: %ld\n",    & doneGradSteps);
-  pass = pass && 1 == fscanf(fstat, "CmaxReFER: %le\n",     & CmaxRet);
-  pass = pass && 1 == fscanf(fstat, "beta: %le\n",          & beta);
-  assert(doneGradSteps >= 0 && pass == 1);
-  fclose(fstat);
-  data->setNSeq(nStoredEps);
-  data->setNData(nStoredObs);
-  data->setNSeen_loc(nLocalSeenObs);
-  data->setNSeenSeq_loc(nLocalSeenEps);
-  data->nGatheredB4Startup = nInitialData;
-  data->nGradSteps = doneGradSteps;
-
-  for(Uint i = 0; i < nStoredEps; ++i)
-  {
-    assert(data->get(i) == nullptr);
-    Sequence* const S = new Sequence();
-    if( S->restart(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol()) )
-      _die("Unable to find sequence %u\n", i);
-    S->updateCumulative(CmaxRet, CinvRet);
-    data->set(S, i);
-  }
-  fclose(fdata);
-
-  chdir(currDirectory);
+  //data->save("restarted_"+learner_name, 0, false);
 }
 
 void Learner::save()
 {
-  const Uint currStep = nGradSteps()+1;
-  const bool bBackup = false; // ;
-  data->save(learner_name, currStep, bBackup);
-
-  char baseName[512];
-  sprintf(baseName, "%s_rank_%03lu_learner", learner_name.c_str(), learn_rank);
-  const std::string dumpName(baseName);
-  FILE * fstat = fopen((dumpName + "_status_backup.raw").c_str(), "w");
-  FILE * fdata = fopen((dumpName + "_data_backup.raw").c_str(), "wb");
-
-  const long doneGradSteps = nGradSteps();
-  const Uint nStoredEps = data->readNSeq();
-  const Uint nStoredObs = data->readNData();
-  const Uint nLocalSeenObs = data->readNSeen_loc();
-  const Uint nLocalSeenEps = data->readNSeenSeq_loc();
-  assert(fstat != NULL);
-  fprintf(fstat, "nStoredEps: %lu\n",    nStoredEps);
-  fprintf(fstat, "nStoredObs: %lu\n",    nStoredObs);
-  fprintf(fstat, "nLocalSeenEps: %lu\n", nLocalSeenEps);
-  fprintf(fstat, "nLocalSeenObs: %lu\n", nLocalSeenObs);
-  fprintf(fstat, "nInitialData: %ld\n",  data->nGatheredB4Startup);
-  fprintf(fstat, "nGradSteps: %ld\n",    doneGradSteps);
-  fprintf(fstat, "CmaxReFER: %le\n",     CmaxRet);
-  fprintf(fstat, "beta: %le\n",          beta);
-  fflush(fstat); fclose(fstat);
-
-  assert(fdata != NULL);
-  for(Uint i = 0; i <nStoredEps; ++i)
-    data->get(i)->save(fdata, sInfo.dimObs(), aInfo.dim(), aInfo.dimPol() );
-  fflush(fdata);
-  fclose(fdata);
-
-  Utilities::copyFile(dumpName + "_status_backup.raw", dumpName + "_status.raw");
-  Utilities::copyFile(dumpName + "_data_backup.raw", dumpName + "_data.raw");
+  data->save(learner_name);
 }
 
 }

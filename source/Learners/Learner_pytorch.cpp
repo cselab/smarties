@@ -204,9 +204,9 @@ void Learner_pytorch::select(Agent& agent)
   // std::cout << "PYTORCH: AGENT SELECTING ACTION!" << std::endl;
 
   data_get->add_state(agent);
-  Sequence& EP = * data_get->get(agent.ID);
+  Sequence& EP = data_get->get(agent.ID);
 
-  const MiniBatch MB = data->agentToMinibatch(&EP);
+  const MiniBatch MB = data->agentToMinibatch(EP);
 
   if( agent.agentStatus < TERM ) // not end of sequence
   {

@@ -59,8 +59,8 @@ computeAction(Agent& agent, const Rvec netOutput) const
 template<typename Action_t> void CMALearner<Action_t>::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = * data_get->get(agent.ID);
-  const MiniBatch MB = data->agentToMinibatch(&EP);
+  Sequence& EP = data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(EP);
   const Uint envID = agent.workerID;
 
   if(agent.agentStatus == INIT and curNumEndedPerEnv[envID]>0)

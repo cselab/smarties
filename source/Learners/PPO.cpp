@@ -35,8 +35,8 @@ template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = * data_get->get(agent.ID);
-  const MiniBatch MB = data->agentToMinibatch(&EP);
+  Sequence& EP = data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(EP);
   for (const auto & net : networks ) net->load(MB, agent, 0);
 
   if( agent.agentStatus < TERM ) // not end of sequence
@@ -122,7 +122,7 @@ void PPO<Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     debugL("Gather gradient estimates from each thread and Learner MPI rank");
     prepareGradient();
     updatePenalizationCoef();
-    data_proc->finalize();
+    data_proc->prepareNextBatchAndDeleteStaleEp();
     logStats();
     algoSubStepID = 1;
     profiler->start("MPI");

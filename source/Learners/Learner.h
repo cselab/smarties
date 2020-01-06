@@ -47,28 +47,24 @@ public:
   const long nObsB4StartTraining = settings.minTotObsNum_local;
   long _nObsB4StartTraining = std::numeric_limits<long>::max();
   const bool bTrain = distrib.bTrain;
+  bool computeQretrace = false;
 
   // some algorithm hyper-parameters:
   const Real gamma = settings.gamma;
-
-  DelayedReductor<long double> ReFER_reduce;
   const FORGET ERFILTER;
 
 protected:
   int algoSubStepID = -1;
-
-  Real alpha = 0.5; // weight between critic and policy used for CMA
-  // if clipImpWeight==0 do naive Exp Replay==0 do naive Exp Replay:
-  Real beta = settings.clipImpWeight <= 0 ? 1 : 1e-4;
-  Real CmaxRet = 1 + settings.clipImpWeight;
-  Real CinvRet = 1 / settings.clipImpWeight;
-  bool computeQretrace = false;
 
   std::vector<std::mt19937>& generators = distrib.generators;
   const std::unique_ptr<MemoryBuffer> data =
                          std::make_unique<MemoryBuffer>(MDP, settings, distrib);
   ParameterBlob params =
              ParameterBlob(distrib, data->nGatheredB4Startup, data->nGradSteps);
+  Real & alpha   = data->alpha;
+  Real & beta    = data->beta;
+  Real & CmaxRet = data->CmaxRet;
+  Real & CinvRet = data->CinvRet;
 
   MemoryProcessing * const data_proc;
   DataCoordinator * const  data_coord;

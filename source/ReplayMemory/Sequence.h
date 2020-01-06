@@ -46,14 +46,77 @@ struct Sequence
     policies.reserve(MAX_SEQ_LEN);
     rewards.reserve(MAX_SEQ_LEN);
   }
-  ~Sequence() { }
-  Sequence(Sequence && p) = delete;
-  Sequence& operator=(Sequence && p) = delete;
+  Sequence(const std::vector<Fval>&, const Uint dS,const Uint dA,const Uint dP);
+  ~Sequence() = default;
   Sequence(const Sequence &p) = delete;
   Sequence& operator=(const Sequence &p) = delete;
 
+  #define MOVE_SEQUENCE() do {                                                \
+    ended            = p.ended;                     p.ended = false;          \
+    ID               = p.ID;                        p.ID = -1;                \
+    just_sampled     = p.just_sampled;              p.just_sampled = -1;      \
+    prefix           = p.prefix;                    p.prefix = 0;             \
+    agentID          = p.agentID;                   p.agentID = 0;            \
+    totR             = p.totR;                      p.totR = 0;               \
+    nFarOverPolSteps = p.nFarOverPolSteps.load();   p.nFarOverPolSteps = 0;   \
+    nFarUndrPolSteps = p.nFarUndrPolSteps.load();   p.nFarUndrPolSteps = 0;   \
+    sumKLDivergence  = p.sumKLDivergence.load();    p.sumKLDivergence = 0;    \
+    sumSquaredErr    = p.sumSquaredErr.load();      p.sumSquaredErr = 0;      \
+    minImpW          = p.minImpW.load();            p.minImpW = 1;            \
+    avgImpW          = p.avgImpW.load();            p.avgImpW = 1;            \
+    states           = std::move(p.states);         p.states.clear();         \
+    actions          = std::move(p.actions);        p.actions.clear();        \
+    policies         = std::move(p.policies);       p.policies.clear();       \
+    rewards          = std::move(p.rewards);        p.rewards.clear();        \
+    action_adv       = std::move(p.action_adv);     p.action_adv.clear();     \
+    state_vals       = std::move(p.state_vals);     p.state_vals.clear();     \
+    Q_RET            = std::move(p.Q_RET);          p.Q_RET.clear();          \
+    SquaredError     = std::move(p.SquaredError);   p.SquaredError.clear();   \
+    offPolicImpW     = std::move(p.offPolicImpW);   p.offPolicImpW.clear();   \
+    KullbLeibDiv     = std::move(p.KullbLeibDiv);   p.KullbLeibDiv.clear();   \
+    priorityImpW     = std::move(p.priorityImpW);   p.priorityImpW.clear();   \
+  } while (0)
 
-  bool isEqual(const Sequence * const S) const;
+  Sequence(Sequence && p)
+  {
+    MOVE_SEQUENCE();
+  }
+  Sequence& operator=(Sequence && p)
+  {
+    MOVE_SEQUENCE();
+    return * this;
+  }
+
+  #undef MOVE_SEQUENCE
+
+  void clear()
+  {
+    ended = false; ID = -1; just_sampled = -1; prefix =0; agentID =0; totR =0;
+    nFarOverPolSteps = 0;
+    nFarUndrPolSteps = 0;
+    sumKLDivergence  = 0;
+    sumSquaredErr    = 0;
+    minImpW          = 1;
+    avgImpW          = 1;
+
+    states.clear(); actions.clear(); policies.clear(); rewards.clear();
+    SquaredError.clear(); offPolicImpW.clear(); KullbLeibDiv.clear();
+    action_adv.clear(); state_vals.clear(); Q_RET.clear(); priorityImpW.clear();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // did ep terminate (i.e. terminal state) or was a time out (i.e. V(s_end)!=0
+  bool ended = false;
+  // unique identifier of the episode, counter:
+  Sint ID = -1;
+  // used for prost processing eps: idx of latest time step sampled during past grad update
+  Sint just_sampled = -1;
+  // used for uniform sampling, prefix sum:
+  Uint prefix = 0;
+  // local agent id (agent id within environment) that generated epiosode:
+  Uint agentID = 0;
+  // sum of rewards obtained during the episode:
+  Fval totR = 0;
 
   // Fval is just a storage format, probably float while Real is prob. double
   std::vector<Fvec> states;
@@ -62,19 +125,19 @@ struct Sequence
   std::vector<Real> rewards;
 
   // additional quantities which may be needed by algorithms:
-  NNvec Q_RET, action_adv, state_vals;
+  NNvec action_adv, state_vals, Q_RET;
   //Used for sampling, filtering, and sorting off policy data:
   Fvec SquaredError, offPolicImpW, KullbLeibDiv;
   std::vector<float> priorityImpW;
 
   // some quantities needed for processing of experiences
-  Fval totR = 0;
   std::atomic<Uint> nFarOverPolSteps{0}; // pi/mu > c
   std::atomic<Uint> nFarUndrPolSteps{0}; // pi/mu < 1/c
   std::atomic<Real> sumKLDivergence{0};
   std::atomic<Real> sumSquaredErr{0};
   std::atomic<Real> minImpW{1};
   std::atomic<Real> avgImpW{1};
+  //////////////////////////////////////////////////////////////////////////////
 
   void updateCumulative(const Fval C, const Fval invC)
   {
@@ -124,29 +187,16 @@ struct Sequence
     offPolicImpW[t] = W;
   }
 
-  // did episode terminate (i.e. terminal state) or was a time out (i.e. V(s_end) != 0
-  bool ended = false;
-  // unique identifier of the episode, counter
-  Sint ID = -1;
-  // used for prost processing eps: idx of latest time step sampled during past gradient update
-  Sint just_sampled = -1;
-  // used for uniform sampling : prefix sum
-  Uint prefix = 0;
-  // local agent id (agent id within environment) that generated epiosode
-  Uint agentID;
-
   Uint ndata() const // how much data to train from? ie. not terminal
   {
     assert(states.size());
     if(states.size()==0) return 0;
     else return states.size() - 1;
   }
-
   Uint nsteps() const // total number of time steps observed
   {
     return states.size();
   }
-
   Uint nFarPolicySteps() const
   {
     return nFarOverPolSteps + nFarUndrPolSteps;
@@ -156,27 +206,11 @@ struct Sequence
   {
     return t+1 == states.size() && ended;
   }
-
   bool isTruncated(const Uint t) const
   {
     return t+1 == states.size() && not ended;
   }
-
-  void clear()
-  {
-    ended = false; ID = -1; just_sampled = -1;
-    nFarOverPolSteps = 0;
-    nFarUndrPolSteps = 0;
-    sumKLDivergence  = 0;
-    sumSquaredErr    = 0;
-    minImpW          = 1;
-    avgImpW          = 1;
-    totR = 0;
-
-    states.clear(); actions.clear(); policies.clear(); rewards.clear();
-    SquaredError.clear(); offPolicImpW.clear(); KullbLeibDiv.clear();
-    action_adv.clear(); state_vals.clear(); Q_RET.clear(); priorityImpW.clear();
-  }
+  bool isEqual(const Sequence & S) const;
 
   void setSampled(const int t) //update ind of latest sampled time step
   {
@@ -188,13 +222,11 @@ struct Sequence
     assert( t < Q_RET.size() );
     Q_RET[t] = Q;
   }
-
   void setAdvantage(const Uint t, const Fval A)
   {
     assert( t < action_adv.size() );
     action_adv[t] = A;
   }
-
   void setStateValue(const Uint t, const Fval V)
   {
     assert( t < state_vals.size() );
@@ -236,7 +268,6 @@ struct Sequence
     const Uint ret = (tuplSize+infoSize)*Nstep + extraSize;
     return ret;
   }
-
   static Uint computeTotalEpisodeNstep(const Uint dS, const Uint dA,
     const Uint dP, const Uint size)
   {

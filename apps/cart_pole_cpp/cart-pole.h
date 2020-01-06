@@ -86,6 +86,14 @@ struct CartPole
     t = 0;
 	}
 
+  bool is_failed()
+  {
+    #if SWINGUP
+      return std::fabs(u.y1)>2.4;
+    #else
+      return std::fabs(u.y1)>2.4 || std::fabs(u.y3)>M_PI/15;
+    #endif
+  }
   bool is_over()
   {
     #if SWINGUP

@@ -33,6 +33,12 @@ class MemoryBuffer
   const ActionInfo aI = ActionInfo(MDP);
   Uint learnID = 0;
 
+  // if clipImpWeight==0 do naive Exp Replay==0 do naive Exp Replay:
+  Real beta = settings.clipImpWeight <= 0 ? 1 : 1e-4;
+  Real alpha = 0.5; // UNUSED: weight between critic and policy used for CMA
+  Real CmaxRet = 1 + settings.clipImpWeight;
+  Real CinvRet = 1 / settings.clipImpWeight;
+
   std::mutex dataset_mutex; // accessed by some samplers
  private:
 
@@ -55,7 +61,7 @@ class MemoryBuffer
 
   std::atomic<bool> needs_pass {false};
 
-  std::vector<Sequence*> Set;
+  std::vector<Sequence> episodes;
   std::vector<Uint> lastSampledEps;
 
   // num of grad steps performed by owning learner:
@@ -92,17 +98,17 @@ class MemoryBuffer
 
   template<typename V = nnReal, typename T>
   std::vector<V> standardizedState(const T seq, const T samp) const {
-    return standardizedState<V>(Set[seq], samp);
+    return standardizedState<V>(episodes[seq], samp);
   }
   template<typename V = nnReal, typename T>
-  std::vector<V> standardizedState(const Sequence*const seq, const T samp) const
+  std::vector<V> standardizedState(const Sequence& seq, const T samp) const
   {
     const Uint dimS = sI.dimObs();
     std::vector<V> ret( dimS * (1+nAppended) );
     for (Uint j=0, k=0; j <= nAppended; ++j)
     {
       const Sint t = std::max((Sint)samp - (Sint)j, (Sint)0);
-      const auto& state = seq->states[t];
+      const auto& state = seq.states[t];
       assert(state.size() == dimS);
       for (Uint i=0; i<dimS; ++i, ++k) ret[k] = (state[i]-mean[i]) * invstd[i];
     }
@@ -111,12 +117,7 @@ class MemoryBuffer
 
   template<typename T>
   Real scaledReward(const T seq, const T samp) const {
-    return scaledReward(Set[seq], samp);
-  }
-  template<typename T>
-  Real scaledReward(const Sequence*const seq, const T samp) const {
-    assert(samp < (T) seq->rewards.size());
-    return scaledReward(seq->rewards[samp]);
+    return scaledReward(episodes[seq], samp);
   }
   template<typename T>
   Real scaledReward(const Sequence& seq, const T samp) const {
@@ -126,12 +127,12 @@ class MemoryBuffer
   Real scaledReward(const Real r) const { return r * invstd_reward; }
 
   void restart(const std::string base);
-  void save(const std::string base, const Uint nStep, const bool bBackup);
+  void save(const std::string base);
 
   MiniBatch sampleMinibatch(const Uint batchSize, const Uint stepID);
   const std::vector<Uint>& lastSampledEpisodes() { return lastSampledEps; }
 
-  MiniBatch agentToMinibatch(Sequence* const inProgress) const;
+  MiniBatch agentToMinibatch(Sequence & inProgress) const;
 
   bool bRequireImportanceSampling() const;
 
@@ -143,25 +144,12 @@ class MemoryBuffer
     return readNSeen_loc() - nGatheredB4Startup;
   }
 
-  void setNSeen_loc(const long val)    { nSeenTransitions_loc = val;  }
-  void setNSeenSeq_loc(const long val) { nSeenSequences_loc = val;  }
-  void setNData(const long val)        { nTransitions = val;  }
-  void setNSeq(const long val) { nSequences = val; Set.resize(val, nullptr); }
-
   void removeSequence(const Uint ind);
-  void pushBackSequence(Sequence*const seq);
+  void pushBackSequence(Sequence & seq);
 
-  Sequence* get(const Uint ID) {
-    return Set[ID];
+  Sequence& get(const Uint ID) {
+    return episodes[ID];
   }
-  void set(Sequence*const S, const Uint ID) {
-    assert(Set[ID] == nullptr);
-    Set[ID] = S;
-  }
-
-  static std::unique_ptr<Sampling> prepareSampler(MemoryBuffer* const R,
-                                                  Settings&S_,
-                                                  DistributionInfo&D_);
 };
 
 }

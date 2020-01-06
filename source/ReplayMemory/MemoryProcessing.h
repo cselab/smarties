@@ -23,11 +23,15 @@ private:
   const Settings & settings = RM->settings;
   const DistributionInfo & distrib = RM->distrib;
 
-  std::vector<nnReal>& invstd = RM->invstd;
-  std::vector<nnReal>& mean = RM->mean;
-  std::vector<nnReal>& std = RM->std;
+  std::vector<nnReal> & invstd = RM->invstd;
+  std::vector<nnReal> & mean = RM->mean;
+  std::vector<nnReal> & std = RM->std;
   //nnReal& stddev_reward = RM->stddev_reward;
-  nnReal& invstd_reward = RM->invstd_reward;
+  nnReal & invstd_reward = RM->invstd_reward;
+  Real & beta = RM->beta;
+  Real & alpha = RM->alpha;
+  Real & CmaxRet = RM->CmaxRet;
+  Real & CinvRet = RM->CinvRet;
 
   Uint nPrunedEps = 0;
   Uint oldestStoresTimeStamp = 0;
@@ -37,8 +41,10 @@ private:
 
   DelayedReductor<long double> Ssum1Rdx, Ssum2Rdx, Rsum2Rdx, Csum1Rdx;
   DelayedReductor<long> globalStep_reduce;
+  DelayedReductor<long double> ReFER_reduce;
 
-  const std::vector<Sequence*>& Set = RM->Set;
+  std::vector<Sequence>& episodes = RM->episodes;
+  std::atomic<long>& nGradSteps = RM->nGradSteps;
   std::atomic<long>& nSequences = RM->nSequences;
   std::atomic<long>& nTransitions = RM->nTransitions;
   std::atomic<long>& nSeenSequences = RM->nSeenSequences;
@@ -55,9 +61,11 @@ public:
   static FORGET readERfilterAlgo(const std::string setting, const bool bReFER);
 
   // Algorithm for maintaining and filtering dataset, and optional imp weight range parameter
-  void prune(const FORGET ALGO, const Fval CmaxRho = 1, const bool recompute = false);
-  void finalize();
+  void selectEpisodeToDelete(const FORGET ALGO);
+  void prepareNextBatchAndDeleteStaleEp();
+
   void histogramImportanceWeights();
+  void updateReFERpenalization();
 
   void getMetrics(std::ostringstream& buff);
   void getHeaders(std::ostringstream& buff);

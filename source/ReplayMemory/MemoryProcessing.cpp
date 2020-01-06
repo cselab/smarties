@@ -20,15 +20,20 @@ MemoryProcessing::MemoryProcessing(MemoryBuffer*const _RM) : RM(_RM),
   Ssum1Rdx(distrib, LDvec(_RM->MDP.dimStateObserved, 0) ),
   Ssum2Rdx(distrib, LDvec(_RM->MDP.dimStateObserved, 1) ),
   Rsum2Rdx(distrib, LDvec(1, 1) ), Csum1Rdx(distrib, LDvec(1, 1) ),
-  globalStep_reduce(distrib, std::vector<long>{0, 0})
+  globalStep_reduce(distrib, std::vector<long>{0, 0}),
+  ReFER_reduce(distrib, LDvec{0.,1.})
 {
     globalStep_reduce.update( { nSeenSequences_loc.load(),
                                 nSeenTransitions_loc.load() } );
+
+    ReFER_reduce.update({(long double) 0, (long double) nTransitions.load() });
 }
 
-// update the second order moment of the rewards in the memory buffer
 void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bool bInit)
 {
+  // Update the second order moment of the rewards and means and stdev of states
+  // contained in the memory buffer. Used for rescaling and numerical safety.
+
   //////////////////////////////////////////////////////////////////////////////
   //_warn("globalStep_reduce %ld %ld", nSeenSequences_loc.load(), nSeenTransitions_loc.load());
   globalStep_reduce.update( { nSeenSequences_loc.load(),
@@ -51,7 +56,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
       std::vector<long double> thNewSSum(dimS, 0), thNewSSqSum(dimS, 0);
       #pragma omp for schedule(dynamic) nowait
       for(Uint i=0; i<setSize; ++i) {
-        const Sequence & EP = * Set[i];
+        const Sequence & EP = episodes[i];
         const Uint N = EP.ndata();
         count += N;
         for(Uint j=0; j<N; ++j) {
@@ -112,11 +117,55 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   }
 }
 
-void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho,
-                             const bool recompute)
+void MemoryProcessing::updateReFERpenalization()
 {
-  assert(CmaxRho>=1);
-  const Fval invC = 1/CmaxRho, farPolTol = settings.penalTol;
+  // use result from prev AllReduce to update rewards (before new reduce).
+  // Assumption is that the number of off Pol trajectories does not change
+  // much each step. Especially because here we update the off pol W only
+  // if an obs is actually sampled. Therefore at most this fraction
+  // is wrong by batchSize / nTransitions ( ~ 0 )
+  // In exchange we skip an mpi implicit barrier point.
+  ReFER_reduce.update({(long double) nFarPolicySteps,
+                       (long double) nTransitions});
+  const LDvec nFarGlobal = ReFER_reduce.get();
+  const Real fracOffPol = nFarGlobal[0] / nFarGlobal[1];
+
+  const auto fixPointIter = [] (const Real val, const bool goTo0) {
+    if (goTo0) // fixed point iter converging to 0:
+      return (1 - std::min(1e-4, val)) * val;
+    else       // fixed point iter converging to 1:
+      return (1 - std::min(1e-4, val)) * val + std::min(1e-4, 1-val);
+  };
+
+  // if too much far policy data, increase weight of Dkl penalty
+  beta = fixPointIter(beta, fracOffPol > settings.penalTol);
+
+  // USED ONLY FOR CMA: how do we weight cirit cost and policy cost?
+  // if we satisfy too strictly far-pol constrain, reduce weight of policy
+  alpha = fixPointIter(alpha,std::fabs(settings.penalTol - fracOffPol) < 0.001);
+}
+
+void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
+{
+  const bool bRecomputeProperties = ( (nGradSteps + 1) % 100) == 0;
+  //shift data / gradient counters to maintain grad stepping to sample
+  // collection ratio prescirbed by obsPerStep
+  Real C = settings.clipImpWeight, E = settings.epsAnneal;
+
+  if(ALGO == BATCHRL) {
+    const Real maxObsNum = settings.maxTotObsNum_local;
+    const Real factorUp = std::max((Real) 1, nTransitions.load() / maxObsNum);
+    //const Real factorDw = std::min((Real)1, maxObsNum / obsNum);
+    //D *= factorUp;
+    //CmaxRet = 1 + C * factorDw
+    CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, E) * factorUp;
+  } else {
+    CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, E);
+  }
+
+  CinvRet = 1 / CmaxRet;
+  if(CmaxRet <= 1 and C > 0) die("Unallowed ReF-ER annealing values.");
+  assert(CmaxRet>=1);
 
   MostOffPolicyEp totMostOff; OldestDatasetEp totFirstIn;
   MostFarPolicyEp totMostFar; HighestAvgDklEp totHighDkl;
@@ -132,8 +181,8 @@ void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho,
     #pragma omp for schedule(static, 1) nowait
     for (Uint i = 0; i < setSize; ++i)
     {
-      Sequence & EP = * Set[i];
-      if (recompute) EP.updateCumulative(CmaxRho, invC);
+      Sequence & EP = episodes[i];
+      if (bRecomputeProperties) EP.updateCumulative(CmaxRet, CinvRet);
       _nOffPol += EP.nFarPolicySteps();
       _totDKL  += EP.sumKLDivergence;
       locFirstIn.compare(EP, i); locMostOff.compare(EP, i);
@@ -147,7 +196,7 @@ void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho,
     }
   }
 
-  if (CmaxRho<=1) nFarPolicySteps = 0; //then this counter and its effects are skipped
+  if (CmaxRet<=1) nFarPolicySteps = 0; //then this counter and its effects are skipped
   avgKLdivergence = _totDKL / RM->readNData();
   nFarPolicySteps = _nOffPol;
   oldestStoresTimeStamp = totFirstIn.timestamp;
@@ -166,30 +215,35 @@ void MemoryProcessing::prune(const FORGET ALGO, const Fval CmaxRho,
 
     case MAXKLDIV: indexOfEpisodeToDelete = totHighDkl(); break;
 
-    case BATCHRL: indexOfEpisodeToDelete = totMostOff(farPolTol); break;
+    case BATCHRL: indexOfEpisodeToDelete = totMostOff(settings.penalTol); break;
   }
 
   if (indexOfEpisodeToDelete >= 0) {
     // prevent any race condition from causing deletion of newest data:
-    const Sequence & EP2delete = * Set[indexOfEpisodeToDelete];
-    if (Set[totFirstIn.ind]->ID + (Sint) setSize < EP2delete.ID)
+    const Sequence & EP2delete = episodes[indexOfEpisodeToDelete];
+    if (episodes[totFirstIn.ind].ID + (Sint) setSize < EP2delete.ID)
         indexOfEpisodeToDelete = totFirstIn.ind;
   }
 }
 
-void MemoryProcessing::finalize()
+void MemoryProcessing::prepareNextBatchAndDeleteStaleEp()
 {
-  const long setSize = RM->readNSeq();
+  // Here we:
+  // 1) Reset flags that signal request to update estimators. This step could
+  //    be eliminated and bundled in with next minibatch sampling step.
+  // 2) Remove episodes from the RM if needed.
+  // 3) Update minibatch sampling distributions, must be done right after
+  //    removal of data from RM. This is reason why we bundle these 3 steps.
 
-  // reset flags that signal request to update estimators:
   const std::vector<Uint>& sampled = RM->lastSampledEpisodes();
   const Uint sampledSize = sampled.size();
   for(Uint i = 0; i < sampledSize; ++i) {
-    Sequence * const S = RM->get(sampled[i]);
-    assert(S->just_sampled >= 0);
-    S->just_sampled = -1;
+    Sequence & S = RM->get(sampled[i]);
+    assert(S.just_sampled >= 0);
+    S.just_sampled = -1;
   }
-  for(long i=0; i<setSize; ++i) assert(RM->get(i)->just_sampled < 0);
+  const long setSize = RM->readNSeq();
+  for(long i=0; i<setSize; ++i) assert(RM->get(i).just_sampled < 0);
 
   // Safety measure: we don't use as delete condition "if Nobs > maxTotObsNum",
   // We use "if Nobs - toDeleteEpisode.ndata() > maxTotObsNum".
@@ -197,8 +251,9 @@ void MemoryProcessing::finalize()
   // Has negligible effect if hyperparam maxTotObsNum is chosen appropriately.
   if(indexOfEpisodeToDelete >= 0)
   {
-    const Uint maxTotObsNum = settings.maxTotObsNum_local; // for MPI-learners
-    if(RM->readNData() - Set[indexOfEpisodeToDelete]->ndata() > maxTotObsNum) {
+    const Uint maxTotObs = settings.maxTotObsNum_local; // for MPI-learners
+    if(RM->readNData() - episodes[indexOfEpisodeToDelete].ndata() > maxTotObs)
+    {
       //warn("Deleting episode");
       RM->removeSequence(indexOfEpisodeToDelete);
       nPrunedEps ++;
@@ -206,15 +261,14 @@ void MemoryProcessing::finalize()
     indexOfEpisodeToDelete = -1;
   }
 
-  // update sampling algorithm:
-  RM->sampler->prepare(RM->needs_pass);
+  RM->sampler->prepare(RM->needs_pass); // update sampling algorithm
 }
 
 void MemoryProcessing::getMetrics(std::ostringstream& buff)
 {
   Real avgR = 0;
   const long nSeq = nSequences.load();
-  for(long i=0; i<nSeq; ++i) avgR += Set[i]->totR;
+  for(long i=0; i<nSeq; ++i) avgR += episodes[i].totR;
 
   Utilities::real2SS(buff, avgR/(nSeq+1e-7), 9, 0);
   Utilities::real2SS(buff, 1/invstd_reward, 6, 1);
@@ -229,7 +283,10 @@ void MemoryProcessing::getMetrics(std::ostringstream& buff)
   buff<<" "<<std::setw(7)<<oldestStoresTimeStamp;
   buff<<" "<<std::setw(4)<<nPrunedEps;
   buff<<" "<<std::setw(6)<<nFarPolicySteps;
-
+  if(CmaxRet>1) {
+    //Utilities::real2SS(buf, alpha, 6, 1);
+    Utilities::real2SS(buff, beta, 6, 1);
+  }
   nPrunedEps = 0;
 }
 
@@ -238,47 +295,10 @@ void MemoryProcessing::getHeaders(std::ostringstream& buff)
   buff <<
   //"|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nFarP ";
   "|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
-}
-
-FORGET MemoryProcessing::readERfilterAlgo(const std::string setting,
-  const bool bReFER)
-{
-  const int world_rank = MPICommRank(MPI_COMM_WORLD);
-  if(setting == "oldest") {
-    if(world_rank == 0)
-    printf("Experience Replay storage: First In First Out.\n");
-    return OLDEST;
+  if(CmaxRet>1) {
+    //buf << "| alph | beta ";
+    buff << "| beta ";
   }
-  if(setting == "farpolfrac") {
-    if(world_rank == 0)
-    printf("Experience Replay storage: remove most 'far policy' episode.\n");
-    return FARPOLFRAC;
-  }
-  if(setting == "maxkldiv") {
-    if(world_rank == 0)
-    printf("Experience Replay storage: remove highest average DKL episode.\n");
-    return MAXKLDIV;
-  }
-  if(setting == "batchrl") {
-    if(world_rank == 0)
-    printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
-    return BATCHRL;
-  }
-  //if(setting == "minerror")   return MINERROR; miriad ways this can go wrong
-  if(setting == "default") {
-    if(bReFER) {
-      if(world_rank == 0)
-      printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
-      return BATCHRL;
-    }
-    else {
-      if(world_rank == 0)
-      printf("Experience Replay storage: First In First Out.\n");
-      return OLDEST;
-    }
-  }
-  die("ERoldSeqFilter not recognized");
-  return OLDEST; // to silence warning
 }
 
 void MemoryProcessing::histogramImportanceWeights()
@@ -294,7 +314,7 @@ void MemoryProcessing::histogramImportanceWeights()
   const Uint setSize = RM->readNSeq();
   #pragma omp parallel for schedule(dynamic, 1) reduction(+ : counts[:nBins])
   for (Uint i = 0; i < setSize; ++i) {
-    const auto & EP = * Set[i];
+    const auto & EP = episodes[i];
     for (Uint j=0; j < EP.ndata(); ++j) {
       const auto rho = EP.offPolicImpW[j];
       for (Uint b = 0; b < nBins; ++b)

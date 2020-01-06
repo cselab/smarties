@@ -22,7 +22,7 @@ class Sampling
  protected:
   std::vector<std::mt19937>& gens;
   MemoryBuffer* const RM;
-  const std::vector<Sequence*>& Set;
+  std::vector<Sequence>& episodes;
   const bool bSampleSequences;
 
   long nSequences() const;
@@ -41,6 +41,9 @@ class Sampling
   void IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
                   const std::vector<Uint>& ret, const Uint nSeqs);
   virtual bool requireImportanceWeights() = 0;
+
+  static std::unique_ptr<Sampling> prepareSampler(MemoryBuffer * const,
+                                                  Settings&, DistributionInfo&);
 };
 
 class Sample_uniform : public Sampling

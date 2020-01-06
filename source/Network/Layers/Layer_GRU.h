@@ -16,6 +16,11 @@ namespace smarties
 
 class MGULayer: public Layer
 {
+  // MGU (Minimal Gated Unit)  input(t) -> [GRU] -> output(t)
+  // forget(t) = sigmoid (Wfr output(t-1) + Wff input(t) + bf)
+  // state(t)  =    tanh (Wsr [forget(t) * output(t-1)] + Wsf input(t) + bs
+  // output(t) = (1 - forget(t)) * output(t-1) + forget(t) * state(t)
+  // Where * and + are element-wise ops, weight-vector multiplication is implied
   const Uint nInputs, nCells;
   const std::unique_ptr<Function> cell;
 
@@ -60,51 +65,55 @@ class MGULayer: public Layer
                 const Activation*const curr,
                 const Parameters*const para) const override
   {
-    // suminp contains input to all cell inputs and gates
-    // only one matrix-vector multiplication
-    nnReal* const forget = curr->X(ID);
-    nnReal* const cellst = curr->X(ID) + nCells;
-    nnReal* const output = curr->Y(ID);
+    // linearOutput contains input to all cell inputs and gates
+    // it then gets split into first nCell components and last nCell components
+    nnReal* const forget = curr->X(ID);          // first nCell is forget gate
+    nnReal* const state  = curr->X(ID) + nCells; // last nCell is cell state
+    nnReal* const output = curr->Y(ID);          // MGU output
+    // para->W(ID) contains [Wff Wsf Wfr Wsr] := [ weights feedforward forget,
+    // w ff cellstate, w recurrent forget, w recur cellstate ]
     {
-      nnReal* const allinp = curr->X(ID);
-      memcpy(allinp, para->B(ID), 2*nCells*sizeof(nnReal));
-      const nnReal* const inputs = curr->Y(ID-link);
-      const nnReal* const weight = para->W(ID);
+      nnReal* const linearOutput = curr->X(ID); // both forget and cell state
+      memcpy(linearOutput, para->B(ID), 2*nCells*sizeof(nnReal)); // add bias
+      const nnReal* const inputs = curr->Y(ID-link); // output of prev layer
+      const nnReal* const weight = para->W(ID); // weights for feedforward op
       for (Uint i = 0; i < nInputs; ++i) {
         const nnReal* const W = weight + (2*nCells)*i;
-        #pragma omp simd aligned(allinp, inputs, W : VEC_WIDTH)
-        for (Uint o = 0; o < 2*nCells; ++o) allinp[o] += inputs[i] * W[o];
+        #pragma omp simd aligned(linearOutput, inputs, W : VEC_WIDTH)
+        for (Uint o = 0; o < 2*nCells; ++o) linearOutput[o] += inputs[i] * W[o];
       }
     }
 
-    if(prev not_eq nullptr)
+    if(prev not_eq nullptr) // if not at first time step
     {
+      // forget = = sigm [ Wfr prevOutput + Wff inputs + b ]
       const nnReal* const inputs = prev->Y(ID);
-      const nnReal* const weight = para->W(ID) +(2*nCells)*nInputs;
+      // recurrent connection weights are shifted by (2*nCells)*nInputs:
+      const nnReal* const weightRecur = para->W(ID) +(2*nCells)*nInputs;
       for (Uint i=0; i<nCells; ++i) {
-        const nnReal* const W = weight + (2*nCells)*i;
-        #pragma omp simd aligned(forget, inputs, W : VEC_WIDTH)
-        for(Uint o=0; o<nCells; ++o) forget[o] += W[o] * inputs[i];
+        const nnReal* const Wfr = weightRecur + (2*nCells)*i;
+        #pragma omp simd aligned(forget, inputs, Wfr : VEC_WIDTH)
+        for(Uint o=0; o<nCells; ++o) forget[o] += Wfr[o] * inputs[i];
       }
       Sigm::_eval(forget, forget, nCells);
-
+      // state = tanh [ Wsr (forget \elemProd prevOut) + Wsf inputs + b ]
       for (Uint i=0; i<nCells; ++i) {
-        const nnReal* const W = weight +(2*nCells)*i +nCells;
-        #pragma omp simd aligned(cellst, forget, inputs, W : VEC_WIDTH)
-        for(Uint o=0; o<nCells; ++o) cellst[o] += W[o] * inputs[i] * forget[i];
+        const nnReal* const Wsr = weightRecur + (2*nCells)*i +nCells;
+        #pragma omp simd aligned(state, forget, inputs, Wsr : VEC_WIDTH)
+        for(Uint o=0; o<nCells; ++o) state[o] += Wsr[o] * inputs[i] * forget[i];
       }
-      Tanh::_eval(cellst, cellst, nCells);
-
-      #pragma omp simd aligned(output, forget, inputs, cellst : VEC_WIDTH)
+      Tanh::_eval(state, state, nCells);
+      // output = = (1 - forget) \elemProd prevOut + forget \elemProd state
+      #pragma omp simd aligned(output, forget, inputs, state : VEC_WIDTH)
       for (Uint o=0; o<nCells; ++o)
-        output[o] = forget[o]*inputs[o] + (1-forget[o])*cellst[o];
+        output[o] = forget[o]*state[o] + (1-forget[o])*inputs[o];
     }
     else
     {
       Sigm::_eval(forget, forget, nCells);
-      Tanh::_eval(cellst, cellst, nCells);
-      #pragma omp simd aligned(output, forget, cellst : VEC_WIDTH)
-      for (Uint o=0; o<nCells; ++o) output[o] = (1-forget[o])*cellst[o];
+      Tanh::_eval(state, state, nCells);
+      #pragma omp simd aligned(output, forget, state : VEC_WIDTH)
+      for (Uint o=0; o<nCells; ++o) output[o] = forget[o]*state[o];
     }
   }
 
@@ -114,108 +123,85 @@ class MGULayer: public Layer
                   const Parameters*const grad,
                   const Parameters*const para) const override
   {
-
+    using Utilities::allocate_ptr;
     const nnReal* const forget = curr->X(ID);
-    const nnReal* const cellst = curr->X(ID) + nCells;
-      //const nnReal* const output = curr->Y(ID);
-    nnReal* const deltas = curr->E(ID);
-    nnReal* const deltaF = curr->E(ID) + nCells;
-    nnReal* const deltaC = curr->Y(ID) + nCells;
-    nnReal* const prvOut = prev==nullptr? Utilities::allocate_ptr(nCells) : prev->Y(ID);
-    nnReal* const prvErr = prev==nullptr? nullptr : prev->E(ID);
-    nnReal* const tmp = Utilities::allocate_dirty(nCells);
+    const nnReal* const state  = curr->X(ID) + nCells;
+    const nnReal* const dLdO = curr->E(ID); // dLossdGRU, comes from backprop
+    nnReal* const dLdF = curr->E(ID) + nCells; // dLoss dForgetGate
+    // curr->Y(ID) + nCells is unused memory: used here to store dLoss dState
+    nnReal* const dLdS = curr->Y(ID) + nCells;
+    nnReal* const prevOut = prev==nullptr? allocate_ptr(nCells) : prev->Y(ID);
+    nnReal* const dLdprevOut = prev==nullptr? nullptr : prev->E(ID);
+    // temp buffer for dLoss d(forget * previousInput) through state update
+    nnReal* const dLdFprevOut = allocate_ptr(nCells);
 
-    #pragma omp simd aligned(deltaC, deltas, forget, cellst : VEC_WIDTH)
+    // 1) dLdS = forget * dLdO * tanh' (so it is actually dLoss d InputToTanh)
+    #pragma omp simd aligned(dLdS, dLdO, forget, state : VEC_WIDTH)
     for (Uint o=0; o<nCells; ++o)
-      deltaC[o] = deltas[o] * (1-forget[o]) * (1-cellst[o]*cellst[o]);
+      dLdS[o] = dLdO[o] * forget[o] * (1-state[o]*state[o]);
 
-    #if 1
-
+    // 2) dLdFprevOut = Wsr * dLdS
     if(prev not_eq nullptr)
     {
-      const nnReal * const WRC = para->W(ID) + (2*nCells)*nInputs + nCells;
+      const nnReal*const Wsr = para->W(ID) + (2*nCells)*nInputs + nCells;
       #ifdef USE_OMPSIMD_BLAS
-        GEMVomp(nCells, nCells, 2*nCells, WRC, deltaC, tmp);
+        GEMVomp(nCells, nCells, 2*nCells, Wsr, dLdS, dLdFprevOut);
       #else
         SMARTIES_gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
-          WRC, 2*nCells, deltaC, 1, 0, tmp, 1);
+          Wsr, 2*nCells, dLdS, 1, 0, dLdFprevOut, 1);
       #endif
-
-    } else memset( tmp, 0, nCells*sizeof(nnReal) );
-
-    #pragma omp simd aligned(deltaF,prvOut,cellst,deltas,forget,tmp : VEC_WIDTH)
-    for (Uint o=0; o<nCells; ++o) {
-      deltaF[o] = forget[o]*(1-forget[o]) *
-        ((prvOut[o]-cellst[o])*deltas[o] + tmp[o]*prvOut[o]);
     }
 
-    #else // more compact and readable:
+    // 3) dLdF = ((state - prevOut) * dLdO + dLdFprevOut * prevOut) * sigm'
+    #pragma omp simd aligned(dLdF,prevOut,state,dLdO,forget,dLdFprevOut : VEC_WIDTH)
+    for (Uint o=0; o<nCells; ++o)
+      dLdF[o] = ((state[o]-prevOut[o])*dLdO[o] + dLdFprevOut[o]*prevOut[o]) *
+                forget[o] * (1-forget[o]);
 
-      for (Uint o=0; o<nCells; ++o) {
-        nnReal dF = (prvOut[o] - cellst[o]) * deltas[o];
-        const nnReal*const weight = para->W(ID) +(2*nCells)*(nInputs+o) +nCells;
-        for (Uint k = 0; k < nCells && prev not_eq nullptr; ++k)
-          dF += deltaC[k] * prvOut[o] * weight[k];
-        deltaF[o] = dF * forget[o] * (1-forget[o]);
-      }
-
-    #endif
-
-    #if 1
-
-    if(prev not_eq nullptr) {
-      #pragma omp simd aligned(prvErr, forget, deltas, tmp : VEC_WIDTH)
-      for(Uint o=0; o<nCells; ++o) prvErr[o] += forget[o]*(deltas[o] + tmp[o]);
-
-      const nnReal * const WRF = para->W(ID) +(2*nCells)*nInputs;
+    // 4) dLdprevOut = (1-forget)*dLdO + dLdFprevOut*forget + Wfr*dFdL
+    if(prev not_eq nullptr)
+    {
+      #pragma omp simd aligned(dLdprevOut,forget,dLdO,dLdFprevOut : VEC_WIDTH)
+      for(Uint o=0; o<nCells; ++o) // first two terms of 4) are elt-wise:
+        dLdprevOut[o] += (1-forget[o])*dLdO[o] + forget[o]*dLdFprevOut[o];
+      // last term of 4):
+      const nnReal * const Wfr = para->W(ID) +(2*nCells)*nInputs;
       #ifdef USE_OMPSIMD_BLAS
-        GEMVomp(nCells, nCells, 2*nCells, WRF, deltaF, prvErr);
+        GEMVomp(nCells, nCells, 2*nCells, Wfr, dLdF, dLdprevOut);
       #else
         SMARTIES_gemv(CblasRowMajor, CblasNoTrans, nCells, nCells, 1,
-          WRF, 2*nCells, deltaF, 1, 1, prvErr, 1);
+          Wfr, 2*nCells, dLdF, 1, 1, dLdprevOut, 1);
       #endif
-
     }
-    free(tmp);
+    free(dLdFprevOut);
 
-    #else // more compact and readable
-
-    for (Uint o=0; o<nCells && prev not_eq nullptr; ++o) {
-      prvErr[o] += forget[o] * deltas[o];
-      const nnReal* const weight = para->W(ID) +(2*nCells)*(nInputs+o);
-      for (Uint k = 0; k < nCells; ++k)
-        prvErr[o] += deltaF[k]*weight[k] + deltaC[k]*forget[o]*weight[k+nCells];
-    }
-
-    #endif
-
+    // backprop dL to input dLdI = Wff * dLdF + Wsf * dLdS
     if( spanCompInpGrads )
     {
-            nnReal* const errors = curr->E(ID-link) + startCompInpGrads;
-      const nnReal* const WHF = para->W(ID) +startCompInpGrads*2*nCells;
-      const nnReal* const WHC = para->W(ID) +startCompInpGrads*2*nCells +nCells;
+      nnReal* const dLdInput = curr->E(ID-link) + startCompInpGrads;
+      const nnReal* const Wff = para->W(ID) +startCompInpGrads*2*nCells;
+      const nnReal* const Wsf = para->W(ID) +startCompInpGrads*2*nCells +nCells;
       #ifdef USE_OMPSIMD_BLAS
-        GEMVomp(nCells, spanCompInpGrads, 2*nCells, WHF, deltaF, errors);
-        GEMVomp(nCells, spanCompInpGrads, 2*nCells, WHC, deltaC, errors);
+        GEMVomp(nCells, spanCompInpGrads, 2*nCells, Wff, dLdF, dLdInput);
+        GEMVomp(nCells, spanCompInpGrads, 2*nCells, Wsf, dLdS, dLdInput);
       #else
         SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
-          WHF, 2*nCells, deltaF, 1, 1, errors, 1);
+          Wff, 2*nCells, dLdF, 1, 1, dLdInput, 1);
         SMARTIES_gemv(CblasRowMajor, CblasNoTrans, spanCompInpGrads, nCells, 1,
-          WHC, 2*nCells, deltaC, 1, 1, errors, 1);
+          Wsf, 2*nCells, dLdS, 1, 1, dLdInput, 1);
       #endif
-
     }
 
-    if(prev==nullptr) { free(prvOut); }
+    if(prev==nullptr) { free(prevOut); }
 
-    if(grad == nullptr) return;
+    if(grad == nullptr) return; // then no need to compute grad w.r.t. params
 
     {
       nnReal* const grad_b = grad->B(ID);
-      #pragma omp simd aligned(grad_b, deltaF, deltaC : VEC_WIDTH)
+      #pragma omp simd aligned(grad_b, dLdF, dLdS : VEC_WIDTH)
       for(Uint o=0; o<nCells; ++o) {
-        grad_b[o]        += deltaF[o];
-        grad_b[o+nCells] += deltaC[o];
+        grad_b[o]        += dLdF[o];
+        grad_b[o+nCells] += dLdS[o];
       }
     }
 
@@ -223,10 +209,10 @@ class MGULayer: public Layer
       const nnReal* const inputs = curr->Y(ID-link);
       for(Uint i=0; i<nInputs;  ++i) {
         nnReal* const G = grad->W(ID) + (2*nCells)*i;
-        #pragma omp simd aligned(G, inputs, deltaF, deltaC : VEC_WIDTH)
+        #pragma omp simd aligned(G, inputs, dLdF, dLdS : VEC_WIDTH)
         for(Uint o=0; o<nCells; ++o) {
-          G[o]        += inputs[i] * deltaF[o];
-          G[o+nCells] += inputs[i] * deltaC[o];
+          G[o]        += inputs[i] * dLdF[o];
+          G[o+nCells] += inputs[i] * dLdS[o];
         }
       }
     }
@@ -235,10 +221,10 @@ class MGULayer: public Layer
     {
       for(Uint i=0; i<nCells; ++i) {
         nnReal* const G = grad->W(ID) + 2*nCells * (nInputs + i);
-        #pragma omp simd aligned(G, prvOut, deltaF, deltaC, forget : VEC_WIDTH)
+        #pragma omp simd aligned(G, prevOut, dLdF, dLdS, forget : VEC_WIDTH)
         for(Uint o=0; o<nCells; ++o) {
-          G[o]        += prvOut[i] * deltaF[o];
-          G[o+nCells] += prvOut[i] * deltaC[o] * forget[i];
+          G[o]        += prevOut[i] * dLdF[o];
+          G[o+nCells] += prevOut[i] * dLdS[o] * forget[i];
         }
       }
     }
@@ -287,9 +273,3 @@ class MGULayer: public Layer
 
 } // end namespace smarties
 #endif // smarties_Quadratic_term_h
-    // ft = sf (wf xt + uf ho)
-    // ct = sr (wh xt + uh ft ho)
-    // ht = ft*ho + (1-ft)*ct
-    // dc = e*(1-ft)*ct'
-    // df = ((ho-rt)*e + dc * uh^T *ho )*ft'
-    // dh = e*ft + uf * df + ft * uh * dc

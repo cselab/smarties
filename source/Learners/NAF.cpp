@@ -64,8 +64,8 @@ NAF::NAF(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
 void NAF::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = * data_get->get(agent.ID);
-  const MiniBatch MB = data->agentToMinibatch(&EP);
+  Sequence& EP = data_get->get(agent.ID);
+  const MiniBatch MB = data->agentToMinibatch(EP);
 
   if( agent.agentStatus < TERM ) // not last of a sequence
   {

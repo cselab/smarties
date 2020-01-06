@@ -101,7 +101,7 @@ void Network::checkGrads()
   const auto std1 = std::sqrt((sumsq1-sum1*avg1)/NW);
   const auto std2 = std::sqrt((sumsq2-sum2*avg2)/NW);
   const auto std3 = std::sqrt((sumsq3-sum3*avg3)/NW);
-  printf("<|grad|>:%Lf (std:%Lf) <|diff|>:%Lf (std:%Lf) <|err|>::%Lf (std:%Lf)\n",
+  printf("<|grad|>:%Le (std:%Le) <|diff|>:%Le (std:%Le) <|err|>::%Le (std:%Le)\n",
     avg1, std1, avg2, std2, avg3, std3);
   //die("done");
 }

@@ -289,21 +289,22 @@ struct Agent
     resetActionNoise();
   }
 
+  Real sampleClippedGaussian()
+  {
+    Real samp = distribution(generator);
+    if(samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) return safety(generator);
+    else return samp;
+  }
+
   void resetActionNoise()
   {
     // only one agent (0) needs to set a noise vector, and
     // if noise is non shared then this does not matter:
     if(localID > 0 or not MDP.bAgentsShareNoise) return;
-    for(Uint i=0; i<aInfo.dim(); ++i) {
-      Real samp = distribution(generator);
-      if(samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(generator);
-      MDP.sharedNoiseVecTic[i] = samp;
-    }
-    for(Uint i=0; i<aInfo.dim(); ++i) {
-      Real samp = distribution(generator);
-      if(samp >  NORMDIST_MAX || samp < -NORMDIST_MAX) samp = safety(generator);
-      MDP.sharedNoiseVecToc[i] = samp;
-    }
+    for(Uint i=0; i<aInfo.dim(); ++i)
+      MDP.sharedNoiseVecTic[i] = sampleClippedGaussian();
+    for(Uint i=0; i<aInfo.dim(); ++i)
+      MDP.sharedNoiseVecToc[i] = sampleClippedGaussian();
   }
 
   Rvec sampleActionNoise()
@@ -312,25 +313,17 @@ struct Agent
     {
       // tic toc scheme to avoid race conditions:
       const bool bTic = timeStepInEpisode % 2;
-      if(localID == 0)
+      if(localID == 0) // agent 0 prepares next noise vector for the team:
       {
-        auto& nextNoise = bTic? MDP.sharedNoiseVecToc : MDP.sharedNoiseVecTic;
-        for(Uint i=0; i<aInfo.dim(); ++i) {
-          nextNoise[i] = distribution(generator);
-          if(nextNoise[i] >  NORMDIST_MAX || nextNoise[i] < -NORMDIST_MAX)
-            nextNoise[i] = safety(generator);
-        }
+        auto& nxtNoise = bTic? MDP.sharedNoiseVecToc : MDP.sharedNoiseVecTic;
+        for(Uint i=0; i<aInfo.dim(); ++i) nxtNoise[i] = sampleClippedGaussian();
       }
       return bTic? MDP.sharedNoiseVecTic : MDP.sharedNoiseVecToc;
     }
     else
     {
       Rvec sample(aInfo.dim());
-      for(Uint i=0; i<aInfo.dim(); ++i) {
-        sample[i] = distribution(generator);
-        if(sample[i] >  NORMDIST_MAX || sample[i] < -NORMDIST_MAX)
-          sample[i] = safety(generator);
-      }
+      for(Uint i=0; i<aInfo.dim(); ++i) sample[i] = sampleClippedGaussian();
       return sample;
     }
   }

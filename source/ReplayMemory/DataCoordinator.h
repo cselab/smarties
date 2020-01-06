@@ -27,7 +27,7 @@ class DataCoordinator
   const Uint MDPID = replay->MDP.localID;
   const StateInfo& sI = replay->sI;
   const ActionInfo& aI = replay->aI;
-  std::vector<Sequence*> episodes;
+  std::vector<Sequence> episodes;
 
   // allows masters to share episodes between each others
   // each master sends the size (in floats) of the episode
@@ -56,7 +56,7 @@ public:
 
   void mastersRecvEpisodes();
 
-  void addComplete(Sequence* const EP, const bool bUpdateParams);
+  void addComplete(Sequence& EP, const bool bUpdateParams);
 
   bool bRunParameterServer = false;
   bool bLearnersEpsSharing = false;
