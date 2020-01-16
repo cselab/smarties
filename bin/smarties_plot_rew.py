@@ -22,10 +22,11 @@ def getWorkerRankToPlot(parsed, agentid, PATH):
         return -1 # nothing found
     else: return parsed.workerRank # return user's choice
 
-def plotReward(ax, PATH, agentid, rank, colorid):
+def plotReward(args, ax, PATH, agentid, rank, colorid):
     FILE = "%s/agent_%02d_rank%02d_cumulative_rewards.dat" % (PATH,agentid,rank)
     assert os.path.isfile(FILE)
-    if input("Display file %s? (y/n) " % (FILE)) == 'n' : return None, None
+    if args.bAsk and input("Display file %s? (y/n) " % (FILE)) == 'n' :
+       return None, None
 
     DATA = np.fromfile(FILE, sep=' ')
     DATA = DATA.reshape(DATA.size//5, 5) # t_step grad_step worker seqlen R
@@ -60,6 +61,9 @@ if __name__ == '__main__':
     parser.add_argument('--agentID', type=int, default=-1,
       help="Will plot the cumulative rewards obtained by this agent within each "
            "environment. Defaults to plotting all agents.")
+    parser.add_argument('--ask',   dest='bAsk',   action='store_true',
+    help="Set if script should ask before plotting each reward file (useful for multi-agent sims).")
+    parser.set_defaults(bAsk=False)
     parsed = parser.parse_args()
 
     fig = plt.figure()
@@ -76,7 +80,7 @@ if __name__ == '__main__':
                     # no data found for this agent on any rank,
                     # probably reached last agent
                     break
-                fill, line = plotReward(ax, PATH, agentID, rank, colorID)
+                fill, line = plotReward(parsed, ax, PATH, agentID, rank, colorID)
                 agentID += 1
                 if fill is not None:
                     colorID += 1
@@ -84,7 +88,7 @@ if __name__ == '__main__':
                     fills += [fill]
         else:
             rank = getWorkerRankToPlot(parsed, parsed.agentID, PATH)
-            fill, line = plotReward(ax, PATH, parsed.agentID, rank, colorID)
+            fill, line = plotReward(parsed, ax, PATH, parsed.agentID, rank, colorID)
             if fill is not None:
                     colorID += 1
                     lines += [line]

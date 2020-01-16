@@ -321,5 +321,193 @@ Outputs and postprocessing
 
 * Various files ending in ``.log``. These record the state of smarties on startup. They include: ``gitdiff.log`` records the changes wrt the last commit, ``gitlog.log`` records the last commits, ``out.log`` is a copy of the screen output, and ``problem_size.log`` records state/action sizes used by other scripts.
 
+API functions
+=============
 
+Here are reported all the functions available through the `Communicator` passed by smarties to the environment `app_main` function (see :ref:`ref-to-main-loop`). The main difference between using these functions with Python, as opposed to C++, is that Python lists or numpy arrays are used in place of `std::vector<double>`.  
+
+Use `python3 -c 'import smarties as rl; help(rl)'` when in doubt.
+
+Core RL loop
+------------
+
+These function are all thread-safe (not in Python, obviously) as long as different threads use different agentIDs.
+
+.. code:: shell
+
+    void sendInitState(const std::vector<double>& state, const int agentID = 0)
+
+Send the first state of a new episode for agent # 'agentID'. Because no action has been done yet there is no reward.
+
+.. code:: shell
+
+    void sendState(const std::vector<double>& state, const double reward, const int agentID = 0)
+
+Send normal state and reward for agent # 'agentID'.
+
+.. code:: shell
+
+    void sendTermState(const std::vector<double>& state, const double reward, const int agentID = 0)
+
+Send terminal state and reward for agent # 'agentID'. Note: V(s_terminal) = 0 because episode cannot continue. For example, agent succeeded in task, or is incapacitated, or time ran out on a time-constrained task.
+
+.. code:: shell
+
+    void sendLastState(const std::vector<double>& state, const double reward, const int agentID = 0)
+
+Send last state and reward of the episode for agent # 'agentID'. Note: This corresponds to V(s_last) != 0 and it implies that it would be possible to continue the episode with this policy. In other words, timeout is not caused by the agent's policy. For example, when a robot is learning to perform a repetitive task (e.g. walk) and there is some arbitrary time horizon (e.g. in OpenAI gym). Or in an environment where multiple cars are being driven by RL and which requires a full reset after each collision between cars. Two cars might crash and reach their terminal state. In this case, the cars not involved in the collision would be in a 'last state', because their policy was not cause for termination.
+
+.. code:: shell
+
+    std::vector<double>& recvAction(const int agentID = 0)
+
+Get the action for agent # 'agentID' selected by the RL algorithm according to the previously sent state (either initial or normal). Cannot be called after a last or terminal state.
+
+Problem specification
+---------------------
+
+These functions have to be used before calling 'sendInitState' for the first time.
+
+.. code:: shell
+
+    void setNumAgents(int nAgents)
+
+Set number of agents in the environment.
+
+.. code:: shell
+
+    void setStateActionDims(const int dimState, const int dimAct, const int agentID = 0)
+
+Set dimensionality of state and action for agent # 'agentID'.
+
+.. code:: shell
+
+    void setActionScales(const std::vector<double> upper, const std::vector<double> lower, const bool bound, const int agentID = 0)
+
+Set lower and upper scale of the actions for agent # 'agentID'. Boolean arg specifies if actions are bounded between given values. Implies continuous action spaces.
+
+.. code:: shell
+
+      void setActionScales(const std::vector<double> upper, const std::vector<double> lower, std::vector<bool> bound, const int agentID = 0)
+
+Set lower and upper scale of the actions for agent # 'agentID'. Boolean vector specifies if actions components are bounded between gien values. Implies continuous action spaces.
+
+.. code:: shell
+
+      void setActionOptions(const int options, const int agentID = 0)
+
+Set number of discrete control options for agent # 'agentID'. Implies discrete action spaces.
+
+.. code:: shell
+
+      void setActionOptions(const std::vector<int> options, const int agentID = 0)
+
+Set number of discrete control options for agent # 'agentID' in case of multi-dimensional options vectors (e.g. choose to turn left/right and shoot/dontshoot). Reduntant because can be directly mapped onto the previous function. Implies discrete action spaces.
+
+.. code:: shell
+
+      void setStateObservable(const std::vector<bool> observable, const int agentID = 0)
+
+For each state variable, set whether observed by agent # 'agentID'. Allows hiding state components from agent (will not be included in policy/value networks) or passing auxilliary observables to smarties such that they will be logged to file.
+
+.. code:: shell
+
+      void setStateScales(const std::vector<double> upper, const std::vector<double> lower, const int agentID = 0)
+
+Set upper & lower scaling values for the state of agent # 'agentID'.
+
+.. code:: shell
+
+      void setIsPartiallyObservable(const int agentID = 0)
+
+Specify that the decision process of agent # 'agentID' is non-Markovian and therefore smarties will use RNN.
+
+
+Advanced problem specification
+------------------------------
+
+.. code:: shell
+
+      void envHasDistributedAgents()
+
+Returns true if smarties is training, false if evaluating a policy.
+
+.. code:: shell
+
+      void agentsDefineDifferentMDP()
+
+Specify that each agent defines a different MPD (state/action/rew). This means that smarties will train a separate policy for each agent in the environment. All problem specification settings submitted before calling this function will be shared among all agents.
+
+.. code:: shell
+
+      void disableDataTrackingForAgents(int agentStart, int agentEnd)
+
+Set agents whose experiences should not be used as training data.
+
+.. code:: shell
+
+      void agentsShareExplorationNoise(const int agentID = 0)
+
+.. code:: shell
+
+      void setPreprocessingConv2d(const int input_width, const int input_height, const int input_features, const int kernels_num, const int filters_size, const int stride, const int agentID = 0)
+
+Request a convolutional layer in preprocessing of state for agent # 'agentID'. This function can be called multiple times to add multiple conv2d layers, but sizes (widths, heights, filters) must be consistent otherwise it will trigger an abort.
+
+.. code:: shell
+
+      void setNumAppendedPastObservations(const int n_appended, const int agentID = 0)
+
+Specify that the state of agent # 'agentID' should be composed with the current observation along with n_appended past ones. Like it was done in the Atari Nature paper to avoid using RNN.
+
+.. code:: shell
+
+      void finalizeProblemDescription()
+
+Signals that problem formulation will not be changed further. This function is otherwise called automatically by smarties before the first 'sendInitState'. It is only required that the user explicitly calls this function before starting the training loop for multi-threaded environments. In this case, multiple threads might attempt to call this function during their first 'sendInitState', which is not thread-safe.
+
+Utility
+-------
+These functions can be called at any time.
+
+.. code:: shell
+
+      std::mt19937& getPRNG()
+
+Passes a random number generator. C++ only.
+
+.. code:: shell
+
+      Real getUniformRandom(const Real begin = 0, const Real end = 1)
+
+Returns an uniformly distributed real number.
+
+.. code:: shell
+
+      Real getNormalRandom(const Real mean = 0, const Real stdev = 1)
+
+Returns a normally distributed real number.
+
+.. code:: shell
+
+      bool isTraining()
+
+Returns true if smarties is training, false if evaluating a policy.
+
+.. code:: shell
+
+      bool terminateTraining()
+
+Returns true if smarties is requesting application to exit. If application does not return after smarties requests an exit smarties will trigger an abort (inelegant exit).
+
+Function optimization interface
+-------------------------------
+
+.. code:: shell
+
+      const std::vector<double>& getOptimizationParameters(int agentID = 0)
+
+.. code:: shell
+
+      void setOptimizationEvaluation(const Real R, const int agentID = 0)
 

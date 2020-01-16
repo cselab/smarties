@@ -139,7 +139,7 @@ PYBIND11_MODULE(smarties, m)
          py::arg("upper_scale"), py::arg("lower_scale"),
          py::arg("areBounds"), py::arg("agentID") = 0,
          "Set lower and upper scale of the actions for agent # 'agentID'. "
-         "Boolean arg specifies if actions are bounded between gien values.")
+         "Boolean arg specifies if actions are bounded between given values.")
 
     .def("setActionScales",
          ( void (smarties::Communicator::*) (
