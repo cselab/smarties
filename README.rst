@@ -502,19 +502,19 @@ Returns true if smarties is requesting application to exit. If application does 
 
 .. code:: shell
 
-      bool getLearnersGradStepsNum(const int agentID = 0)
+      unsigned getLearnersGradStepsNum(const int agentID = 0)
 
 Returns the number of grad steps performed by the learning algorithm associated with agent # 'agentID'.
 
 .. code:: shell
 
-      bool getLearnersTrainingTimeStepsNum(const int agentID = 0)
+      unsigned getLearnersTrainingTimeStepsNum(const int agentID = 0)
 
 Returns the total number of actions (experiences) collected by the learning algorithm associated with agent # 'agentID'.
 
 .. code:: shell
 
-      bool getLearnersAvgCumulativeReward(const int agentID = 0)
+      double getLearnersAvgCumulativeReward(const int agentID = 0)
 
 Returns the average cumulative reward among all experiences in the Replay Memory of the learning algorithm associated with agent # 'agentID'. Not supported by on-policy methods.
 
