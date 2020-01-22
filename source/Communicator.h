@@ -167,7 +167,7 @@ public:
 
   VISIBLE unsigned getLearnersGradStepsNum(const int agentID = 0);
   VISIBLE unsigned getLearnersTrainingTimeStepsNum(const int agentID = 0);
-  VISIBLE Real getLearnersAvgCumulativeReward(const int agentID = 0);
+  VISIBLE double getLearnersAvgCumulativeReward(const int agentID = 0);
 
   VISIBLE bool isTraining() const;
 

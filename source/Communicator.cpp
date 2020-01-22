@@ -365,7 +365,7 @@ unsigned Communicator::getLearnersTrainingTimeStepsNum(const int agentID)
 {
   return agents[agentID]->learnerTimeStepID;
 }
-Real Communicator::getLearnersAvgCumulativeReward(const int agentID)
+double Communicator::getLearnersAvgCumulativeReward(const int agentID)
 {
   return agents[agentID]->learnerAvgCumulativeReward;
 }
