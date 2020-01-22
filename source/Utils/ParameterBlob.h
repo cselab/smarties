@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 #include <atomic>
+#include <cstring>
 
 namespace smarties
 {
@@ -39,10 +40,16 @@ class ParameterBlob
   std::vector<dataInfo> dataList;
   long & nDataGatheredB4Startup;
   std::atomic<long>& nGradSteps;
+  Real& avgCumulativeRew;
+  const Uint counterMsgSize = 2 * sizeof(long) + sizeof(Real);
+  void * const buffer = malloc(counterMsgSize);
+  long tmpnGrads;
 
 public:
-  ParameterBlob(const DistributionInfo& D, long& nDataB4, std::atomic<long>& nG)
-    : distrib(D), nDataGatheredB4Startup(nDataB4), nGradSteps(nG) {}
+  ParameterBlob(const DistributionInfo& D, long& nDataB4, std::atomic<long>& nG, Real& avgR)
+    : distrib(D), nDataGatheredB4Startup(nDataB4), nGradSteps(nG), avgCumulativeRew(avgR) {}
+
+  ~ParameterBlob() { free(buffer); }
 
   void add(const Uint size, nnReal * const data) {
     dataList.emplace_back(std::make_pair(size, data));
@@ -50,10 +57,13 @@ public:
 
   void recv(const Uint MDP_ID) const
   {
-    long counters[2];
-    MPI(Recv, counters, 2, MPI_LONG, 0, 72726+MDP_ID, comm, MPI_STATUS_IGNORE);
-    nDataGatheredB4Startup = counters[0];
-    nGradSteps = counters[1];
+    long nGrads;
+    MPI(Recv, buffer, counterMsgSize, MPI_BYTE, 0, 72726+MDP_ID, comm, MPI_STATUS_IGNORE);
+    memcpy(&nDataGatheredB4Startup, buffer, sizeof(long));
+    memcpy(&nGrads,                 buffer, sizeof(long));
+    memcpy(&avgCumulativeRew,       buffer, sizeof(Real));
+    nGradSteps = nGrads;
+
     // workers always recv params from learner (rank 0)
     for(const auto& data : dataList ) {
       MPI(Recv, data.second, data.first, SMARTIES_MPI_NNVALUE_TYPE, 0,
@@ -63,8 +73,11 @@ public:
 
   void send(const Uint toRank, const Uint MDP_ID)
   {
-    long counters[2] = {nDataGatheredB4Startup, nGradSteps.load()};
-    MPI(Send, counters, 2, MPI_LONG, toRank, 72726 + MDP_ID, comm);
+    const long nGrads = nGradSteps.load();
+    memcpy(buffer, &nDataGatheredB4Startup, sizeof(long));
+    memcpy(buffer, &nGrads,                 sizeof(long));
+    memcpy(buffer, &avgCumulativeRew,       sizeof(Real));
+    MPI(Send, buffer, counterMsgSize, MPI_BYTE, toRank, 72726 + MDP_ID, comm);
 
     for(const auto& data : dataList )
       MPI(Send, data.second, data.first, SMARTIES_MPI_NNVALUE_TYPE, toRank,

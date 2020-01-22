@@ -152,9 +152,10 @@ void Worker::answerStateAction(Agent& agent) const
 
   // Some logging and passing around of step id:
   const Real factor = learners.size()==1? 1.0/ENV.nAgentsPerEnvironment : 1;
-  const Uint nSteps = std::max(algo.nLocTimeStepsTrain(), (long) 0);
+  const Uint nSteps = std::max(algo.nLocTimeSteps(), (long) 0);
   agent.learnerTimeStepID = factor * nSteps;
   agent.learnerGradStepID = algo.nGradSteps();
+  if(agent.agentStatus >= TERM) agent.action[0] = algo.getAvgCumulativeReward();
   //debugS("Sent action to worker %d: [%s]", worker, print(actVec).c_str() );
 }
 

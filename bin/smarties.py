@@ -368,13 +368,13 @@ if __name__ == '__main__':
 
   absRunPath = os.path.abspath(relRunPath)
   os.environ['RUNDIR'] = absRunPath
-  
+
+  copySettingsFiles(parsed.settings, absRunPath)
   # dir created, copy executable and read any problem-specific setup options:
   applicationSetup(parsed, absRunPath)
   # once application is defined, we can figure out all computational resouces:
   setComputationalResources(parsed)
 
-  copySettingsFiles(parsed.settings, absRunPath)
   subprocess.run("cd ${SMARTIES_ROOT} && git log | head > ${RUNDIR}/gitlog.log", \
                  executable=parsed.shell, shell=True)
   subprocess.run("cd ${SMARTIES_ROOT} && git diff       > ${RUNDIR}/gitdiff.log", \

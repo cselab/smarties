@@ -203,6 +203,35 @@ PYBIND11_MODULE(smarties, m)
         "Specify that the decision process of agent # 'agentID' is "
         "non-Markovian and therefore smarties will use RNN.")
 
+    .def("getUniformRandom",
+        & smarties::Communicator::getUniformRandom,
+        py::arg("begin") = 0, py::arg("end") = 1,
+        "Generates an uniformly-distributed random number. "
+        "Ensures different seed in each environment process.")
+
+    .def("getNormalRandom",
+        & smarties::Communicator::getNormalRandom,
+        py::arg("mean") = 0, py::arg("stdev") = 1,
+        "Generates an normally-distributed random number. "
+        "Ensures different seed in each environment process.")
+
+    .def("getLearnersGradStepsNum",
+        & smarties::Communicator::getLearnersGradStepsNum,
+        py::arg("agentID") = 0,
+        "Returns the number of grad steps performed by the learning algorithm.")
+
+    .def("getLearnersTrainingTimeStepsNum",
+        & smarties::Communicator::getLearnersTrainingTimeStepsNum,
+        py::arg("agentID") = 0,
+        "Returns the total number of actions collected by the learning algorithm.")
+
+    .def("getLearnersAvgCumulativeReward",
+        & smarties::Communicator::getLearnersAvgCumulativeReward,
+        py::arg("agentID") = 0,
+        "Returns the average cumulative reward among all experiences in the "
+        "Replay Memory of the learning algorithm. Not supported by on-policy "
+        "methods.")
+
     .def("setPreprocessingConv2d",
         & smarties::Communicator::setPreprocessingConv2d,
         py::arg("input_width"), py::arg("input_height"), py::arg("input_features"),

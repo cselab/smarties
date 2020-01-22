@@ -170,10 +170,11 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
   MostOffPolicyEp totMostOff; OldestDatasetEp totFirstIn;
   MostFarPolicyEp totMostFar; HighestAvgDklEp totHighDkl;
 
+  Real _avgR = 0;
   Real _totDKL = 0;
   Uint _nOffPol = 0;
   const Uint setSize = RM->readNSeq();
-  #pragma omp parallel reduction(+ : _nOffPol, _totDKL)
+  #pragma omp parallel reduction(+ : _avgR, _totDKL, _nOffPol)
   {
     OldestDatasetEp locFirstIn; MostOffPolicyEp locMostOff;
     MostFarPolicyEp locMostFar; HighestAvgDklEp locHighDkl;
@@ -185,6 +186,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
       if (bRecomputeProperties) EP.updateCumulative(CmaxRet, CinvRet);
       _nOffPol += EP.nFarPolicySteps();
       _totDKL  += EP.sumKLDivergence;
+      _avgR    += EP.totR;
       locFirstIn.compare(EP, i); locMostOff.compare(EP, i);
       locMostFar.compare(EP, i); locHighDkl.compare(EP, i);
     }
@@ -199,6 +201,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
   if (CmaxRet<=1) nFarPolicySteps = 0; //then this counter and its effects are skipped
   avgKLdivergence = _totDKL / RM->readNData();
   nFarPolicySteps = _nOffPol;
+  RM->avgCumulativeReward = _avgR / (setSize + 1e-7);
   oldestStoresTimeStamp = totFirstIn.timestamp;
 
   assert(totMostFar.ind >= 0 && totMostFar.ind < (int) setSize);
@@ -266,15 +269,11 @@ void MemoryProcessing::prepareNextBatchAndDeleteStaleEp()
 
 void MemoryProcessing::getMetrics(std::ostringstream& buff)
 {
-  Real avgR = 0;
-  const long nSeq = nSequences.load();
-  for(long i=0; i<nSeq; ++i) avgR += episodes[i].totR;
-
-  Utilities::real2SS(buff, avgR/(nSeq+1e-7), 9, 0);
+  Utilities::real2SS(buff, RM->avgCumulativeReward, 9, 0);
   Utilities::real2SS(buff, 1/invstd_reward, 6, 1);
   Utilities::real2SS(buff, avgKLdivergence, 5, 1);
 
-  buff<<" "<<std::setw(5)<<nSeq;
+  buff<<" "<<std::setw(5)<<nSequences.load();
   buff<<" "<<std::setw(7)<<nTransitions.load();
   buff<<" "<<std::setw(7)<<nSeenSequences.load();
   buff<<" "<<std::setw(8)<<nSeenTransitions.load();

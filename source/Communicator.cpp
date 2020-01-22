@@ -282,6 +282,9 @@ void Communicator::_sendState(const int agentID, const episodeStatus status,
     agents[agentID]->unpackActionMsg(BUFF[agentID]->dataActionBuf);
   }
 
+  if(status >= TERM) {
+    agents[agentID]->learnerAvgCumulativeReward = agents[agentID]->action[0];
+  }
   // we cannot control application. if we received a termination signal we abort
   if(agents[agentID]->learnStatus == KILL) {
     printf("App recvd end-of-training signal.\n");
@@ -352,6 +355,19 @@ bool Communicator::isTraining() const {
 }
 bool Communicator::terminateTraining() const {
   return bTrainIsOver;
+}
+
+unsigned Communicator::getLearnersGradStepsNum(const int agentID)
+{
+  return agents[agentID]->learnerGradStepID;
+}
+unsigned Communicator::getLearnersTrainingTimeStepsNum(const int agentID)
+{
+  return agents[agentID]->learnerTimeStepID;
+}
+Real Communicator::getLearnersAvgCumulativeReward(const int agentID)
+{
+  return agents[agentID]->learnerAvgCumulativeReward;
 }
 
 Communicator::Communicator(Worker*const W, std::mt19937&G, bool isTraining) :

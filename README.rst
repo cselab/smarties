@@ -12,7 +12,7 @@ objectives**
 
 - the environment application determines the  computational resources available to train and run simulations, with support for distributed (MPI) codebases.
 
-- minimally intrusive plug-in API that can be inserted into C++, python and Fortran simulation software.  
+- minimally intrusive plug-in API that can be inserted into C++, python and Fortran simulation software.
 
 To cite this repository, reference the paper::
 
@@ -98,20 +98,20 @@ The basic structure of a C++ based application for smarties is structured as:
 .. code:: shell
 
     #include "smarties.h"
-    
+
     inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
     {
       comm->setStateActionDims(state_dimensionality, action_dimensionality);
       Environment env;
-    
+
       while(true) { //train loop
         env.reset(comm->getPRNG()); // prng with different seed on each process
         comm->sendInitState(env.getState()); //send initial state
-    
+
         while (true) { //simulation loop
           std::vector<double> action = comm->recvAction();
           bool isTerminal = env.advance(action); //advance the simulation:
-    
+
           if(isTerminal) { //tell smarties that this is a terminal state
             comm->sendTermState(env.getState(), env.getReward());
             break;
@@ -120,7 +120,7 @@ The basic structure of a C++ based application for smarties is structured as:
         }
       }
     }
-    
+
     int main(int argc, char**argv)
     {
       smarties::Engine e(argc, argv);
@@ -137,32 +137,32 @@ For compilation, the following flags should be set in order for the compiler to 
     CPPFLAGS="-I${SMARTIES_ROOT}/include"
 
 
-Python  
+Python
 -----
 smarties uses pybind11 for seamless compatibility with python. The structure of the environment application is almost the same as the C++ version:
 
 .. code:: shell
 
     import smarties as rl
-    
+
     def app_main(comm):
       comm.setStateActionDims(state_dimensionality, action_dimensionality)
       env = Environment()
-    
+
       while 1: #train loop
         env.reset() # (slightly) random initial conditions are best
         comm.sendInitState(env.getState())
-    
+
         while 1: #simulation loop
           action = comm.recvAction()
           isTerminal = env.advance(action)
-    
+
           if terminated:  # tell smarties that this is a terminal state
             comm.sendTermState(env.getState(), env.getReward())
             break
           else: # normal state
             comm.sendState(env.getState(), env.getReward())
-    
+
     if __name__ == '__main__':
       e = rl.Engine(sys.argv)
       if( e.parse() ): exit()
@@ -179,12 +179,12 @@ In many cases it is possible to launch an application compiled with smarties sim
 
     ./exec [args...]
 
-The script ``smarties.py`` is provided to allow greater flexibility, to ease  
-passing options to smarties, and to help setting up MPI-based training processes.  
-For example, to have multiple processes running the environment (distributed  
+The script ``smarties.py`` is provided to allow greater flexibility, to ease
+passing options to smarties, and to help setting up MPI-based training processes.
+For example, to have multiple processes running the environment (distributed
 data-collection) or multiple processes hosting the RL algorithms (distributed SGD).
 
-With the ``bin`` directory added to the shell ``PATH``, the description of the  
+With the ``bin`` directory added to the shell ``PATH``, the description of the
 setup options are printed out by typing:
 
 .. code:: shell
@@ -197,15 +197,15 @@ The script takes 2 (optional) positional arguments, for example:
 
     smarties.py cart_pole_py VRACER.json
 
-In this case, smarties will train with the V-RACER algorithm, and hyper-parameters  
-defined in the ``VRACER.json`` file found in the ``SMARTIES_ROOT/settings`` directory  
-on the application ``cart_pole_py`` found in the ``SMARTIES_ROOT/apps`` folder.  
-All output files will be saved in the current directory. 
-If no arguments are provided, the script will look for an executable (named  
-``exec`` or ``exec.py`` in the current directory or whatever specified with the  
+In this case, smarties will train with the V-RACER algorithm, and hyper-parameters
+defined in the ``VRACER.json`` file found in the ``SMARTIES_ROOT/settings`` directory
+on the application ``cart_pole_py`` found in the ``SMARTIES_ROOT/apps`` folder.
+All output files will be saved in the current directory.
+If no arguments are provided, the script will look for an executable (named
+``exec`` or ``exec.py`` in the current directory or whatever specified with the
 ``--execname exec`` option) and will use default hyper-parameters.
 
-Most useful options:  
+Most useful options:
 
 * ``--gym`` to tell smarties to run OpenAI gym applications (eg. ``smarties.py Walker2d-v2 --gym``)
 
@@ -213,13 +213,13 @@ Most useful options:
 
 * ``--dmc`` to tell smarties to run DeepMind Control Suite applications. For example,  ``smarties.py "acrobot swingup" --dmc`` will run the ``acrobot`` environment with task ``swingup``.
 
-* ``--runname RUNNAME`` will execute the training run from folder ``RUNNAME`` and create all output and setup files therein. The path of the folder is by default ``SMARTIES_ROOT/runs/RUNNAME``, but may be modified for example as ``--runprefix ./``, which will create ``RUNNAME`` in the current directory.  
+* ``--runname RUNNAME`` will execute the training run from folder ``RUNNAME`` and create all output and setup files therein. The path of the folder is by default ``SMARTIES_ROOT/runs/RUNNAME``, but may be modified for example as ``--runprefix ./``, which will create ``RUNNAME`` in the current directory.
 
 * ``--nEvalSeqs N`` tells smarties that it should evaluate and not modify an already trained policy for ``N`` sequences (the smarties-generated restart files should be already located in the run directory or at path ``--restart /path/to/restart/``).
 
 * ``--args "arg1 arg2 ..`` in order to pass line arguments to the application.
 
-* ``--nEnvironments N`` will spawn ``N`` processes running environment simulations. If the environment requires (or benefits from) one or more dedicated MPI ranks (recommended for clusters and expensive simulations) this can be set with ``--mpiProcsPerEnv M``. In this case, 1+N*M MPI processes will run the training: one learner and N teams of M processes to handle the N simulations. If the network update needs to be parallelized (distributed SGD), use the option ``--nLearners K``. 
+* ``--nEnvironments N`` will spawn ``N`` processes running environment simulations. If the environment requires (or benefits from) one or more dedicated MPI ranks (recommended for clusters and expensive simulations) this can be set with ``--mpiProcsPerEnv M``. In this case, 1+N*M MPI processes will run the training: one learner and N teams of M processes to handle the N simulations. If the network update needs to be parallelized (distributed SGD), use the option ``--nLearners K``.
 
 Note for evaluating trained policies. For safety, use the option ``--restart`` or copy all the ``agent_[...].raw`` files onto a new folder in order to not overwrite any file of the training directory. Make sure the policy is read correctly (eg. if code was compiled with different features or run with different algorithms)  comparing the ``restarted_[...]`` files and the originals (e.g. ``diff /path/eval/run/restarted_agent_00_net_weights.raw /path/train/run/agent_00_net_weights.raw``).
 
@@ -231,33 +231,33 @@ The ``apps`` folder contains a number of examples showing the various use-cases 
 
 The applications that are already included are:
 
-- ``apps/cart_pole_cpp``: simple C++ example of a cart-pole balancing problem.  
-    Assuming, all steps in the Install section were successful, compile the application: ``cd apps/cart_pole_cpp && make``.  
-    As described above, running this application can be done as:    
-    
-    * From the ``cart_pole_cpp`` directory, ``mkdir test && ../cart_pole``. Here we create a new directoy, where all logging, saving, and postprocessing files will be created by smarties, and run the application directly. Because we do not use MPI, smarties will fork two processes, one running the environment (described by the application cart_pole) and one will run the training.    
-    * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.    
-    * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.    
+- ``apps/cart_pole_cpp``: simple C++ example of a cart-pole balancing problem.
+    Assuming, all steps in the Install section were successful, compile the application: ``cd apps/cart_pole_cpp && make``.
+    As described above, running this application can be done as:
 
-- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem. Can be run similarly to the C++ code: ``mkdir test && ../cart_pole.py`` or  ``mkdir test && python3 ../cart_pole.py``.  
+    * From the ``cart_pole_cpp`` directory, ``mkdir test && ../cart_pole``. Here we create a new directoy, where all logging, saving, and postprocessing files will be created by smarties, and run the application directly. Because we do not use MPI, smarties will fork two processes, one running the environment (described by the application cart_pole) and one will run the training.
+    * From the ``cart_pole_cpp`` directory, ``smarties.py -r test``. Here we rely on the helper script to create the directory ``test`` which by default will be placed in ``${SMARTIES_ROOT}\runs\``.
+    * From any directory, ``smarties.py cart_pole_cpp -r test`` or ``smarties.py apps/cart_pole_cpp -r test``. Refer to the section above and ``smarties.py --help`` for more customization options.
 
-- ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem  
+- ``apps/cart_pole_py``: simple python example of a cart-pole balancing problem. Can be run similarly to the C++ code: ``mkdir test && ../cart_pole.py`` or  ``mkdir test && python3 ../cart_pole.py``.
 
-- ``apps/cart_pole_many``: example of two cart-poles that define different decision processes: one performs the opposite of the action sent by smarties and the other hides some of the state variables from the learner (partially observable) and tehrefore requires recurrent networks.  
+- ``apps/cart_pole_f90``: simple fortran example of a cart-pole balancing problem
 
-- ``apps/cart_pole_distribEnv``: example of a distributed environment which requires MPI. The application requests M ranks to run each simulation. If the executable is ran as ``mpirun -n N exec``, (N-1)/M teams of processes will be created, each with its own MPI communicator. Each simulation process contains one or more agents.  
+- ``apps/cart_pole_many``: example of two cart-poles that define different decision processes: one performs the opposite of the action sent by smarties and the other hides some of the state variables from the learner (partially observable) and tehrefore requires recurrent networks.
 
-- ``apps/cart_pole_distribAgent``: example of a problem where the agent themselves are distributed. Meaning that the agents exist across the team of processes that run a simulation and get the same action to perform. For example flow actuation problems where there is only one control variable (eg. some inflow parameter), but the entire simulation requires multiple CPUs to run.  
+- ``apps/cart_pole_distribEnv``: example of a distributed environment which requires MPI. The application requests M ranks to run each simulation. If the executable is ran as ``mpirun -n N exec``, (N-1)/M teams of processes will be created, each with its own MPI communicator. Each simulation process contains one or more agents.
 
-- ``apps/predator_prey``: example of agents competing.  
+- ``apps/cart_pole_distribAgent``: example of a problem where the agent themselves are distributed. Meaning that the agents exist across the team of processes that run a simulation and get the same action to perform. For example flow actuation problems where there is only one control variable (eg. some inflow parameter), but the entire simulation requires multiple CPUs to run.
 
-- ``apps/glider``: example of an ODE-based control problem that requires precise controls, used for the paper [Deep-Reinforcement-Learning for Gliding and Perching Bodies](https://arxiv.org/abs/1807.03671)  
+- ``apps/predator_prey``: example of agents competing.
 
-- ``apps/func_maximization/``: example of function fitting and maximization, most naturally approached with CMA.  
+- ``apps/glider``: example of an ODE-based control problem that requires precise controls, used for the paper [Deep-Reinforcement-Learning for Gliding and Perching Bodies](https://arxiv.org/abs/1807.03671)
 
-- ``apps/OpenAI_gym``: code to run most gym application, including the MuJoCo based robotic benchmarks shown in [Remember and Forget for Experience Replay](https://arxiv.org/abs/1807.05827)  
+- ``apps/func_maximization/``: example of function fitting and maximization, most naturally approached with CMA.
 
-- ``apps/OpenAI_gym_atari``: code to run the Atari games, which automatically creates the required convolutional pre-processing  
+- ``apps/OpenAI_gym``: code to run most gym application, including the MuJoCo based robotic benchmarks shown in [Remember and Forget for Experience Replay](https://arxiv.org/abs/1807.05827)
+
+- ``apps/OpenAI_gym_atari``: code to run the Atari games, which automatically creates the required convolutional pre-processing
 
 - ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
 
@@ -287,10 +287,10 @@ Examples of solved problems
 
     <a href="https://www.youtube.com/watch?v=8pKhMgPm5p0"><img src="https://img.youtube.com/vi/8pKhMgPm5p0/0.jpg" alt="3D fish schooling"></a>
 
-* The first two visualizations are from G. Novati and P. Koumoutsakos, “Remember and forget for experience replay," in Proceedings of the 36th international conference on machine learning, 2019.  
-* The fifth is from S. Verma, G. Novati, and P. Koumoutsakos, “Efficient collective swimming by harnessing vortices through deep reinforcement learning," Proceedings of the national academy of sciences, p. 201800923, 2018.  
-* The fourth is from  G. Novati, S. Verma, D. Alexeev, D. Rossinelli, W. M. van Rees, and P. Koumoutsakos, “Synchronisation through learning for two self-propelled swimmers," Bioinspiration & biomimetics, vol. 12, iss. 3, p. 36001, 2017.  
-* Se also G. Novati, L. Mahadevan, and P. Koumoutsakos, “Controlled gliding and perching through deep-reinforcement-learning," Physical review fluids, vol. 4, iss. 9, 2019 for an introduction to using deep RL to obtain optimal control policies in fluid mechanics problems.   
+* The first two visualizations are from G. Novati and P. Koumoutsakos, “Remember and forget for experience replay," in Proceedings of the 36th international conference on machine learning, 2019.
+* The fifth is from S. Verma, G. Novati, and P. Koumoutsakos, “Efficient collective swimming by harnessing vortices through deep reinforcement learning," Proceedings of the national academy of sciences, p. 201800923, 2018.
+* The fourth is from  G. Novati, S. Verma, D. Alexeev, D. Rossinelli, W. M. van Rees, and P. Koumoutsakos, “Synchronisation through learning for two self-propelled swimmers," Bioinspiration & biomimetics, vol. 12, iss. 3, p. 36001, 2017.
+* Se also G. Novati, L. Mahadevan, and P. Koumoutsakos, “Controlled gliding and perching through deep-reinforcement-learning," Physical review fluids, vol. 4, iss. 9, 2019 for an introduction to using deep RL to obtain optimal control policies in fluid mechanics problems.
 
 
 Outputs and postprocessing
@@ -313,7 +313,7 @@ Outputs and postprocessing
 * The file ``agent_%02d_rank%02d_cumulative_rewards.dat`` contains the all-important cumulative rewards. It is stored as text-columns specifying: gradient count, time step count, agent id, episode length (in time steps), sum of rewards over the episode. The first two values are recorded when the last observation of the episode has been recorded. Can be plotted with the script ``smarties_plot_rew.py`` script (eg. the figure on the left above). ``smarties_plot_rew.py`` accepts a list of run directories and optional arguments explained by ``marties_plot_rew.py --help``.
 
 
-* If data logging was not disabled (option ``--disableDataLogging`` for ``smarties.py``), a complete log of all state/action/rewards/policies will be stored in binary files named ``agent_02d_rank%02d_obs.raw``. These can be plotted by the script ``smarties_plot_obs.py`` (eg. the figure on the right above). The help message is straightforward. 
+* If data logging was not disabled (option ``--disableDataLogging`` for ``smarties.py``), a complete log of all state/action/rewards/policies will be stored in binary files named ``agent_02d_rank%02d_obs.raw``. These can be plotted by the script ``smarties_plot_obs.py`` (eg. the figure on the right above). The help message is straightforward.
 
 * The files named ``agent_%02d_${network_name}_${SPEC}.raw`` contain back-ups of network weights (``weights``), Adam's moments estimates (``1stMom`` and ``2ndMom``) and target weights (``tgt_weights``) at regularly spaced time stamps. Some insight into the shape of the weight vector can be obtained by plotting with the script ``smarties_plot_weights.py``. The files ending in ``scaling.raw`` contain the values used to rescale the states and rewards. Specifically, one after the other, 3 arrays of size ``d_S`` of the state-values means, 1/stdev, and stdev, followed by one value corresponding to 1/stdev of the rewards.
 
@@ -324,7 +324,7 @@ Outputs and postprocessing
 API functions
 =============
 
-Here are reported all the functions available through the `Communicator` passed by smarties to the environment `app_main` function (see :ref:`ref-to-main-loop`). The main difference between using these functions with Python, as opposed to C++, is that Python lists or numpy arrays are used in place of `std::vector<double>`.  
+Here are reported all the functions available through the `Communicator` passed by smarties to the environment `app_main` function (see :ref:`ref-to-main-loop`). The main difference between using these functions with Python, as opposed to C++, is that Python lists or numpy arrays are used in place of `std::vector<double>`.
 
 Use `python3 -c 'import smarties as rl; help(rl)'` when in doubt.
 
@@ -500,6 +500,24 @@ Returns true if smarties is training, false if evaluating a policy.
 
 Returns true if smarties is requesting application to exit. If application does not return after smarties requests an exit smarties will trigger an abort (inelegant exit).
 
+.. code:: shell
+
+      bool getLearnersGradStepsNum(const int agentID = 0)
+
+Returns the number of grad steps performed by the learning algorithm associated with agent # 'agentID'.
+
+.. code:: shell
+
+      bool getLearnersTrainingTimeStepsNum(const int agentID = 0)
+
+Returns the total number of actions (experiences) collected by the learning algorithm associated with agent # 'agentID'.
+
+.. code:: shell
+
+      bool getLearnersAvgCumulativeReward(const int agentID = 0)
+
+Returns the average cumulative reward among all experiences in the Replay Memory of the learning algorithm associated with agent # 'agentID'. Not supported by on-policy methods.
+
 Function optimization interface
 -------------------------------
 
@@ -510,4 +528,3 @@ Function optimization interface
 .. code:: shell
 
       void setOptimizationEvaluation(const Real R, const int agentID = 0)
-

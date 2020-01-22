@@ -165,6 +165,10 @@ public:
   VISIBLE Real getUniformRandom(const Real begin = 0, const Real end = 1);
   VISIBLE Real getNormalRandom(const Real mean = 0, const Real stdev = 1);
 
+  VISIBLE unsigned getLearnersGradStepsNum(const int agentID = 0);
+  VISIBLE unsigned getLearnersTrainingTimeStepsNum(const int agentID = 0);
+  VISIBLE Real getLearnersAvgCumulativeReward(const int agentID = 0);
+
   VISIBLE bool isTraining() const;
 
   VISIBLE bool terminateTraining() const;

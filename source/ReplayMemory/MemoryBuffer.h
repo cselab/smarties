@@ -38,6 +38,7 @@ class MemoryBuffer
   Real alpha = 0.5; // UNUSED: weight between critic and policy used for CMA
   Real CmaxRet = 1 + settings.clipImpWeight;
   Real CinvRet = 1 / settings.clipImpWeight;
+  Real avgCumulativeReward = 0;
 
   std::mutex dataset_mutex; // accessed by some samplers
  private:
@@ -142,6 +143,12 @@ class MemoryBuffer
   long readNSeq()         const { return nSequences.load();  }
   long nLocTimeStepsTrain() const {
     return readNSeen_loc() - nGatheredB4Startup;
+  }
+  long nLocTimeSteps() const {
+    return readNSeen_loc();
+  }
+  Real getAvgCumulativeReward() {
+    return avgCumulativeReward;
   }
 
   void removeSequence(const Uint ind);

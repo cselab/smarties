@@ -93,6 +93,7 @@ def app_main(comm):
       img = env.render(mode='rgb_array')
       img = plt.imshow(img)
       fig.savefig('sim%02d_frame%04d.png' % (sim, t))
+      fig.clear()
       env.close()
       t = t + 1
       if done == True and t >= env._max_episode_steps:
