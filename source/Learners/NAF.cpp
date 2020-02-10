@@ -31,7 +31,7 @@ static inline Param_advantage prepare_advantage(const Rvec&O,
 
 NAF::NAF(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
   Learner_approximator(MDP_, S, D), nL( Param_advantage::compute_nL(aInfo) ),
-  stdParam(Gaussian_policy::initial_Stdev(aInfo, S.explNoise)[0])
+  stdParam(Continuous_policy::initial_Stdev(aInfo, S.explNoise)[0])
 {
   createEncoder();
   assert(networks.size() <= 1);
@@ -48,17 +48,6 @@ NAF::NAF(MDPdescriptor& MDP_, Settings& S, DistributionInfo& D):
   networks[0]->initializeNetwork();
 
   trainInfo = new TrainData("NAF", distrib, 0, "| beta | avgW ", 2);
-
-  {
-    Rvec out(networks[0]->nOutputs()), act(aInfo.dim());
-    std::uniform_real_distribution<Real> out_dis(-.5,.5);
-    std::uniform_real_distribution<Real> act_dis(-.5,.5);
-    const int thrID = omp_get_thread_num();
-    for(Uint i = 0; i<aInfo.dim(); ++i) act[i] = act_dis(generators[thrID]);
-    for(Uint i = 0; i<nOutp; ++i) out[i] = out_dis(generators[thrID]);
-    Param_advantage A = prepare_advantage(out, aInfo, net_indices);
-    A.test(act, &generators[thrID]);
-  }
 }
 
 void NAF::select(Agent& agent)
@@ -75,16 +64,14 @@ void NAF::select(Agent& agent)
     Rvec polvec = Rvec(&output[net_indices[2]], &output[net_indices[2]] + nA);
     // add stdev to the policy vector representation:
     polvec.resize(2*nA, stdParam);
-    Gaussian_policy POL({0, nA}, aInfo, polvec);
+    Continuous_policy POL({0, nA}, aInfo, polvec);
 
     Rvec MU = POL.getVector();
     //cout << print(MU) << endl;
-    Rvec act = POL.selectAction(agent, MU, settings.explNoise>0);
-
-    if(OrUhDecay>0)
-      act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
-
-    agent.act(act);
+    const bool bSample = settings.explNoise>0;
+    Rvec act = OrUhDecay<=0? POL.selectAction(agent, bSample) :
+        POL.selectAction_OrnsteinUhlenbeck(agent, bSample, OrUhState[agent.ID]);
+    agent.setAction(act);
     data_get->add_action(agent, MU);
   } else {
     OrUhState[agent.ID] = Rvec(nA, 0);
@@ -162,12 +149,12 @@ void NAF::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const auto ADV = prepare_advantage(output, aInfo, net_indices);
   Rvec polvec = ADV.getMean();           assert(polvec.size() == 1 * nA);
   polvec.resize(policyVecDim, stdParam); assert(polvec.size() == 2 * nA);
-  Gaussian_policy POL({0, nA}, aInfo, polvec);
-  POL.prepare(MB.action(bID,t), MB.mu(bID,t));
-  const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
+  Continuous_policy POL({0, nA}, aInfo, polvec);
+  const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
+  const Real DKL = POL.KLDivergence(MB.mu(bID,t));
   //cout << POL.sampImpWeight << " " << POL.sampKLdiv << " " << CmaxRet << endl;
 
-  const Real Qs = output[net_indices[0]] + ADV.computeAdvantage(POL.sampAct);
+  const Real Qs = output[net_indices[0]] + ADV.computeAdvantage(MB.action(bID,t));
   const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
   Real target = MB.reward(bID, t);
@@ -176,9 +163,9 @@ void NAF::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const Real error = isOff? 0 : target - Qs;
   Rvec grad(networks[0]->nOutputs());
   grad[net_indices[0]] = error;
-  ADV.grad(POL.sampAct, error, grad);
+  ADV.grad(MB.action(bID,t), error, grad);
   if(CmaxRet>1 && beta<1) { // then ReFER
-    const Rvec penG = POL.div_kl_grad(MB.mu(bID,t), -1);
+    const Rvec penG = POL.KLDivGradient(MB.mu(bID,t), -1);
     for(Uint i=0; i<nA; ++i)
       grad[net_indices[2]+i] = beta*grad[net_indices[2]+i] + (1-beta)*penG[i];
   }

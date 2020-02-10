@@ -95,10 +95,10 @@ struct Gaussian_policy
     return ret;
   }
 
-  static long double oneDnormal(const Real A, const Real M, const Real P)
+  static long double oneDnormal(const Real A, const Real M, const Real invStdv)
   {
-    const long double arg = std::pow(A-M,2) * P / 2;
-    return std::sqrt(P/M_PI/2)*std::exp(-arg);
+    const long double arg = std::pow((A-M) * invStdv, 2) / 2;
+    return std::sqrt(invStdv*invStdv/M_PI/2)*std::exp(-arg);
   }
 
 public:
@@ -146,7 +146,7 @@ public:
     assert(act.size() == nA);
     for(Uint i=0; i<nA; ++i) {
       assert(beta[nA+i]>0);
-      pi *= oneDnormal(act[i], beta[i], 1/(beta[nA+i]*beta[nA+i]) );
+      pi *= oneDnormal(act[i], beta[i], 1/beta[nA+i] );
     }
     return pi;
   }
@@ -260,9 +260,9 @@ public:
   {
     for (Uint i=0; i<nA; ++i) {
       const Real noise = sampAct[i] - mean[i];
-      state[i] *= fac;
-      sampAct[i] += state[i];
-      state[i] += noise;
+      const Real force = fac * state[i];
+      sampAct[i] = mean[i] + noise + force;
+      state[i] = force + noise;
     }
     return aInfo.action2scaledAction(sampAct);
   }

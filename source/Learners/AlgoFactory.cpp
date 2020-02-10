@@ -114,7 +114,7 @@ std::unique_ptr<Learner> createLearner(
       );
 
       //using RACER_continuous = RACER<Mixture_advantage<NEXPERTS>, Gaussian_mixture<NEXPERTS>, Rvec>;
-      using RACER_continuous = RACER<Param_advantage,Gaussian_policy,Rvec>;
+      using RACER_continuous = RACER<Param_advantage, Continuous_policy, Rvec>;
       MDP.policyVecDim = RACER_continuous::getnDimPolicy(aInfo);
       o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);
@@ -134,7 +134,7 @@ std::unique_ptr<Learner> createLearner(
       );
 
       //using RACER_continuous = VRACER<Gaussian_mixture<NEXPERTS>, Rvec>;
-      using RACER_continuous = RACER<Zero_advantage, Gaussian_policy, Rvec>;
+      using RACER_continuous = RACER<Zero_advantage, Continuous_policy, Rvec>;
       MDP.policyVecDim = RACER_continuous::getnDimPolicy(aInfo);
       o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);
@@ -181,7 +181,7 @@ std::unique_ptr<Learner> createLearner(
       "                          Continuous-action PPO                           \n"
       "==========================================================================\n"
       );
-      using PPO_continuous = PPO<Gaussian_policy, Rvec>;
+      using PPO_continuous = PPO<Continuous_policy, Rvec>;
       MDP.policyVecDim = PPO_continuous::getnDimPolicy(&aInfo);
       o << MDP.dimAction << " " << MDP.policyVecDim;
       printLogfile(o, "problem_size.log", distrib.world_rank);

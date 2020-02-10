@@ -13,7 +13,7 @@
 #ifdef SMARTIES_EXTRACT_COVAR
 #undef SMARTIES_EXTRACT_COVAR
 #endif
-#include "../Math/Gaussian_policy.h"
+#include "../Math/Continuous_policy.h"
 #include "../Math/Discrete_policy.h"
 #include "../Network/Approximator.h"
 
@@ -27,9 +27,9 @@ computeAction(Agent& agent, const Rvec netOutput) const
 {
   Discrete_policy POL({0}, aInfo, netOutput);
   Rvec MU = POL.getVector();
-  Uint act = POL.selectAction(agent, MU, settings.explNoise>0);
+  Uint act = POL.selectAction(agent, settings.explNoise>0);
 
-  agent.act(act);
+  agent.setAction(act);
   data_get->add_action(agent, MU);
 }
 
@@ -40,19 +40,13 @@ computeAction(Agent& agent, const Rvec netOutput) const
   Rvec act = netOutput; // will store action sent to agent
   const Uint nA = aInfo.dim();
   const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
-  if(bSamplePol)
-  {
+  if(bSamplePol) {
     assert(pol.size() == 2 * nA);
-    act.resize(nA);
-    std::normal_distribution<Real> D(0, 1);
-    for(Uint i=0; i<nA; ++i) {
-      // map policy output into pos-definite stdev:
-      pol[i+nA] = Gaussian_policy::extract_stdev(pol[i+nA]);
-      act[i] += pol[i+nA] * D(agent.generator);
-    }
+    Continuous_policy POL({0, nA}, aInfo, netOutput);
+    act = POL.selectAction(agent, settings.explNoise>0);
   }
   //printf("%s\n", print(pol).c_str());
-  agent.act(act);
+  agent.setAction(act);
   data_get->add_action(agent, pol);
 }
 
@@ -224,7 +218,7 @@ Learner_approximator(MDP_, S_, D_)
   }
   networks[0]->buildFromSettings(aInfo.dim());
   if(settings.explNoise>0) {
-    Rvec stdParam = Gaussian_policy::initial_Stdev(aInfo, settings.explNoise);
+    Rvec stdParam = Continuous_policy::initial_Stdev(aInfo, settings.explNoise);
     networks[0]->getBuilder().addParamLayer(aInfo.dim(), "Linear", stdParam);
   }
   networks[0]->initializeNetwork();

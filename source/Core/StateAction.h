@@ -235,31 +235,41 @@ struct StateInfo
 
   Uint dim() const { return MDP.dimState; }
   Uint dimObs() const { return MDP.dimStateObserved; }
+  Uint dimInfo() const { return  MDP.dimState - MDP.dimStateObserved; }
 
   template<typename T = Real>
   std::vector<T> state2observed(const Rvec& state) const
   {
-    assert(state.size() == MDP.dimState);
-    std::vector<T> ret(MDP.dimStateObserved);
-    for (Uint i=0, k=0; i<MDP.dimState; ++i)
+    assert(state.size() == dim());
+    std::vector<T> ret(dimObs());
+    for (Uint i=0, k=0; i<dim(); ++i)
       if (MDP.bStateVarObserved[i]) ret[k++] = state[i];
+    return ret;
+  }
+  template<typename T = Real>
+  std::vector<T> state2nonObserved(const Rvec& state) const
+  {
+    assert(state.size() == dim());
+    std::vector<T> ret( dimInfo() );
+    for (Uint i=0, k=0; i<dim(); ++i)
+      if (not MDP.bStateVarObserved[i]) ret[k++] = state[i];
     return ret;
   }
 
   template<typename T = Real>
   void scale(std::vector<T>& observed) const
   {
-    assert(observed.size() == MDP.dimStateObserved);
-    for (Uint i=0; i<MDP.dimStateObserved; ++i)
+    assert(observed.size() == dimObs());
+    for (Uint i=0; i<dimObs(); ++i)
       observed[i] = ( observed[i] - MDP.stateMean[i] ) * MDP.stateScale[i];
   }
 
   template<typename T = Real, typename S>
   std::vector<T> getScaled(const std::vector<S>& observed) const
   {
-    assert(observed.size() == MDP.dimStateObserved);
-    std::vector<T> ret(MDP.dimStateObserved);
-    for (Uint i=0; i<MDP.dimStateObserved; ++i)
+    assert(observed.size() == dimObs());
+    std::vector<T> ret(dimObs());
+    for (Uint i=0; i<dimObs(); ++i)
       ret = ( observed[i] - MDP.stateMean[i] ) * MDP.stateScale[i];
   }
 };
@@ -278,47 +288,57 @@ struct ActionInfo
   Uint dimPol()      const { return MDP.policyVecDim;   }
   Uint dimDiscrete() const { return MDP.maxActionLabel; }
 
-  template<typename T>
-  static inline T _tanh(const T x) {
-    const Real e2x = std::exp( -2 * x );
-    return (1-e2x)/(1+e2x);
+  Real getScale(const Uint i) const {
+    assert(getActMaxVal(i)-getActMinVal(i) > std::numeric_limits<Real>::epsilon());
+    return isBounded(i) ? getActMaxVal(i)-getActMinVal(i) : (getActMaxVal(i)-getActMinVal(i))/2;
   }
-  template<typename T>
-  static inline T _invTanh(const T y) {
-    assert(std::fabs(y) < 1);
-    return std::log( (y+1)/(1-y) ) / 2;
+  Real getShift(const Uint i) const {
+    return isBounded(i) ? getActMinVal(i) : (getActMaxVal(i)+getActMinVal(i))/2;
   }
 
   template<typename T>
-  Rvec action2scaledAction(const std::vector<T>& unscaled) const
+  Rvec envAction2learnerAction(const std::vector<T>& envAct) const
   {
     assert(not MDP.bDiscreteActions);
-    Rvec ret(MDP.dimAction);
-    assert( unscaled.size() == ret.size() );
-    for (Uint i=0; i<MDP.dimAction; ++i)
-    {
-      const Real y = MDP.bActionSpaceBounded[i]? _tanh(unscaled[i]):unscaled[i];
-      const Real min_a=MDP.lowerActionValue[i], max_a=MDP.upperActionValue[i];
-      assert( max_a - min_a > std::numeric_limits<Real>::epsilon() );
-      ret[i] = min_a + (max_a-min_a)/2 * (y + 1);
+    std::vector<T> learnerAct(dim());
+    assert( envAct.size() == learnerAct.size() );
+    for (Uint i=0; i<dim(); ++i) {
+      learnerAct[i] = (envAct[i] - getShift(i)) / getScale(i);
+      // if bounded action space learner samples a beta distribution:
+      if(isBounded(i)) assert(learnerAct[i]>0 && learnerAct[i] < 1);
     }
-    return ret;
+    return learnerAct;
   }
 
   template<typename T = Real>
-  std::vector<T> scaledAction2action(const Rvec& scaled) const
+  std::vector<T> learnerPolicy2envPolicy(const Rvec& policy) const
   {
-    assert(not MDP.bDiscreteActions);
-    std::vector<T> ret(MDP.dimAction);
-    assert( scaled.size() == ret.size() );
-    for (Uint i=0; i<MDP.dimAction; ++i)
-    {
-      const T min_a=MDP.lowerActionValue[i], max_a=MDP.upperActionValue[i];
-      assert( max_a - min_a > std::numeric_limits<Real>::epsilon() );
-      const T y = 2 * (scaled[i] - min_a)/(max_a - min_a) - 1;
-      ret[i] = MDP.bActionSpaceBounded[i] ? _invTanh(y) : y;
+    if(MDP.bDiscreteActions)
+      return std::vector<T>(policy.begin(), policy.end());
+    assert(policy.size() == 2*dim() && "Supports only gaussian/beta distrib");
+    std::vector<T> envPol(2*dim());
+    for (Uint i=0; i<dim(); ++i) {
+      envPol[i] = getScale(i) * policy[i] + getShift(i);
+      envPol[i+dim()] = getScale(i) * policy[i+dim()];
+      // if bounded action space learner samples a beta distribution:
+      if(isBounded(i)) assert(policy[i]>=0 && policy[i] < 1);
     }
-    return ret;
+    return envPol;
+  }
+
+  template<typename T = Real>
+  std::vector<T> learnerAction2envAction(const Rvec& learnerAct) const
+  {
+    if(MDP.bDiscreteActions)
+        return std::vector<T>(learnerAct.begin(), learnerAct.end());
+    std::vector<T> envAct(dim());
+    assert( learnerAct.size() == envAct.size() );
+    for (Uint i=0; i<dim(); ++i) {
+      envAct[i] = getScale(i) * learnerAct[i] + getShift(i);
+      // if bounded action space learner samples a beta distribution:
+      if(isBounded(i)) assert(learnerAct[i]>=0 && learnerAct[i] < 1);
+    }
+    return envAct;
   }
   /////////////////////////// CONTINUOUS ACTIONS END ///////////////////////////
 

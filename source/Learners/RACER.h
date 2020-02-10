@@ -16,7 +16,7 @@ namespace smarties
 {
 
 struct Discrete_policy;
-struct Gaussian_policy;
+struct Continuous_policy;
 
 //template<Uint nExperts>
 //class Gaussian_mixture;
@@ -43,23 +43,6 @@ struct Zero_advantage;
 template<typename Advantage_t, typename Policy_t, typename Action_t>
 class RACER : public Learner_approximator
 {
-  template<typename _pol_t>
-  _pol_t prepare_policy(const Rvec& O, const Rvec ACT=Rvec(), const Rvec MU=Rvec()) const
-  {
-    _pol_t pol(pol_start, aInfo, O);
-    if(ACT.size()) {
-      assert(MU.size());
-      pol.prepare(ACT, MU);
-    }
-    return pol;
-  }
-
-  template<typename _adv_t, typename _pol_t>
-  _adv_t prepare_advantage(const Rvec& out, const _pol_t*const pol) const
-  {
-    return _adv_t(adv_start, aInfo, out, pol);
-  }
-
  protected:
   // continuous actions: dimensionality of action vectors
   // discrete actions: number of options
@@ -90,8 +73,9 @@ class RACER : public Learner_approximator
 
   void Train(const MiniBatch&MB, const Uint wID,const Uint bID) const override;
 
-  Rvec policyGradient(const Rvec& MU, const Policy_t& POL,
-    const Advantage_t& ADV, const Real A_RET, const Uint thrID) const;
+  Rvec policyGradient(const Rvec& MU, const Rvec& ACT,
+                      const Policy_t& POL, const Advantage_t& ADV,
+                      const Real A_RET, const Real IMPW, const Uint thrID) const;
 
   //inline Rvec criticGrad(const Policy_t& POL, const Advantage_t& ADV,
   //  const Real A_RET, const Real A_critic) const {
@@ -120,11 +104,11 @@ RACER<Discrete_advantage, Discrete_policy, Uint>::
 getnDimPolicy(const ActionInfo& aI);
 
 template<> Uint
-RACER<Param_advantage, Gaussian_policy, Rvec>::
+RACER<Param_advantage, Continuous_policy, Rvec>::
 getnDimPolicy(const ActionInfo& aI);
 
 template<> Uint
-RACER<Zero_advantage, Gaussian_policy, Rvec>::
+RACER<Zero_advantage, Continuous_policy, Rvec>::
 getnDimPolicy(const ActionInfo& aI);
 
 }

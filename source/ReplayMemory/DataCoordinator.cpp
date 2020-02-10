@@ -217,7 +217,11 @@ void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
 
     const int intUpdateParams = bUpdateParams? 1 : 0;
     MPI(Send, &intUpdateParams, 1, MPI_INT, 0, 275727+MDPID, workerComm);
-    if(bUpdateParams) params.recv(MDPID);
+    if(bUpdateParams) {
+      params.recv(MDPID);
+      //printf("updated params %ld %ld %e\n", params.counterMsg.nDataB4startup,
+      //  params.counterMsg.nGradSteps, params.counterMsg.avgCumulativeRew);
+    }
   }
   else // data stays here
   {

@@ -28,11 +28,8 @@ void Collector::add_state(Agent&a)
   assert(a.ID < inProgress.size());
   //assert(replay->MDP.localID == a.localID);
   Sequence & S = inProgress[a.ID];
-  // assign or check id of agent generating episode
-  if (a.agentStatus == INIT) S.agentID = a.localID;
-  else assert(S.agentID == a.localID);
-
   const Fvec storedState = a.getObservedState<Fval>();
+
   if(a.trackSequence == false) {
     // contain only one state and do not add more. to not store rewards either
     // RNNs then become automatically not supported because no time series!
@@ -43,8 +40,13 @@ void Collector::add_state(Agent&a)
     S.offPolicImpW.clear(); S.action_adv.clear();
     S.KullbLeibDiv.clear(); S.state_vals.clear();
     a.agentStatus = INIT; // one state stored, lie to avoid catching asserts
+    assert(S.agentID == -1 && "Untracked sequences are not tagged to agent");
     return;
   }
+
+  // assign or check id of agent generating episode
+  if (a.agentStatus == INIT) S.agentID = a.localID;
+  else assert(S.agentID == a.localID);
 
   // if no tuples, init state. if tuples, cannot be initial state:
   assert( (S.nsteps() == 0) == (a.agentStatus == INIT) );
@@ -102,7 +104,7 @@ void Collector::terminate_seq(Agent&a)
   // fill empty action and empty policy: last step of episode never has actions
   const Rvec dummyAct = Rvec(aI.dim(), 0), dummyPol = Rvec(aI.dimPol(), 0);
   a.resetActionNoise();
-  a.act(dummyAct);
+  a.setAction(dummyAct);
   inProgress[a.ID].actions.push_back( dummyAct );
   inProgress[a.ID].policies.push_back( dummyPol );
 
@@ -115,35 +117,40 @@ void Collector::terminate_seq(Agent&a)
 // Transfer a completed trajectory from the `inProgress` buffer to the data set
 void Collector::push_back(const size_t agentId)
 {
-  Sequence& EP = inProgress[agentId];
   assert(agentId < inProgress.size());
-  if(EP.nsteps() < 2) die("Seq must at least have s0 and sT");
+  if(inProgress[agentId].nsteps() < 2) die("Seq must at least have s0 and sT");
 
-  EP.finalize( nSeenSequences_loc.load() );
-  if( replay->bRequireImportanceSampling() )
-    EP.priorityImpW = std::vector<float>(EP.nsteps(), 1);
+  inProgress[agentId].finalize( nSeenSequences_loc.load() );
 
-  // Now check whether this agent is last of environment to call terminate.
-  // This is only relevant in the case of learners on workers who receive params
-  // from master, therefore bool can be incorrect in all other cases.
-  // Moreover, it only matters if multiple agents in env belong to same learner
-  // To ensure thread safety, we must use mutex and check that this agent is
-  // last to reset the sequence.
-  bool fullEnvReset = true;
-  if(sharing->bRunParameterServer) // else no need for fullEnvReset
+  if(sharing->bRunParameterServer)
   {
+    // Check whether this agent is last agent of environment to call terminate.
+    // This is only relevant in the case of learners on workers who receive
+    // params from master, therefore bool can be incorrect in all other cases.
+    // It only matters if multiple agents in env belong to same learner.
+    // To ensure thread safety, we must use mutex and check that this agent is
+    // last to reset the sequence.
     assert(distrib.bIsMaster == false);
-    std::lock_guard<std::mutex> lock(envTerminationCheck);
-    for(Uint i=0; i<inProgress.size(); ++i) {
-      if (i == agentId) continue;
+    bool fullEnvReset = true;
+    std::unique_lock<std::mutex> lock(envTerminationCheck);
+    for(Uint i=0; i<inProgress.size(); ++i){
+      //printf("%lu ", inProgress[i].nsteps());
+      if (i == agentId or inProgress[i].agentID < 0) continue;
       fullEnvReset = fullEnvReset && inProgress[i].nsteps() == 0;
     }
+    //printf("\n");
+    Sequence EP = std::move(inProgress[agentId]);
+    assert(inProgress[agentId].nsteps() == 0);
+    //Unlock with empy inProgress, such that next agent can check if it is last.
+    lock.unlock();
+    sharing->addComplete(EP, fullEnvReset);
+  }
+  else
+  {
+    sharing->addComplete(inProgress[agentId], true);
+    assert(inProgress[agentId].nsteps() == 0);
   }
 
-  // if all agent handled by this learner have sent a term/last state,
-  // update all the learner's parameters
-  sharing->addComplete(EP, fullEnvReset);
-  assert(EP.nsteps() == 0);
   nSeenTransitions_loc++;
   nSeenSequences_loc++;
 }

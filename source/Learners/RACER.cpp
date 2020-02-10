@@ -42,28 +42,26 @@ select(Agent& agent)
   {
     //Compute policy and value on most recent element of the sequence.
     const Rvec output = NET->forward(agent);
-    auto pol = prepare_policy<Policy_t>(output);
+    const Policy_t pol(pol_start, aInfo, output);
     Rvec mu = pol.getVector(); // vector-form current policy for storage
 
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    auto act = pol.selectAction(agent, mu, distrib.bTrain);
+    auto action = pol.selectAction(agent, distrib.bTrain);
 
-    const auto adv = prepare_advantage<Advantage_t>(output, &pol);
-    const Real advantage = adv.computeAdvantage(pol.sampAct);
+    const Advantage_t adv(adv_start, aInfo, output, &pol);
+    const Real advantage = adv.computeAdvantage(action);
     EP.action_adv.push_back(advantage);
     EP.state_vals.push_back(output[VsID]);
-    agent.act(act);
+    agent.setAction(action);
     data_get->add_action(agent, mu);
 
     #ifndef NDEBUG
-      auto dbg = prepare_policy<Policy_t>(output);
-      const Rvec & ACT = EP.actions.back(), & MU = EP.policies.back();
-      dbg.prepare(ACT, MU);
-      const double err = std::fabs(dbg.sampImpWeight-1);
-      if(err>1e-10 || dbg.sampKLdiv>nnEPS)
-        _die("ImpW:%20.20e DKL:%20.20e", dbg.sampImpWeight, dbg.sampKLdiv);
+      const Policy_t dbg(pol_start, aInfo, output);
+      Real impW = dbg.importanceWeight(EP.actions.back(), EP.policies.back());
+      Real dkl = dbg.KLDivergence(EP.policies.back());
+      if(std::fabs(impW-1)>nnEPS || dkl>nnEPS) _die("ImpW:%e DKL:%e",impW,dkl);
     #endif
   }
   else // either terminal or truncation state
@@ -159,8 +157,8 @@ void RACER<Advantage_t, Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
 ////////////////////////////////////////////////////////////////////////////
 
 template class RACER<Discrete_advantage, Discrete_policy, Uint>;
-template class RACER<Param_advantage, Gaussian_policy, Rvec>;
-template class RACER<Zero_advantage, Gaussian_policy, Rvec>;
+template class RACER<Param_advantage, Continuous_policy, Rvec>;
+template class RACER<Zero_advantage, Continuous_policy, Rvec>;
 //template class RACER<Mixture_advantage<NEXPERTS>, Gaussian_mixture<NEXPERTS>, Rvec>;
 
 }

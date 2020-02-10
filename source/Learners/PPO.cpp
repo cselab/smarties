@@ -12,7 +12,7 @@
 #define PPO_PENALKL
 #define PPO_CLIPPED
 
-#include "../Math/Gaussian_policy.h"
+#include "../Math/Continuous_policy.h"
 #include "../Math/Discrete_policy.h"
 
 #include "../Network/Builder.h"
@@ -29,7 +29,7 @@ namespace smarties
 {
 
 template class PPO<Discrete_policy, Uint>;
-template class PPO<Gaussian_policy, Rvec>;
+template class PPO<Continuous_policy, Rvec>;
 
 template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::select(Agent& agent)
@@ -42,18 +42,17 @@ void PPO<Policy_t, Action_t>::select(Agent& agent)
   if( agent.agentStatus < TERM ) // not end of sequence
   {
     //Compute policy and value on most recent element of the sequence.
-    auto POL = prepare_policy(actor->forward(agent));
+    Policy_t POL(pol_indices, aInfo, actor->forward(agent));
     const Rvec sval = critc->forward(agent);
     EP.state_vals.push_back(sval[0]); // not a terminal state
-    Rvec MU = POL.getVector(); // vector-form current policy for storage
+    const Rvec mu = POL.getVector(); // vector-form current policy for storage
 
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    auto act = POL.selectAction(agent, MU, settings.explNoise>0);
-
-    agent.act(act);
-    data_get->add_action(agent, MU);
+    auto action = POL.selectAction(agent, settings.explNoise>0);
+    agent.setAction(action);
+    data_get->add_action(agent, mu);
   }
   else if( agent.agentStatus == TRNC )
   {

@@ -292,11 +292,18 @@ void Communicator::_sendState(const int agentID, const episodeStatus status,
   }
 }
 
-const std::vector<double>& Communicator::recvAction(const int agentID) const
+const std::vector<double> Communicator::recvAction(const int agentID) const
 {
   assert( agents[agentID]->agentStatus < TERM && "Application read action for "
     "a terminal state or truncated episode. Undefined behavior.");
-  return agents[agentID]->action;
+  return agents[agentID]->getAction();
+}
+
+int Communicator::recvDiscreteAction(const int agentID) const
+{
+  assert( agents[agentID]->agentStatus < TERM && "Application read action for "
+    "a terminal state or truncated episode. Undefined behavior.");
+  return (int) agents[agentID]->getDiscreteAction();
 }
 
 void Communicator::synchronizeEnvironments()

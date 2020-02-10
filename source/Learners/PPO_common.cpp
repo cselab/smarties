@@ -142,43 +142,28 @@ void PPO<Policy_t, Action_t>::initializeGAE()
 ///////////////////////////////////////////////////////////////////////
 /////////// TEMPLATE SPECIALIZATION FOR CONTINUOUS ACTIONS ////////////
 ///////////////////////////////////////////////////////////////////////
-template<> std::vector<Uint> PPO<Gaussian_policy, Rvec>::
+template<> std::vector<Uint> PPO<Continuous_policy, Rvec>::
 count_pol_outputs(const ActionInfo*const aI)
 {
   return std::vector<Uint>{aI->dim(), aI->dim()};
 }
-template<> std::vector<Uint> PPO<Gaussian_policy, Rvec>::
+template<> std::vector<Uint> PPO<Continuous_policy, Rvec>::
 count_pol_starts(const ActionInfo*const aI)
 {
   const std::vector<Uint> indices = Utilities::count_indices(count_pol_outputs(aI));
   return std::vector<Uint>{indices[0], indices[1]};
 }
-template<> Uint PPO<Gaussian_policy, Rvec>::
+template<> Uint PPO<Continuous_policy, Rvec>::
 getnDimPolicy(const ActionInfo*const aI)
 {
   return 2*aI->dim(); // policy dimension is mean and diag covariance
 }
 
-template<> PPO<Gaussian_policy, Rvec>::
+template<> PPO<Continuous_policy, Rvec>::
 PPO(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   Learner_approximator(MDP_, S_, D_), pol_outputs(count_pol_outputs(&aInfo)), penal_reduce(D_, LDvec{0.,1.})
 {
   setupNet();
-
-  #if 0
-  {  // TEST FINITE DIFFERENCES:
-    Rvec output(F[0]->nOutputs()), mu(getnDimPolicy(&aInfo));
-    std::normal_distribution<Real> dist(0, 1);
-    for(Uint i=0; i<output.size(); ++i) output[i] = dist(generators[0]);
-    for(Uint i=0;  i<mu.size(); ++i) mu[i] = dist(generators[0]);
-    for(Uint i=nA; i<mu.size(); ++i) mu[i] = std::exp(mu[i]);
-
-    Gaussian_policy pol = prepare_policy<Gaussian_policy>(output, &aInfo, pol_indices);
-    Rvec act = pol.finalize(1, &generators[0], mu);
-    pol.prepare(act, mu);
-    pol.test(act, mu);
-  }
-  #endif
 }
 
 ///////////////////////////////////////////////////////////////////////

@@ -154,9 +154,7 @@ struct Approximator
     }
     else if(C.addedInputType(sampID) == ACTION)
     {
-      const ActionInfo & aI = replay->aI;
-      const NNvec addedinp = aI.scaledAction2action<nnReal>( C.getAction(t) );
-      INP.insert(INP.end(), addedinp.begin(), addedinp.end());
+      INP.insert(INP.end(), C.getAction(t).begin(), C.getAction(t).end());
     }
     else if(C.addedInputType(sampID) == VECTOR)
     {

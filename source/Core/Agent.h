@@ -97,23 +97,29 @@ struct Agent
     }
   }
 
-  void act(const Uint label)
-  {
+  void setAction(const Uint label) {
     action = aInfo.label2actionMessage<double>(label);
   }
-  void act(const Rvec& _act)
-  {
+  Uint getDiscreteAction() const {
+    return aInfo.actionMessage2label(action);
+  }
+
+  void setAction(const Rvec& _act) {
     action = std::vector<double>(_act.begin(), _act.end());
+  }
+  template<typename T = double>
+  std::vector<T> getAction() const {
+    if(MDP.bDiscreteActions)
+      return std::vector<double>(action.begin(), action.end());
+    else return aInfo.learnerAction2envAction(action);
   }
 
   template<typename T = nnReal>
-  std::vector<T> getObservedState()
-  {
+  std::vector<T> getObservedState() const {
     return sInfo.state2observed<T>(state);
   }
   template<typename T = nnReal>
-  std::vector<T> getObservedOldState()
-  {
+  std::vector<T> getObservedOldState() const {
     return sInfo.state2observed<T>(sOld);
   }
 

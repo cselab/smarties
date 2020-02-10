@@ -9,7 +9,7 @@
 
 #include "../Network/Builder.h"
 #include "../Utils/StatsTracker.h"
-#include "../Math/Gaussian_policy.h"
+#include "../Math/Continuous_policy.h"
 #include "../Network/Approximator.h"
 #include "../ReplayMemory/Collector.h"
 #include "../Utils/SstreamUtilities.h"
@@ -21,27 +21,15 @@
 namespace smarties
 {
 
-static inline Gaussian_policy prepare_policy(const Rvec & out,
-                                             const ActionInfo & aInfo,
-                                             const Rvec ACT = Rvec(),
-                                             const Rvec MU  = Rvec())
-{
-  Gaussian_policy pol({0, aInfo.dim()}, aInfo, out);
-  if(ACT.size()) {
-    assert(MU.size());
-    pol.prepare(ACT, MU);
-  }
-  return pol;
-}
-
 void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
   const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
 
   if(thrID==0) profiler->start("FWD");
   const Rvec pvec = actor->forward(bID, t); // network compute
-  const auto POL = prepare_policy(pvec, aInfo, MB.action(bID,t), MB.mu(bID,t));
-  const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
+  const Continuous_policy POL({0, aInfo.dim()}, aInfo, pvec);
+  const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
+  const Real DKL = POL.KLDivergence(MB.mu(bID,t));
   const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
   critc->setAddedInputType(ACTION, bID, t);
@@ -74,17 +62,19 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   assert(polGrad.size() == nA); polGrad.resize(2*nA, 0); // space for stdev
   // In order to enable learning stdev on request, stdev is part of actor output
   #ifdef DPG_LEARN_STDEV
-    const Rvec SPG = POL.policy_grad((target-pval[0]) * std::min(CmaxRet,RHO));
-    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = isOff? 0 : polGrad[i+nA];
+    const Real polGradCoef = (target - pval[0]) * std::min(CmaxRet, RHO);
+    const Rvec SPG = POL.policyGradient(MB.action(bID,t), polGradCoef);
+    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = isOff? 0 : SPG[i+nA];
   #else
     // Next line keeps stdev at user's value, else NN penal might cause drift.
-    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = explNoise - POL.stdev[i];
+    const Rvec fixGrad = POL.fixExplorationGrad(explNoise);
+    for (Uint i=0; i<nA; ++i) polGrad[i+nA] = fixGrad[i+nA];
   #endif
 
   //if(!thrID) cout << "G "<<print(detPolG) << endl;
-  const Rvec penGrad = POL.div_kl_grad(MB.mu(bID,t), -1);
+  const Rvec penGrad = POL.KLDivGradient(MB.mu(bID,t), -1);
   Rvec finalG = Rvec(actor->nOutputs(), 0);
-  POL.finalize_grad(Utilities::weightSum2Grads(polGrad, penGrad, beta), finalG);
+  POL.makeNetworkGrad(finalG, Utilities::weightSum2Grads(polGrad,penGrad,beta));
   actor->setGradient(finalG, bID, t);
 
   const Rvec valueG = { isOff ? 0 : ( target - qval[0] ) };
@@ -112,22 +102,20 @@ void DPG::select(Agent& agent)
   if( agent.agentStatus < TERM ) // not end of sequence
   {
     //Compute policy and value on most recent element of the sequence.
-    Gaussian_policy POL = prepare_policy(actor->forward(agent), aInfo);
+    const Continuous_policy POL({0, aInfo.dim()}, aInfo, actor->forward(agent));
     Rvec MU = POL.getVector(); // vector-form current policy for storage
 
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
     // this should only be used for evaluating a learned policy
-    auto act = POL.selectAction(agent, MU, settings.explNoise>0);
-
-    if(OrUhDecay>0)
-      act = POL.updateOrUhState(OrUhState[agent.ID], MU, OrUhDecay);
-    agent.act(act);
+    Rvec action = OrUhDecay<=0? POL.selectAction(agent, settings.explNoise>0) :
+        POL.selectAction_OrnsteinUhlenbeck(agent, settings.explNoise>0, OrUhState[agent.ID]);
+    agent.setAction(action);
     data_get->add_action(agent, MU);
 
     #ifdef DPG_RETRACE_TGT
       //careful! act may be scaled to agent's action space, mean/sampAct aren't
-      critc->setAddedInput(POL.sampAct,   agent, currStep);
+      critc->setAddedInput(action, agent, currStep);
       const Rvec qval = critc->forward(agent);
       critc->setAddedInput(POL.getMean(), agent, currStep);
       const Rvec sval = critc->forward(agent, true); // overwrite = true
@@ -241,7 +229,7 @@ DPG::DPG(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
   actor = networks.back();
   actor->buildFromSettings(nA);
   actor->setUseTargetNetworks();
-  const Rvec stdParam = Gaussian_policy::initial_Stdev(aInfo, explNoise);
+  const Rvec stdParam = Continuous_policy::initial_Stdev(aInfo, explNoise);
   actor->getBuilder().addParamLayer(nA, "Linear", stdParam);
   actor->initializeNetwork();
 

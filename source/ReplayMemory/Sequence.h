@@ -10,6 +10,7 @@
 #define smarties_Sequence_h
 
 #include "../Utils/FunctionUtilities.h"
+#include "../Core/StateAction.h"
 
 #include <cassert>
 #include <atomic>
@@ -56,7 +57,7 @@ struct Sequence
     ID               = p.ID;                        p.ID = -1;                \
     just_sampled     = p.just_sampled;              p.just_sampled = -1;      \
     prefix           = p.prefix;                    p.prefix = 0;             \
-    agentID          = p.agentID;                   p.agentID = 0;            \
+    agentID          = p.agentID;                   p.agentID = -1;           \
     totR             = p.totR;                      p.totR = 0;               \
     nFarOverPolSteps = p.nFarOverPolSteps.load();   p.nFarOverPolSteps = 0;   \
     nFarUndrPolSteps = p.nFarUndrPolSteps.load();   p.nFarUndrPolSteps = 0;   \
@@ -91,7 +92,7 @@ struct Sequence
 
   void clear()
   {
-    ended = false; ID = -1; just_sampled = -1; prefix =0; agentID =0; totR =0;
+    ended = false; ID = -1; just_sampled = -1; prefix =0; agentID =-1; totR =0;
     nFarOverPolSteps = 0;
     nFarUndrPolSteps = 0;
     sumKLDivergence  = 0;
@@ -114,7 +115,7 @@ struct Sequence
   // used for uniform sampling, prefix sum:
   Uint prefix = 0;
   // local agent id (agent id within environment) that generated epiosode:
-  Uint agentID = 0;
+  Sint agentID = -1;
   // sum of rewards obtained during the episode:
   Fval totR = 0;
 
@@ -239,10 +240,11 @@ struct Sequence
     const Uint seq_len = states.size();
     // whatever the meaning of SquaredError, initialize with all zeros
     // this must be taken into account when sorting/filtering
-    SquaredError = std::vector<Fval>(seq_len, 0);
+    SquaredError.resize(seq_len, 0);
     // off pol importance weights are initialized to 1s
-    offPolicImpW = std::vector<Fval>(seq_len, 1);
-    KullbLeibDiv = std::vector<Fval>(seq_len, 0);
+    offPolicImpW.resize(seq_len, 1);
+    KullbLeibDiv.resize(seq_len, 0);
+    priorityImpW.resize(seq_len, 1);
     #ifndef NDEBUG
       Fval dbg_sumR = std::accumulate(rewards.begin(), rewards.end(), (Fval)0);
       //Fval dbg_norm = std::max(std::fabs(totR), std::fabs(dbg_sumR));
@@ -287,7 +289,8 @@ struct Sequence
     Q_RET[t-1] = R + gamma * V + gamma * clipW * (Q_RET[t] - A - V);
   }
 
-  std::vector<float> logToFile(const Uint dimS, const Uint iterStep) const;
+  std::vector<float> logToFile(
+    const StateInfo& sInfo, const ActionInfo& aInfo, const Uint iterStep) const;
 };
 
 } // namespace smarties

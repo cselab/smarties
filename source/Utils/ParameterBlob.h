@@ -47,7 +47,6 @@ class ParameterBlob
     long nGradSteps;
     Real avgCumulativeRew;
   } counterMsg;
-  long tmpnGrads;
 
 public:
   ParameterBlob(const DistributionInfo& D, long& nDataB4, std::atomic<long>& nG, Real& avgR)

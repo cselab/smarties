@@ -9,7 +9,7 @@
 #ifndef smarties_Quadratic_advantage_h
 #define smarties_Quadratic_advantage_h
 
-#include "Gaussian_policy.h"
+#include "Continuous_policy.h"
 #include "Quadratic_term.h"
 
 namespace smarties
@@ -32,7 +32,7 @@ struct Zero_advantage
   Zero_advantage(const std::vector<Uint>& starts,
                  const ActionInfo& aI,
                  const Rvec& out,
-                 const Gaussian_policy*const pol = nullptr) : aInfo(aI) { }
+                 const Continuous_policy*const pol = nullptr) : aInfo(aI) { }
 
   void grad(const Rvec&act, const Real Qer, Rvec& netGradient) const { }
 

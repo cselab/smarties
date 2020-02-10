@@ -9,7 +9,7 @@
 #ifndef smarties_Quadratic_advantage_h
 #define smarties_Quadratic_advantage_h
 
-#include "Gaussian_policy.h"
+#include "Continuous_policy.h"
 #include "Quadratic_term.h"
 
 namespace smarties
@@ -18,16 +18,16 @@ namespace smarties
 struct Quadratic_advantage: public Quadratic_term
 {
   const ActionInfo& aInfo;
-  const Gaussian_policy* const policy;
+  const Continuous_policy* const policy;
 
   //Normalized quadratic advantage, with own mean
   Quadratic_advantage(const std::vector<Uint>&starts,
                       const ActionInfo& aI,
                       const Rvec& out,
-                      const Gaussian_policy*const pol = nullptr) :
+                      const Continuous_policy*const pol = nullptr) :
     Quadratic_term(starts[0], starts.size()>1? starts[1] : 0,
                    aI.dim(), compute_nL(aI), out,
-                   pol==nullptr ? Rvec(): pol->mean),
+                   pol==nullptr ? Rvec(): pol->getMean()),
                    aInfo(aI), policy(pol)
   {
   }
@@ -55,7 +55,7 @@ struct Quadratic_advantage: public Quadratic_term
       for (Uint k=i; k<nA; ++k) dErrdL += dErrdP[nA*j +k] * L[nA*k +i];
 
       if(i==j)
-        netGradient[kl] = dErrdL * Utilities::unbPosMap_diff(netOutputs[kl]);
+        netGradient[kl] = dErrdL * PosDefFunction::_evalDiff(netOutputs[kl]);
       else
       if(i<j)
         netGradient[kl] = dErrdL;
@@ -87,9 +87,9 @@ struct Quadratic_advantage: public Quadratic_term
     Real ret = -quadraticTerm(action);
     if(policy not_eq nullptr)
     { //subtract expectation from advantage of action
-      ret += quadraticTerm(policy->mean);
+      ret += quadraticTerm(policy->getMean());
       for(Uint i=0; i<nA; ++i)
-        ret += matrix[nA*i+i] * policy->variance[i];
+        ret += matrix[nA*i+i] * policy->getVariance(i);
     }
     return 0.5*ret;
   }
@@ -118,16 +118,19 @@ struct Quadratic_advantage: public Quadratic_term
     for (Uint k=0; k<nA; ++k) {
       const Uint k1 = nA*j + k;
       const Uint k2 = nA*k + i;
-      PvarP[nA*j+i] += matrix[k1] * policy->variance[k] * matrix[k2];
+      PvarP[nA*j+i]+= matrix[k1] * std::pow(policy->getStdev(i),2) * matrix[k2];
     }
-    Real ret = quadMatMul(policy->mean, PvarP);
+    Real ret = quadMatMul(policy->getMean(), PvarP);
     for (Uint i=0; i<nA; ++i)
-      ret += PvarP[nA*i+i] * policy->variance[i] / 2;
+      ret += PvarP[nA*i+i] * std::pow(policy->getStdev(i), 2) / 2;
     return ret;
   }
 
-  void test(const Rvec& act, std::mt19937*const gen) const;
+  void test(const Rvec& act, std::mt19937& gen) const;
 };
+
+void testQuadraticAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
+  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Quadratic_advantage_h

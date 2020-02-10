@@ -249,6 +249,66 @@ struct HardSign : public Function
   }
 };
 
+struct HardSigmoid : public Function
+{
+  std::string name() const override { return "HardSigmoid";}
+  Real initFactor(const Uint inps, const Uint outs) const override
+  {
+    return std::sqrt(6./(inps + outs));
+  }
+
+  static Real _initFactor(const Uint inps, const Uint outs)
+  {
+    return std::sqrt(6./(inps + outs));
+  }
+
+  template <typename T> static T _eval(const T x)
+  {
+    return 0.5 * (1 + x/std::sqrt(1+x*x));
+  }
+
+  template <typename T> static T _evalDiff(const T x, const T y)
+  {
+    const T denom = std::sqrt(1+x*x);
+    return 0.5/(denom*denom*denom);
+  }
+
+  template <typename T> static T _evalDiff(const T x)
+  {
+    const T denom = std::sqrt(1+x*x);
+    return 0.5/(denom*denom*denom);
+  }
+
+  template <typename T> static T _inv(const T y)
+  {
+    assert(y > 0 && y < 1);
+    const Real map = 2 * y - 1;
+    return map/std::sqrt(1 -map*map);
+  }
+
+  static void _eval(const nnReal*const in, nnReal*const out, const Uint N)
+  {
+    #pragma omp simd aligned(in,out : VEC_WIDTH)
+    for (Uint i=0; i<N; ++i) out[i] = _eval(in[i]);
+  }
+  void eval(const nnReal*const in, nnReal*const out, const Uint N) const override
+  {
+    return _eval(in, out, N);
+  }
+  nnReal eval(const nnReal in) const override
+  {
+    return _eval(in);
+  }
+  nnReal inverse(const nnReal y) const override
+  {
+    return _inv(y);
+  }
+  nnReal evalDiff(const nnReal in, const nnReal out) const override
+  {
+    return _evalDiff(in, out);
+  }
+};
+
 #define SoftSign_FAC 1
 struct SoftSign : public Function
 {

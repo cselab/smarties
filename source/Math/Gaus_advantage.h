@@ -9,13 +9,14 @@
 #ifndef smarties_Gaussian_advantage_h
 #define smarties_Gaussian_advantage_h
 
-#include "Gaussian_policy.h"
+#include "Continuous_policy.h"
 
 namespace smarties
 {
 
 struct Gaussian_advantage
 {
+  using PosDefFunction = SoftPlus;
   static Uint compute_nL(const ActionInfo& aI) {
     return 1 + 2*aI.dim();
   }
@@ -36,11 +37,11 @@ struct Gaussian_advantage
   const Real coef;
   const Rvec matrix;
   const ActionInfo& aInfo;
-  const Gaussian_policy * const policy;
+  const Continuous_policy * const policy;
 
   //Normalized quadratic advantage, with own mean
   Gaussian_advantage(const std::vector<Uint>& starts, const ActionInfo& aI,
-                     const Rvec& out, const Gaussian_policy*const pol) :
+                     const Rvec& out, const Continuous_policy*const pol) :
     start_coefs(starts[0]), nA(aI.dim()), nL(compute_nL(aI)), netOutputs(out),
     coef(extract_coefs(netOutputs, starts[0])),
     matrix(extract_matrix(netOutputs, starts[0], aI.dim())),
@@ -52,29 +53,29 @@ private:
   {
     Rvec ret = Rvec(2*nA);
     for(Uint i=0; i<2*nA; ++i)
-      ret[i] = PosDefMapping_f::_eval(net[start +1 +i]);
+      ret[i] = PosDefFunction::_eval(net[start +1 +i]);
 
     return ret;
   }
 
   static Real extract_coefs(const Rvec& net, const Uint start)
   {
-    return PosDefMapping_f::_eval(net[start]);
+    return PosDefFunction::_eval(net[start]);
   }
 
   void grad_matrix(Rvec& G, const Real err) const
   {
-    G[start_coefs] *= err * PosDefMapping_f::_evalDiff(netOutputs[start_coefs]);
+    G[start_coefs] *= err * PosDefFunction::_evalDiff(netOutputs[start_coefs]);
     for (Uint i=0, ind=start_coefs+1; i<2*nA; ++i, ++ind)
-       G[ind] *= err * PosDefMapping_f::_evalDiff(netOutputs[ind]);
+       G[ind] *= err * PosDefFunction::_evalDiff(netOutputs[ind]);
   }
 
 public:
 
   Real computeAdvantage(const Rvec& act) const
   {
-    const Real shape = - diagInvMul(act, matrix, policy->mean) / 2;
-    const Real ratio = coefMixRatio(matrix, policy->variance);
+    const Real shape = - diagInvMul(act, matrix, policy->getMean()) / 2;
+    const Real ratio = coefMixRatio(matrix, policy->getVariance());
     return coef * ( std::exp(shape) - ratio );
   }
 
@@ -90,16 +91,16 @@ public:
   {
     assert(a.size()==nA);
 
-    const Real shape = - diagInvMul(a, matrix, policy->mean) / 2;
+    const Real shape = - diagInvMul(a, matrix, policy->getMean()) / 2;
     const Real orig = std::exp(shape);
-    const Real expect = - coefMixRatio(matrix, policy->variance);
+    const Real expect = - coefMixRatio(matrix, policy->getVariance());
     G[start_coefs] += orig + expect;
 
     for (Uint i=0, ind=start_coefs+1; i<nA; ++i, ++ind) {
-      const Real m = policy->mean[i], p1 = matrix[i], p2 = matrix[i+nA];
+      const Real m = policy->getMean(i), p1 = matrix[i], p2 = matrix[i+nA];
       G[ind]   = a[i]>m ? orig * coef * std::pow((a[i]-m)/p1, 2) / 2 : 0;
       G[ind+nA]= a[i]<m ? orig * coef * std::pow((a[i]-m)/p2, 2) / 2 : 0;
-      const Real S = policy->variance[i];
+      const Real S = policy->getVariance(i);
       // inv of the pertinent coefMixRatio
       const Real F = 2 / (std::sqrt(p1/(p1+S)) + std::sqrt(p2/(p2+S)));
       //the derivatives of std::sqrt(A[i]/(A[i]+V[i])/2
@@ -112,7 +113,7 @@ public:
     grad_matrix(G, Qer);
   }
 
-  void test(const Rvec& act, std::mt19937*const gen) const;
+  void test(const Rvec& act, std::mt19937& gen) const;
 
   Real diagInvMul(const Rvec& act,
     const Rvec& mat, const Rvec& mean) const
@@ -126,6 +127,9 @@ public:
     return ret;
   }
 };
+
+void testGaussianAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
+  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Gaussian_advantage_h

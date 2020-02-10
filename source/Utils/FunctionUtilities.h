@@ -323,6 +323,24 @@ Range<It> reverse(ORange && originalRange) {
   return Range<It>(It(std::end(originalRange)), It(std::begin(originalRange)));
 }
 
+#if 0 // unused:
+struct BufferedPRNG {
+    std::vector<size_t> seeds;
+    void seed(std::mt19937 & gen, const size_t N) {
+        while(seeds.size() < N) seeds.push_back(gen());
+    }
+    size_t min() { return std::mt19937::min(); }
+    size_t max() { return std::mt19937::max(); }
+    size_t operator() () {
+        const size_t rng = seeds.back();
+        seeds.pop_back();
+        return s;
+    }
+    void discard() {
+        seeds.pop_back();
+    }
+};
+#endif
 
 } // end namespace smarties
 } // end namespace Utilities

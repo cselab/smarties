@@ -11,15 +11,12 @@
 
 #include "../Network/Layers/Functions.h"
 
-#ifndef PosDefMapping_f
-#define PosDefMapping_f SoftPlus
-#endif
-
 namespace smarties
 {
 
 struct Quadratic_term
 {
+  using PosDefFunction = SoftPlus;
   const Uint start_matrix, start_mean, nA, nL;
   const Rvec netOutputs;
   const Rvec L, mean, matrix;
@@ -76,7 +73,7 @@ protected:
       if (i<j)
         ret[nA*j + i] = netOutputs[kL++];
       else if (i==j)
-        ret[nA*j + i] = PosDefMapping_f::_eval(netOutputs[kL++]);
+        ret[nA*j + i] = PosDefFunction::_eval(netOutputs[kL++]);
     assert(kL==start_matrix+nL);
     return ret;
   }
@@ -134,7 +131,7 @@ protected:
       Uint kl = start_matrix;
       for (Uint j=0; j<nA; ++j)
       for (Uint i=0; i<nA; ++i) {
-        if (i==j) netGradient[kl] *= PosDefMapping_f::_evalDiff(netOutputs[kl]);
+        if (i==j) netGradient[kl] *= PosDefFunction::_evalDiff(netOutputs[kl]);
         if (i<j)  netGradient[kl] *= 1;
         if (i<=j) kl++;
       }

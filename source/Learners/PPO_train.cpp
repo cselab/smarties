@@ -64,8 +64,9 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   if(thrID==0)  profiler->stop_start("CMP");
 
-  const auto POL = prepare_policy(pVec, MB.action(bID,t), MB.mu(bID,t) );
-  const Real DKL = POL.sampKLdiv, RHO = POL.sampImpWeight;
+  const Policy_t POL(pol_indices, aInfo, pVec);
+  const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
+  const Real DKL = POL.KLDivergence(MB.mu(bID,t));
   const bool isOff = isFarPolicyPPO(RHO, CmaxPol);
 
   penalUpdateCount = penalUpdateCount + 1.0;
@@ -82,17 +83,18 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   #endif
 
   #ifdef PPO_PENALKL //*nonZero(gain)
-    const Rvec polG = POL.policy_grad(gain);
-    const Rvec penG = POL.div_kl_grad(MB.mu(bID,t), - penalCoef);
+    const Rvec polG = POL.policyGradient(MB.action(bID,t), gain);
+    const Rvec penG = POL.KLDivGradient(MB.mu(bID,t), - penalCoef);
     const Rvec totG = Utilities::weightSum2Grads(polG, penG, 1);
   #else //we still learn the penal coef, for simplicity, but no effect
-    const Rvec totG = POL.policy_grad(gain), penG = Rvec(policy_grad.size(), 0);
+    const Rvec totG = POL.policyGradient(MB.action(bID,t), gain);
+    const Rvec penG = Rvec(policy_grad.size(), 0);
     const Rvec& polG = totalPolGrad;
   #endif
 
   assert(wID == 0);
   Rvec grad(actor->nOutputs(), 0);
-  POL.finalize_grad(totG, grad);
+  POL.makeNetworkGrad(grad, totG);
 
   //bookkeeping:
   const Real verr = MB.Q_RET(bID, t) - sVal[0]; // Q_ret actually stores V_gae here

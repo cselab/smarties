@@ -333,7 +333,7 @@ void MemoryBuffer::pushBackSequence(Sequence & seq)
           std::max(nLocTimeStepsTrain(), (long)0),
           seq.agentID, seq.nsteps(), seq.totR);
   const auto log = not logSample ? std::vector<float>(0) :
-                   seq.logToFile(sI.dim(), nSeenTransitions_loc.load());
+                   seq.logToFile(sI, aI, nSeenTransitions_loc.load());
 
   std::lock_guard<std::mutex> lock(dataset_mutex);
   assert( readNSeq() == (long) episodes.size() );

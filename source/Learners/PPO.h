@@ -16,7 +16,7 @@ namespace smarties
 {
 
 struct Discrete_policy;
-struct Gaussian_policy;
+struct Continuous_policy;
 
 template<typename Policy_t, typename Action_t>
 class PPO : public Learner_approximator
@@ -38,18 +38,6 @@ class PPO : public Learner_approximator
 
   Approximator* actor;
   Approximator* critc;
-
-  Policy_t prepare_policy(const Rvec& O,
-                          const Rvec  ACT = Rvec(),
-                          const Rvec  MU  = Rvec()) const
-  {
-    Policy_t pol(pol_indices, aInfo, O);
-    if(ACT.size()) {
-      assert(MU.size());
-      pol.prepare(ACT, MU);
-    }
-    return pol;
-  }
 
   void Train(const MiniBatch& MB, const Uint, const Uint) const override;
 
@@ -92,7 +80,7 @@ class PPO : public Learner_approximator
 template<> Uint PPO<Discrete_policy, Uint>::
 getnDimPolicy(const ActionInfo*const aI);
 
-template<> Uint PPO<Gaussian_policy, Rvec>::
+template<> Uint PPO<Continuous_policy, Rvec>::
 getnDimPolicy(const ActionInfo*const aI);
 
 }

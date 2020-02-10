@@ -50,6 +50,9 @@ protected:
 
 public:
 
+  void grad(const Rvec& action, const Real Qer, Rvec& netGradient) const {
+    grad(aInfo.actionMessage2label(action), Qer, netGradient);
+  }
   void grad(const Uint act, const Real Qer, Rvec&netGradient) const
   {
    if(policy not_eq nullptr)
@@ -60,6 +63,9 @@ public:
        netGradient[start_adv+j] = Qer* (j==act ? 1 : 0);
   }
 
+  Real computeAdvantage(const Rvec& action) const {
+    return computeAdvantage(aInfo.actionMessage2label(action));
+  }
   Real computeAdvantage(const Uint action) const
   {
    if(policy not_eq nullptr) //subtract expectation from advantage of action
@@ -67,6 +73,9 @@ public:
    else return advantages[action];
   }
 
+  Real computeAdvantageNoncentral(const Rvec& action) const {
+    return computeAdvantageNoncentral(aInfo.actionMessage2label(action));
+  }
   Real computeAdvantageNoncentral(const Uint action) const
   {
    return advantages[action];
@@ -87,8 +96,11 @@ public:
    return ret;
   }
 
-  void test(const Uint& act, std::mt19937*const gen) const {}
+  void test(const Uint& act, std::mt19937& gen) const {}
 };
+
+void testDiscreteAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
+  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Discrete_advantage_h

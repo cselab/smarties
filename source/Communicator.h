@@ -82,7 +82,8 @@ public:
   }
 
   // receive action for the latest given state:
-  VISIBLE const std::vector<double>& recvAction(const int agentID = 0) const;
+  VISIBLE const std::vector<double> recvAction(const int agentID = 0) const;
+  VISIBLE int recvDiscreteAction(const int agentID = 0) const;
 
 
   VISIBLE void setNumAgents(int _nAgents);
@@ -143,7 +144,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // conveniency methods for optimization (stateless/timeless) problems
 
-  VISIBLE const std::vector<double>& getOptimizationParameters(int agentID = 0)
+  VISIBLE const std::vector<double> getOptimizationParameters(int agentID = 0)
   {
     assert(ENV.descriptors[agentID]->dimState == 0 &&
            "optimization interface only defined for stateless problems");
