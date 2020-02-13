@@ -245,7 +245,7 @@ struct Agent
   {
     if(buffCnter == 0) return;
     char cpath[1024];
-    sprintf(cpath, "%s/agent%03d_rank%02d_obs.raw", logpath, ID, rank);
+    snprintf(cpath, 1024, "%s/agent%03d_rank%02d_obs.raw", logpath, ID, rank);
     FILE * pFile = fopen (cpath, "ab");
 
     fwrite (buf, sizeof(float), buffCnter, pFile);
@@ -294,7 +294,7 @@ struct Agent
   {
     MDP.sharedNoiseVecTic = std::vector<Real>(aInfo.dim());
     MDP.sharedNoiseVecToc = std::vector<Real>(aInfo.dim());
-    generator = std::mt19937( gen() );
+    generator.seed( gen() );
     distribution = std::normal_distribution<Real>(0.0, 1.0);
     safety = std::uniform_real_distribution<Real>(-NORMDIST_MAX, NORMDIST_MAX);
     resetActionNoise();

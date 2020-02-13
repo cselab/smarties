@@ -33,7 +33,7 @@ inline static void printLogfile(std::ostringstream&o, std::string fn, int rank)
   fout.close();
 }
 
-inline std::ifstream findSettingsFile(DistributionInfo& D, const Uint ID)
+inline static std::ifstream findSettingsFile(DistributionInfo& D, const Uint ID)
 {
   char currDirectory[512];
   getcwd(currDirectory, 512);
@@ -42,7 +42,7 @@ inline std::ifstream findSettingsFile(DistributionInfo& D, const Uint ID)
   // TODO: allow user to set name?
   std::ifstream ret;
   char settingsName[256];
-  sprintf(settingsName, "settings_%02lu.json", ID);
+  snprintf(settingsName, 256, "settings_%02lu.json", ID);
   ret.open(settingsName, std::ifstream::in);
   // if found a json for this learner specifically, then read it
   if( ret.is_open() ) {
@@ -52,6 +52,7 @@ inline std::ifstream findSettingsFile(DistributionInfo& D, const Uint ID)
 
   // else return the default settings name for all settings files:
   ret.open("settings.json", std::ifstream::in);
+  if( ! ret.is_open() ) die("unable to find settings file");
   chdir(currDirectory);
   return ret;
 }
@@ -61,7 +62,7 @@ std::unique_ptr<Learner> createLearner(
 )
 {
   char lName[256];
-  sprintf(lName, "agent_%02lu", learnerID);
+  snprintf(lName, 256, "agent_%02lu", learnerID);
   if(distrib.world_rank == 0)
     printf("Creating learning algorithm #%02lu\n", learnerID);
 

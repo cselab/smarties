@@ -157,8 +157,8 @@ int Network::restart(const Parameters * const W,
 void Network::dump(const int agentID)
 {
   if (not bDump) return;
-  char buf[500];
-  sprintf(buf, "%07u", (Uint)dump_ID[agentID]);
+  char buf[512];
+  snprintf(buf, 512, "%07u", (Uint)dump_ID[agentID]);
   string nameNeurons  = "neuronOuts_"+to_string(agentID)+"_"+string(buf)+".dat";
   string nameMemories = "cellStates_"+to_string(agentID)+"_"+string(buf)+".dat";
   string nameOut_Mems = "out_states_"+to_string(agentID)+"_"+string(buf)+".dat";

@@ -160,7 +160,8 @@ void Launcher::createGoRunDir(char* initDir, Uint folderID, MPI_Comm envAppCom)
 
   while(true)
   {
-    sprintf(newDir,"%s/%s_%03lu_%05lu", initDir, "simulation", folderID, iter);
+    snprintf(newDir, 1024, "%s/%s_%03lu_%05lu",
+        initDir, "simulation", folderID, iter);
     if ( stat(newDir, &fileStat) >= 0 ) iter++; // directory already exists
     else
     {

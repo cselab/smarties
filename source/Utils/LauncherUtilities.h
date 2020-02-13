@@ -34,7 +34,7 @@ inline int redirect_stdout_stderr()
 {
   fflush(0);
   char output[256];
-  sprintf(output, "output");
+  snprintf(output, 256, "output");
   int fd = open(output, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
   dup2(fd, 1);    // make stdout go to file
   dup2(fd, 2);    // make stderr go to file
@@ -48,9 +48,9 @@ inline void redirect_stdout_init(std::pair<int, fpos_t>& currOutputFD,
   fflush( stdout);
   fgetpos(stdout, & currOutputFD.second);
   currOutputFD.first = dup( fileno( stdout ) );
-  char buf[500];
-  //sprintf(buf, "output_%03d_%05u", rank, iter);
-  sprintf(buf, "output_%03u", rank);
+  char buf[512];
+  //snprintf(buf, 512, "output_%03d_%05u", rank, iter);
+  snprintf(buf, 512, "output_%03u", rank);
   freopen(buf, "w", stdout); // put stdout onto buf
 }
 
@@ -150,8 +150,8 @@ inline int copy_from_dir(const std::string name)
       //if (ent->d_type == DT_REG) {
       //printf ("%s (%d)\n", ent->d_name, ent->d_type);
       char source[1025], dest[1026];
-      sprintf(source, "%s/%s", name.c_str(), ent->d_name);
-      sprintf(dest, "./%s", ent->d_name);
+      snprintf(source, 1025, "%s/%s", name.c_str(), ent->d_name);
+      snprintf(dest, 1026, "./%s", ent->d_name);
       cp(source, dest);
       //}
     }

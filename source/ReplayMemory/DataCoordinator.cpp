@@ -153,6 +153,7 @@ void DataCoordinator::mastersRecvEpisodes()
   if(workerComm == MPI_COMM_NULL) return;
 
   const Fvec workersEP = recvEp(workerComm, status);
+
   if(workersEP.size())
   {
     const Uint nStep = Sequence::computeTotalEpisodeNstep(
@@ -164,7 +165,7 @@ void DataCoordinator::mastersRecvEpisodes()
     if (sharingDest == sharingRank) { // keep the episode
       Sequence tmp(workersEP, sI.dimObs(), aI.dim(), aI.dimPol());
       assert(nStep == tmp.ndata() + 1);
-      //_warn("%lu storing new sequence of size %lu", MDPID,tmp->ndata());
+      //printf("%lu storing new sequence of size %lu\n", MDPID, tmp.ndata());
       replay->pushBackSequence(tmp);
     } else {                          // send the episode to an other master
       const int dest = sharingDest, tag = 737283+MDPID;
@@ -204,11 +205,10 @@ void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
     const Fvec MSG = EP.packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
     #ifndef NDEBUG
       const Sequence tmp(MSG, sI.dimObs(), aI.dim(), aI.dimPol());
-      //_warn("storing new sequence of size %lu", tmp->ndata());
       assert(EP.isEqual(tmp));
     #endif
     EP.clear();
-
+    //printf("storing new sequence of size %lu\n", tmp.ndata());
     //in theory this lock is unnecessary because all ops here are locking and
     //master processes one after the other (i.e. other threads will wait)
     //however, in case of non-multiple thread safety, it will cause deadlock

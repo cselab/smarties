@@ -63,7 +63,7 @@ if __name__ == '__main__':
   if parsed.plotCol < 0:
     print('States begin at col 3, actions at col ' + str(3+NS) + \
           ', rewards is col ' + str(IREW) + ', policy at col ' + \
-          str(1+IREW) + ' end at ' + str(NCOL) + '.')
+          str(1+IREW) + ' last at ' + str(NCOL-1) + '.')
     ICOL = int( input("Column to print? ") )
   else:
     ICOL = parsed.plotCol
@@ -94,6 +94,9 @@ if __name__ == '__main__':
   #max_a, min_a = 1.9, 0.1
   #DATA[:,ICOL] = min_a + 0.5 * (max_a-min_a) * (np.tanh(act) + 1);
 
+  # do not plot actions and policy values for terminal states:
+  xAndyNotPol = ( parsed.xAxisVar < 3+NS or parsed.xAxisVar == IREW) and \
+                ( ICOL <= 3+NS or ICOL == IREW )
   initialized = False
   for ind in range(0, len(terminals), parsed.nSkipPlot):
     init, term = initials[ind], terminals[ind]
@@ -102,7 +105,7 @@ if __name__ == '__main__':
 
     print("Plotting episode starting from step %d to step %d." % (init,term) )
     if parsed.xAxisVar >= 0:
-      span = range(init, term+1, 1)
+      span = range(init, term + xAndyNotPol, 1)
       xes  = DATA[span, parsed.xAxisVar]
     else:
       span = range(init+1, term, 1)
@@ -116,12 +119,13 @@ if __name__ == '__main__':
     elif initialized:
       plt.plot(xes,  DATA[span, ICOL], 'b-')
       plt.plot(xini, DATA[init, ICOL], 'go')
-      plt.plot(xtrm, DATA[term, ICOL], color)
+      if xAndyNotPol : plt.plot(xtrm, DATA[term, ICOL], color)
     else:
       initialized = True
       plt.plot(xes, DATA[span, ICOL], 'b-', label='trajectories')
       plt.plot(xini, DATA[init, ICOL], 'go', label='initial states')
-      plt.plot(xtrm, DATA[term, ICOL], color, label='terminal states')
+      if xAndyNotPol:
+        plt.plot(xtrm, DATA[term, ICOL], color, label='terminal states')
 
   plt.xlabel(nameAxis(parsed.xAxisVar, NS, NA, IREW, NCOL))
   plt.ylabel(nameAxis(ICOL, NS, NA, IREW, NCOL))

@@ -36,9 +36,11 @@ void Collector::add_state(Agent&a)
     // (this is accompained by check in approximator)
     S.states  = std::vector<Fvec>{ storedState };
     S.rewards = std::vector<Real>{ (Real)0 };
+    S.actions.clear(); S.policies.clear();
     S.SquaredError.clear(); S.Q_RET.clear();
     S.offPolicImpW.clear(); S.action_adv.clear();
     S.KullbLeibDiv.clear(); S.state_vals.clear();
+
     a.agentStatus = INIT; // one state stored, lie to avoid catching asserts
     assert(S.agentID == -1 && "Untracked sequences are not tagged to agent");
     return;

@@ -161,6 +161,7 @@ struct Sequence
     minImpW = minRho;
     avgImpW = avgRho;
 
+    assert(std::fabs(rewards[0])<1e-16);
     totR = Utilities::sum(rewards);
     sumSquaredErr = Utilities::sum(SquaredError);
     sumKLDivergence = Utilities::sum(KullbLeibDiv);

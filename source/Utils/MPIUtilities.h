@@ -56,6 +56,7 @@ inline unsigned MPIworldRank() { return MPICommRank(MPI_COMM_WORLD); }
     }                                                      \
     if(MPIERR not_eq MPI_SUCCESS) {                        \
       _warn("%s %d", #NAME, MPIERR);                       \
+      Warnings::print_stacktrace();                        \
       throw std::runtime_error("MPI ERROR");               \
     }                                                      \
   } while(0)

@@ -26,7 +26,7 @@ MemoryProcessing::MemoryProcessing(MemoryBuffer*const _RM) : RM(_RM),
     globalStep_reduce.update( { nSeenSequences_loc.load(),
                                 nSeenTransitions_loc.load() } );
 
-    ReFER_reduce.update({(long double) 0, (long double) nTransitions.load() });
+    ReFER_reduce.update({(long double)0, (long double) settings.minTotObsNum });
 }
 
 void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bool bInit)
@@ -54,7 +54,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
     #pragma omp parallel reduction(+ : count, newstdvr)
     {
       std::vector<long double> thNewSSum(dimS, 0), thNewSSqSum(dimS, 0);
-      #pragma omp for schedule(dynamic) nowait
+      #pragma omp for schedule(dynamic, 1) nowait
       for(Uint i=0; i<setSize; ++i) {
         const Sequence & EP = episodes[i];
         const Uint N = EP.ndata();
@@ -125,16 +125,26 @@ void MemoryProcessing::updateReFERpenalization()
   // if an obs is actually sampled. Therefore at most this fraction
   // is wrong by batchSize / nTransitions ( ~ 0 )
   // In exchange we skip an mpi implicit barrier point.
-  ReFER_reduce.update({(long double) nFarPolicySteps,
-                       (long double) nTransitions});
+  const auto dataSetSize = nTransitions.load();
+  ReFER_reduce.update({(long double)nFarPolicySteps, (long double)dataSetSize});
   const LDvec nFarGlobal = ReFER_reduce.get();
+  assert(nFarGlobal[1] + 1 > dataSetSize);
   const Real fracOffPol = nFarGlobal[0] / nFarGlobal[1];
 
-  const auto fixPointIter = [] (const Real val, const bool goTo0) {
+  // In the ReF-ER paper we learn ReF-ER penalization coefficient beta with the
+  // network's learning rate eta (was 1e-4). In reality, beta should not depend
+  // on eta. beta should reflect estimate of far-policy samples. Accuracy of
+  // this estimate depends on: batch size B (bigger B increases accuracy
+  // because samples importance weight rho are updated more often) and data set
+  // size N (bigger N decreases accuracy because there are more samples to
+  // update). We pick coef 0.1 to match learning rate chosen in original paper:
+  // we had B=256 and N=2^18 and eta=1e-4. 0.1*B*N \approx 1e-4
+  const Real learnRefer = 0.1 * settings.batchSize / nFarGlobal[1];
+  const auto fixPointIter = [&] (const Real val, const bool goTo0) {
     if (goTo0) // fixed point iter converging to 0:
-      return (1 - std::min(1e-4, val)) * val;
+      return (1 - std::min(learnRefer, val)) * val;
     else       // fixed point iter converging to 1:
-      return (1 - std::min(1e-4, val)) * val + std::min(1e-4, 1-val);
+      return (1 - std::min(learnRefer, val)) * val + std::min(learnRefer, 1-val);
   };
 
   // if too much far policy data, increase weight of Dkl penalty
@@ -201,7 +211,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
   if (CmaxRet<=1) nFarPolicySteps = 0; //then this counter and its effects are skipped
   avgKLdivergence = _totDKL / RM->readNData();
   nFarPolicySteps = _nOffPol;
-  RM->avgCumulativeReward = _avgR / (setSize + 1e-7);
+  RM->avgCumulativeReward = _avgR / setSize;
   oldestStoresTimeStamp = totFirstIn.timestamp;
 
   assert(totMostFar.ind >= 0 && totMostFar.ind < (int) setSize);

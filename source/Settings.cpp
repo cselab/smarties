@@ -56,6 +56,7 @@ DistributionInfo::DistributionInfo(const MPI_Comm & initialiazed_mpi_comm,
 
 void DistributionInfo::commonInit()
 {
+  Warnings::init_warnings();
   getcwd(initial_runDir, 1024);
   #ifdef REQUIRE_MPI_MULTIPLE
   if (threadSafety < MPI_THREAD_MULTIPLE)
@@ -217,18 +218,18 @@ void DistributionInfo::figureOutWorkersPattern()
   }
   if(    forkableApplication && not bThereAreWorkerProcesses) {
     if(world_rank == 0)
-      warn("Master processes to communicate via sockets.");
+      printf("Master processes to communicate via sockets.");
   }
   if(    forkableApplication &&     bThereAreWorkerProcesses) {
     nEnvironments = std::ceil(nEnvironments / (Real) nWorkers) * nWorkers;
     if(world_rank == 0)
-      _warn("%lu worker ranks will split %lu simulation processes.",
+      printf("%lu worker ranks will split %lu simulation processes.",
             nWorkers, nEnvironments);
   }
   if(not forkableApplication &&     bThereAreWorkerProcesses) {
     workerProcessesPerEnv = std::max(workerProcessesPerEnv, (Uint) 1);
     if(nWorkers not_eq nEnvironments * workerProcessesPerEnv)
-      _warn("%lu workers run one environment process each.", nWorkers);
+      printf("%lu workers run one environment process each.", nWorkers);
     if(nWorkers % workerProcessesPerEnv not_eq 0)
       die("Mismatch between worker processes and number of ranks requested to run env application.");
     nEnvironments = nWorkers / workerProcessesPerEnv;
@@ -276,14 +277,13 @@ void DistributionInfo::figureOutWorkersPattern()
 
       MPI_Comm_split(world_comm, bIsMaster,  world_rank, & learners_train_comm);
       MPI_Comm_split(world_comm, commWorkID, world_rank, & master_workers_comm);
-      printf("Process %lu is a %s part of comm %lu.\n",
-          world_rank, bIsMaster? "master" : "worker", commWorkID);
+      _debug("Process %lu is a %s part of comm %lu.\n",
+             world_rank, bIsMaster? "master" : "worker", commWorkID);
 
       if(bIsMaster)
       {
         nOwnedEnvironments = MPICommSize(master_workers_comm) - 1;
-        _warn("master %lu owns %lu environments",
-              world_rank, nOwnedEnvironments);
+        _debug("master %lu owns %lu environments", world_rank, nOwnedEnvironments);
         if(nWorkers < nMasters)
              workerless_masters_comm = MPICommDup(learners_train_comm);
         else workerless_masters_comm = MPI_COMM_NULL;
@@ -321,9 +321,9 @@ void DistributionInfo::figureOutWorkersPattern()
           nForkedProcesses2spawn = nOwnedEnvironments;
         }
 
-        _warn("worker %lu owns %lu environments, has rank %lu out of %lu. "
-              "worker ID inside group %d.", world_rank, nOwnedEnvironments,
-              innerWorkRank, innerWorkSize, thisWorkerGroupID);
+        _debug("worker %lu owns %lu environments, has rank %lu out of %lu. "
+               "worker ID inside group %d.", world_rank, nOwnedEnvironments,
+               innerWorkRank, innerWorkSize, thisWorkerGroupID);
       }
     }
     else // there are no worker processes

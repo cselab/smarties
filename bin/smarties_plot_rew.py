@@ -7,7 +7,7 @@
 #  Created by Guido Novati (novatig@ethz.ch).
 #
 #
-import argparse, sys, time, numpy as np, os, matplotlib.pyplot as plt
+import argparse, sys, time, numpy as np, os, matplotlib.pyplot as plt, glob
 from six.moves import input
 
 colors = ['#1f78b4', '#33a02c', '#e31a1c', '#ff7f00', '#6a3d9a', '#b15928', \
@@ -22,26 +22,47 @@ def getWorkerRankToPlot(parsed, agentid, PATH):
         return -1 # nothing found
     else: return parsed.workerRank # return user's choice
 
-def plotReward(args, ax, PATH, agentid, rank, colorid):
-    FILE = "%s/agent_%02d_rank%02d_cumulative_rewards.dat" % (PATH,agentid,rank)
-    assert os.path.isfile(FILE)
-    if args.bAsk and input("Display file %s? (y/n) " % (FILE)) == 'n' :
-       return None, None
-
-    DATA = np.fromfile(FILE, sep=' ')
-    DATA = DATA.reshape(DATA.size//5, 5) # t_step grad_step worker seqlen R
+def plotReward(args, ax, ensambleList, agentid, rank, colorid):
     L = parsed.averagingWindow
-    N = (DATA.shape[0] // L)*L
-    span = DATA.shape[0] - N + np.arange(0, N)
-    X = DATA[span, 1] - DATA[0,1]
-    Y = DATA[span, 4]
-    X = X.reshape(X.size//L, L)
-    Y = Y.reshape(Y.size//L, L)
-    X = X.mean(1)
-    Yb = np.percentile(Y, 20, axis=1)
-    Yt = np.percentile(Y, 80, axis=1)
+    allDataX, allDataY = None, None
+
+    for PATH in ensambleList:
+        FILE = "%s/agent_%02d_rank%02d_cumulative_rewards.dat" % (PATH,agentid,rank)
+        assert os.path.isfile(FILE)
+        if args.bAsk and input("Display file %s? (y/n) " % (FILE)) == 'n' :
+           continue
+
+        DATA = np.fromfile(FILE, sep=' ')
+        DATA = DATA.reshape(DATA.size//5, 5) # t_step grad_step worker seqlen R
+        N = (DATA.shape[0] // L)*L
+        span = DATA.shape[0] - N + np.arange(0, N)
+        X = DATA[span, 1] - DATA[0,1]
+        Y = DATA[span, 4]
+        newSize0 = X.size//L
+        if newSize0 == 0 : continue
+        X = X.reshape(newSize0, L)
+        Y = Y.reshape(newSize0, L)
+        if allDataX is None:
+            allDataX, allDataY = X, Y
+        else:
+            oldSize0, oldSize1 = allDataX.shape[0], allDataX.shape[1]
+            size0 = min(oldSize0, X.shape[0])
+            size1 = oldSize1 + L
+            newAllDataX = np.zeros((size0, size1))
+            newAllDataY = np.zeros((size0, size1))
+            newAllDataX[:size0, :oldSize1] = allDataX[:size0, :]
+            newAllDataY[:size0, :oldSize1] = allDataY[:size0, :]
+            newAllDataX[:size0, oldSize1:] = X[:size0, :]
+            newAllDataY[:size0, oldSize1:] = Y[:size0, :]
+            allDataX = newAllDataX
+            allDataY = newAllDataY
+
+
+    X = allDataX.mean(1)
+    Yb = np.percentile(allDataY, 20, axis=1)
+    Yt = np.percentile(allDataY, 80, axis=1)
     #Ym = np.percentile(Y, 50, axis=1)
-    Ym = np.mean(Y, axis=1)
+    Ym = np.mean(allDataY, axis=1)
     legend = "%s agent %d" % (PATH, agentid)
     fill  = ax.fill_between(X,Yb,Yt, facecolor=colors[colorid], alpha=0.5)
     line, = ax.plot(X,Ym, color=colors[colorid], label=legend)
@@ -72,23 +93,29 @@ if __name__ == '__main__':
     lines, fills = [], []
 
     for PATH in parsed.folders:
+
+        if os.path.isdir(PATH): ensambleList = [PATH]
+        else: ensambleList = glob.glob(PATH)
+
+        if len(ensambleList) == 0: assert False, 'Directory %s not found'%PATH
+
         if parsed.agentID < 0: # plot all agents
             agentID = 0
             while 1: # loop over possible agents
-                rank = getWorkerRankToPlot(parsed, agentID, PATH)
+                rank = getWorkerRankToPlot(parsed, agentID, ensambleList[0])
                 if rank < 0:
                     # no data found for this agent on any rank,
                     # probably reached last agent
                     break
-                fill, line = plotReward(parsed, ax, PATH, agentID, rank, colorID)
+                fill, line = plotReward(parsed, ax, ensambleList, agentID, rank, colorID)
                 agentID += 1
                 if fill is not None:
                     colorID += 1
                     lines += [line]
                     fills += [fill]
         else:
-            rank = getWorkerRankToPlot(parsed, parsed.agentID, PATH)
-            fill, line = plotReward(parsed, ax, PATH, parsed.agentID, rank, colorID)
+            rank = getWorkerRankToPlot(parsed, parsed.agentID, ensambleList[0])
+            fill, line = plotReward(parsed, ax, ensambleList, parsed.agentID, rank, colorID)
             if fill is not None:
                     colorID += 1
                     lines += [line]

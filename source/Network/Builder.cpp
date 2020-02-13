@@ -85,7 +85,10 @@ void Builder::addLayer(const Uint layerSize,
     if(bResidualLayer)
       layers.emplace_back(std::make_unique<ResidualLayer>(ID+1, layerSize));
   #else
-    const bool bResidualLayer = not isOutputLayer;
+    // skip connection except for output layer (because we might add non linear
+    // activation to bound output) and except for first layer after input
+    // because input vector may be very irregularly distributed and cause nans
+    const bool bResidualLayer = not isOutputLayer and not (ID == 1);
     if(bResidualLayer)
       layers.emplace_back(
         std::make_unique<ParametricResidualLayer>(ID+1, layerSize) );

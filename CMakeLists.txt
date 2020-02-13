@@ -87,6 +87,7 @@ set(COMMON_SOURCES
     ${ROOT_FOLDER}/source/ReplayMemory/MemoryProcessing.cpp
 
     ${ROOT_FOLDER}/source/Math/Math_tests.cpp
+    ${ROOT_FOLDER}/source/Utils/Warnings.cpp
     ${ROOT_FOLDER}/source/Utils/Profiler.cpp
     ${ROOT_FOLDER}/source/Utils/StatsTracker.cpp
 

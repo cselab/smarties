@@ -106,8 +106,11 @@ void Learner::finalizeMemoryProcessing()
   data_proc->prepareNextBatchAndDeleteStaleEp();
 
   profiler->stop_start("PRE");
-  if(currStep%1000==0) // update state mean/std with net's learning rate
-    data_proc->updateRewardsStats(1, 1e-3*(SMARTIES_OFFPOL_ADAPT_STSCALE>0));
+  if(currStep%1000==0) {
+    const bool learnStateScales = SMARTIES_OFFPOL_ADAPT_STSCALE > 0;
+    // update state mean/std with net's learning rate
+    data_proc->updateRewardsStats(1, settings.learnrate * learnStateScales);
+  }
 
   profiler->stop();
 }
