@@ -9,39 +9,51 @@ namespace smarties
 // episode with smallest average min(1, pi/mu):
 struct MostOffPolicyEp
 {
+  const Real tol;
+  MostOffPolicyEp(const Real tol_) : tol(tol_) {}
+
   Real avgOnPolicyR = 0;
   Uint countOnPolicyEps = 0;
   void updateAvgOnPolReward(const Sequence & EP, const int ep_ind)
   {
-    if(EP.nFarPolicySteps() > 0) return;
+    if(EP.nFarPolicySteps() > tol * EP.ndata()) return;
     countOnPolicyEps ++;
     avgOnPolicyR += (EP.totR - avgOnPolicyR) / countOnPolicyEps;
   }
 
   int indUndr = -1;
-  Real avgClipImpW = 9e9, mostOffR = 0;
+  //Real avgClipImpW = 9e9, mostOffR = 0;
+  Real mostOffR = 0; Uint mostFarPolicySteps = 0;
   void updateMostFarUndrPol(const Sequence & EP, const int ep_ind)
   {
+    #if 0
     const Real EP_avgClipImpW = EP.avgImpW;
     if(EP_avgClipImpW < avgClipImpW) {
       indUndr = ep_ind;
       avgClipImpW = EP_avgClipImpW;
       mostOffR = EP.totR;
     }
+    #else
+    const auto EP_nFarPolicy = EP.nFarPolicySteps();
+    if(EP_nFarPolicy > mostFarPolicySteps) {
+      indUndr = ep_ind;
+      mostOffR = EP.totR;
+      mostFarPolicySteps = EP_nFarPolicy;
+    }
+    #endif
   }
 
   int indOver = -1;
-  Real fracFarOverPol = -1, fracFarUndrPol = -1;
+  Real fracFarOverPol = -1; //, fracFarUndrPol = -1;
   void updateMostFarOverPol(const Sequence & EP, const int ep_ind)
   {
     const Real EP_fracFarOverPol = EP.nFarOverPolSteps / (Real) EP.ndata();
-    const Real EP_fracFarUndrPol = EP.nFarUndrPolSteps / (Real) EP.ndata();
+    //const Real EP_fracFarUndrPol = EP.nFarUndrPolSteps / (Real) EP.ndata();
     if(EP_fracFarOverPol > fracFarOverPol) {
       indOver = ep_ind;
       fracFarOverPol = EP_fracFarOverPol;
     }
-    if(EP_fracFarUndrPol > fracFarUndrPol)
-      fracFarUndrPol = EP_fracFarUndrPol;
+    //if(EP_fracFarUndrPol > fracFarUndrPol) fracFarUndrPol = EP_fracFarUndrPol;
   }
 
   void compare(const Sequence & EP, const int ep_ind)
@@ -58,27 +70,28 @@ struct MostOffPolicyEp
     avgOnPolicyR = avgOnPolicyR * Wown + EP.avgOnPolicyR * Wep;
     countOnPolicyEps += EP.countOnPolicyEps;
 
-    if(EP.avgClipImpW < avgClipImpW) {
-      indUndr=EP.indUndr;
-      avgClipImpW=EP.avgClipImpW;
-      mostOffR=EP.mostOffR;
+    //if(EP.avgClipImpW < avgClipImpW) {
+    if(EP.mostFarPolicySteps > mostFarPolicySteps) {
+      indUndr = EP.indUndr;
+      //avgClipImpW = EP.avgClipImpW;
+      mostOffR = EP.mostOffR;
+      mostFarPolicySteps = EP.mostFarPolicySteps;
     }
     if(EP.fracFarOverPol > fracFarOverPol) {
-      indOver=EP.indOver;
-      fracFarOverPol=EP.fracFarOverPol;
+      indOver = EP.indOver;
+      fracFarOverPol = EP.fracFarOverPol;
     }
-    if(EP.fracFarUndrPol > fracFarUndrPol)
-      fracFarUndrPol=EP.fracFarUndrPol;
+    //if(EP.fracFarUndrPol > fracFarUndrPol) fracFarUndrPol = EP.fracFarUndrPol;
   }
 
-  Sint operator()(const Real tolFarPol)
+  Sint operator()()
   {
     // If totR of most on policy EP is lower than totR of most off policy EP
     // then do not delete anything. Else delete most off-policy EP.
     //if ( fracFarOverPol > fracFarUndrPol ) return indOver;
     //printf("fracFarOverPol:%g fracFarUndrPol:%g avgOnPolicyR:%g mostOffR:%g\n",
     //fracFarOverPol, fracFarUndrPol, avgOnPolicyR, mostOffR);
-    if ( fracFarOverPol > 2 * tolFarPol ) return indOver;
+    if ( fracFarOverPol > 2 * tol ) return indOver;
     else if (avgOnPolicyR > mostOffR) return indUndr;
     else return -1;
   }

@@ -53,7 +53,7 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const Rvec penalG  = POL.KLDivGradient(MU, -1);
   const Rvec polG = isFarPol? Rvec(penalG.size(), 0) :
                     policyGradient(MU, ACT, POL, ADV, A_RET, RHO, thrID);
-  POL.makeNetworkGrad(gradient, Utilities::weightSum2Grads(polG, penalG, beta));
+  POL.makeNetworkGrad(gradient, Utilities::penalizeReFER(polG, penalG, beta));
   ADV.grad(MB.action(bID, t), isFarPol? 0 : beta * Aer, gradient);
   MB.setMseDklImpw(bID, t, Ver*Ver, DKL, RHO, CmaxRet, CinvRet);
   NET.setGradient(gradient, bID, t); // place gradient onto output layer

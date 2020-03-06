@@ -105,16 +105,21 @@ struct Parameters
   {
     long double sumWeights = 0;
     #pragma omp parallel for schedule(static) reduction(+:sumWeights)
-    for (Uint w=0; w<nParams; ++w)
-      sumWeights += std::pow(params[w],2);
+    for (Uint w=0; w<nParams; ++w) sumWeights += std::pow(params[w],2);
     return std::sqrt(sumWeights);
+  }
+  long double compute_weight_L1norm() const
+  {
+    long double sumWeights = 0;
+    #pragma omp parallel for schedule(static) reduction(+:sumWeights)
+    for (Uint w=0; w<nParams; ++w) sumWeights += std::fabs(params[w]);
+    return sumWeights;
   }
   long double compute_weight_dist(const ParametersPtr_t& TGT) const
   {
     long double dist = 0;
     #pragma omp parallel for schedule(static) reduction(+ : dist)
-    for(Uint w=0; w<nParams; ++w)
-      dist += std::pow(params[w]-TGT->params[w], 2);
+    for(Uint w=0; w<nParams; ++w) dist += std::pow(params[w]-TGT->params[w], 2);
     return std::sqrt(dist);
   }
 

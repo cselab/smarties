@@ -153,10 +153,12 @@ public:
     maximises reuse of weights in cache by getting each layer done in turn
   */
   void backProp(const std::vector<std::unique_ptr<Activation>>& series,
+                const std::vector<std::unique_ptr<Activation>>& conditioning,
                 const Uint stepLastError, const Parameters*const _grad,
                 const Parameters*const _weights = nullptr) const
   {
     assert(stepLastError <= series.size());
+    assert(stepLastError <= conditioning.size() + 1);
     const Parameters*const W = _weights == nullptr ? weights.get() : _weights;
 
     if (stepLastError == 0) return; //no errors placed
@@ -173,21 +175,28 @@ public:
       for (Sint i = (Sint)layers.size()-1; i>=0; --i)
       {
         assert(series[T]->written);
-        layers[i]->backward(series[T-1].get(), series[T].get(), nullptr,
+        layers[i]->backward(conditioning[T-1].get(), series[T].get(), nullptr,
                             _grad, W);
 
         for (Uint k = T-1; k>0; --k) {
         assert(series[k]->written);
-        layers[i]->backward(series[k-1].get(), series[k].get(), series[k+1].get(),
-                            _grad, W);
+        layers[i]->backward(conditioning[k-1].get(), series[k].get(),
+                            series[k+1].get(), _grad, W);
         }
 
         assert(series[0]->written);
-        layers[i]->backward(          nullptr, series[0].get(), series[  1].get(),
+        layers[i]->backward(nullptr, series[0].get(), series[1].get(),
                             _grad, W);
       }
     }
     _grad->written = true;
+  }
+
+  void backProp(const std::vector<std::unique_ptr<Activation>>& series,
+                const Uint stepLastError, const Parameters*const _grad,
+                const Parameters*const _weights = nullptr) const
+  {
+    backProp(series, series, stepLastError, _grad, _weights);
   }
 
   /*

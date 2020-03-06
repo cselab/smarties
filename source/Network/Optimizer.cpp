@@ -36,9 +36,9 @@ struct AdaMax
       const nnReal numer = M1;
     #endif
     #ifdef NET_L1_PENAL
-      const nnReal penal = -(W>0 ? lambda : -lambda);
+      const nnReal penal = W>0 ? - lambda : lambda;
     #else
-      const nnReal penal = - W*lambda;
+      const nnReal penal = - W * lambda;
     #endif
     return eta * (numer/std::max(M2, nnEPS) + penal);
   }
@@ -73,9 +73,9 @@ struct Adam
   inline nnReal step(const nnReal grad, nnReal&M1, nnReal&M2, nnReal&M3, const nnReal W) const
   {
     #ifdef NET_L1_PENAL
-      const nnReal penal = -(W>0 ? lambda : -lambda);
+      const nnReal penal = W>0 ? - lambda : lambda;
     #else
-      const nnReal penal = - W*lambda;
+      const nnReal penal = - W * lambda;
     #endif
     #ifndef SMARTIES_ADAMW
     const nnReal DW = fac * grad + penal;
@@ -121,17 +121,12 @@ void AdamOptimizer::apply_update()
   if(learn_size > 1 && paramRequest not_eq MPI_REQUEST_NULL)
     MPI(Wait, &paramRequest, MPI_STATUS_IGNORE);
 
-  #ifndef __EntropySGD
-    using Algorithm = Adam;
-  #else
-    using Algorithm = Entropy<Adam>;
-  #endif
+  using Algorithm = Adam;
   //update is deterministic: can be handled independently by each node
   //communication overhead is probably greater than a parallelised sum
 
-  const Real factor = 1./batchSize;
+  const Real factor = 1.0 / batchSize;
   nnReal* const paramAry = weights->params;
-  assert(eta < 2e-3); //super upper bound for NN, srsly
   const nnReal _eta = bAnnealLearnRate? Utilities::annealRate(eta,nStep,epsAnneal) : eta;
 
   #pragma omp parallel

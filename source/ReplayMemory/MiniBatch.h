@@ -170,7 +170,7 @@ struct MiniBatch
     EP.action_adv[t] = A; EP.state_vals[t] = V;
     const Fval reward = R[b][mapTime2Ind(b, t)];
     const Fval oldRet = EP.Q_RET[t-1], clipW = W<1 ? W:1;
-    EP.Q_RET[t-1] = reward + gamma * V + gamma * clipW * (EP.Q_RET[t] - A - V);
+    EP.Q_RET[t-1] = reward + gamma*V + gamma*clipW * (EP.Q_RET[t] - A - V);
     return std::fabs(EP.Q_RET[t-1] - oldRet);
   }
 

@@ -34,7 +34,6 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   critc->setAddedInputType(ACTION, bID, t);
   const Rvec qval = critc->forward(bID, t); // network compute
-
   critc->setAddedInputType(NETWORK, bID, t, -1); //-1 flags to write on separate
   const Rvec pval = critc->forward(bID, t, -1); //net alloc, with target wegiths
 
@@ -103,7 +102,6 @@ void DPG::select(Agent& agent)
   {
     //Compute policy and value on most recent element of the sequence.
     const Continuous_policy POL({0, aInfo.dim()}, aInfo, actor->forward(agent));
-    Rvec MU = POL.getVector(); // vector-form current policy for storage
 
     // if explNoise is 0, we just act according to policy
     // since explNoise is initial value of diagonal std vectors
@@ -111,13 +109,13 @@ void DPG::select(Agent& agent)
     Rvec action = OrUhDecay<=0? POL.selectAction(agent, settings.explNoise>0) :
         POL.selectAction_OrnsteinUhlenbeck(agent, settings.explNoise>0, OrUhState[agent.ID]);
     agent.setAction(action);
-    data_get->add_action(agent, MU);
+    data_get->add_action(agent, POL.getVector());
 
     #ifdef DPG_RETRACE_TGT
       //careful! act may be scaled to agent's action space, mean/sampAct aren't
-      critc->setAddedInput(action, agent, currStep);
+      critc->setAddedInputType(ACTION, agent, currStep);
       const Rvec qval = critc->forward(agent);
-      critc->setAddedInput(POL.getMean(), agent, currStep);
+      critc->setAddedInputType(NETWORK, agent, currStep);
       const Rvec sval = critc->forward(agent, true); // overwrite = true
       EP.action_adv.push_back(qval[0]-sval[0]);
       EP.state_vals.push_back(sval[0]);
@@ -127,9 +125,8 @@ void DPG::select(Agent& agent)
   {
     #ifdef DPG_RETRACE_TGT
       if( agent.agentStatus == TRNC ) {
-        Rvec polMean = actor->forward(agent); // grab pol mean
-        polMean.resize(nA); // grab pol mean
-        critc->setAddedInput(polMean, agent, currStep);
+        const Rvec pvec = actor->forward(agent); // grab pol mean
+        critc->setAddedInputType(NETWORK, agent, currStep);
         const Rvec sval = critc->forward(agent);
         EP.state_vals.push_back(sval[0]); // not a terminal state
       } else {

@@ -8,7 +8,7 @@
 
 #include "Warnings.h"
 
-#define PRINT_STACK_TRACE
+//#define PRINT_STACK_TRACE
 
 #ifdef PRINT_STACK_TRACE
 #define BACKWARD_HAS_DW 0
@@ -32,7 +32,7 @@ namespace Warnings
 {
 static std::mutex warn_mutex;
 
-void signal_handler(int signal)
+void signal_handler [[ noreturn ]] (int signal)
 {
   if (signal == SIGABRT) {
       std::cerr << "SIGABRT received\n";

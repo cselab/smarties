@@ -59,9 +59,8 @@ class RACER : public Learner_approximator
   const std::vector<Uint> pol_start, adv_start;
   const Uint VsID = net_indices[0];
 
-  // used in case of temporally correlated noise
   const Uint batchSize = settings.batchSize, ESpopSize = settings.ESpopSize;
-  std::vector<Rvec> OrUhState = std::vector<Rvec>( nAgents, Rvec(nA, 0) );
+  // used for CMA:
   mutable std::vector<Rvec> rhos=std::vector<Rvec>(batchSize,Rvec(ESpopSize,0));
   mutable std::vector<Rvec> dkls=std::vector<Rvec>(batchSize,Rvec(ESpopSize,0));
   mutable std::vector<Rvec> advs=std::vector<Rvec>(batchSize,Rvec(ESpopSize,0));

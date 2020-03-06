@@ -14,19 +14,23 @@
 
 namespace smarties
 {
-static constexpr Fval EPS = std::numeric_limits<Fval>::epsilon();
 
 MemoryProcessing::MemoryProcessing(MemoryBuffer*const _RM) : RM(_RM),
-  Ssum1Rdx(distrib, LDvec(_RM->MDP.dimStateObserved, 0) ),
-  Ssum2Rdx(distrib, LDvec(_RM->MDP.dimStateObserved, 1) ),
-  Rsum2Rdx(distrib, LDvec(1, 1) ), Csum1Rdx(distrib, LDvec(1, 1) ),
+  StateRewRdx(distrib, LDvec(MDP.dimStateObserved * 2 + 3, 0) ),
   globalStep_reduce(distrib, std::vector<long>{0, 0}),
   ReFER_reduce(distrib, LDvec{0.,1.})
 {
+    LDvec initGuessStateRewStats(MDP.dimStateObserved * 2 + 3, 0);
+    for(Uint i=0; i<MDP.dimStateObserved; ++i)
+      initGuessStateRewStats[i + MDP.dimStateObserved] = 0;
+    initGuessStateRewStats[MDP.dimStateObserved*2] = 1;
+    initGuessStateRewStats[MDP.dimStateObserved*2 + 2] = 1;
+    StateRewRdx.update(initGuessStateRewStats);
+
     globalStep_reduce.update( { nSeenSequences_loc.load(),
                                 nSeenTransitions_loc.load() } );
 
-    ReFER_reduce.update({(long double)0, (long double) settings.minTotObsNum });
+    ReFER_reduce.update({(long double)0, (long double) settings.maxTotObsNum });
 }
 
 void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bool bInit)
@@ -49,9 +53,9 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
 
   if(WR>0 or WS>0)
   {
-    long double count = 0, newstdvr = 0;
+    long double count = 0, newRSum = 0, newRSqSum = 0;
     std::vector<long double> newSSum(dimS, 0), newSSqSum(dimS, 0);
-    #pragma omp parallel reduction(+ : count, newstdvr)
+    #pragma omp parallel reduction(+ : count, newRSum, newRSqSum)
     {
       std::vector<long double> thNewSSum(dimS, 0), thNewSSqSum(dimS, 0);
       #pragma omp for schedule(dynamic, 1) nowait
@@ -60,10 +64,11 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
         const Uint N = EP.ndata();
         count += N;
         for(Uint j=0; j<N; ++j) {
-          newstdvr += std::pow(EP.rewards[j+1], 2);
+          const long double drk = EP.rewards[j+1] - mean_reward;
+          newRSum += drk; newRSqSum += drk * drk;
           for(Uint k=0; k<dimS && WS>0; ++k) {
-            const long double sk = EP.states[j][k] - mean[k];
-            thNewSSum[k] += sk; thNewSSqSum[k] += sk*sk;
+            const long double dsk = EP.states[j][k] - mean_state[k];
+            thNewSSum[k] += dsk; thNewSSqSum[k] += dsk * dsk;
           }
         }
       }
@@ -77,43 +82,51 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
     }
 
     //add up gradients across nodes (masters)
-    Ssum1Rdx.update(newSSum);
-    Ssum2Rdx.update(newSSqSum);
-    Csum1Rdx.update( LDvec {count});
-    Rsum2Rdx.update( LDvec {newstdvr});
+    auto newSRstats = newSSum;
+    assert(newSRstats.size() == dimS);
+    newSRstats.insert(newSRstats.end(), newSSqSum.begin(), newSSqSum.end());
+    assert(newSRstats.size() == 2*dimS);
+    newSRstats.push_back(count);
+    newSRstats.push_back(newRSum);
+    newSRstats.push_back(newRSqSum);
+    assert(newSRstats.size() == 2*dimS + 3);
+    StateRewRdx.update(newSRstats);
   }
 
-  const long double count = Csum1Rdx.get<0>(bInit);
+  const auto newSRstats = StateRewRdx.get(bInit);
+  assert(newSRstats.size() == 2*dimS + 3);
+  const auto count = newSRstats[2*dimS];
+
+  // function to update {mean, std, 1/std} given:
+  // - Evar = sample_mean minus old mean = E[(X-old_mean)]
+  // - Evar2 = E[(X-old_mean)^2]
+  const auto updateStats = [] (nnReal & mean, nnReal & stdev, nnReal & invstdev,
+    const Real learnRate, const long double Evar, const long double Evar2)
+  {
+    // mean = (1-learnRate) * mean + learnRate * sample_mean, which becomes:
+    mean += learnRate * Evar;
+    // if learnRate==1 then variance is exact, otherwise update second moment
+    // centered around current sample_mean (ie. var = E[(X-sample_mean)^2]):
+    auto variance = Evar2 - Evar*Evar * (2*learnRate - learnRate*learnRate);
+    static constexpr long double EPS = std::numeric_limits<nnReal>::epsilon();
+    variance = std::max(variance, EPS); //large sum may be neg machine precision
+    stdev += learnRate * (std::sqrt(variance) - stdev);
+    invstdev = 1/stdev;
+  };
 
   if(WR>0)
   {
-   long double varR = Rsum2Rdx.get<0>(bInit)/count;
-   if(varR < 0) varR = 0;
-   //if( settings.ESpopSize > 1e7 ) {
-   //  const Real gamma = settings.gamma;
-   //  const auto Rscal = (std::sqrt(varR)+EPS) * (1-gamma>EPS? 1/(1-gamma) :1);
-   //  invstd_reward = (1-WR)*invstd_reward +WR/Rscal;
-   //} else
-   invstd_reward = (1-WR)*invstd_reward + WR / ( std::sqrt(varR) + EPS );
+      updateStats(mean_reward, std_reward, invstd_reward, WR,
+                  newSRstats[2*dimS+1] / count, newSRstats[2*dimS+2] / count);
   }
 
   if(WS>0)
   {
-    const LDvec SSum1 = Ssum1Rdx.get(bInit);
-    const LDvec SSum2 = Ssum2Rdx.get(bInit);
+    const LDvec SSum1(& newSRstats[0], & newSRstats[dimS]);
+    const LDvec SSum2(& newSRstats[dimS], & newSRstats[2 * dimS]);
     for(Uint k=0; k<dimS; ++k)
-    {
-      // this is the sample mean minus mean[k]:
-      const long double MmM = SSum1[k]/count;
-      // mean[k] = (1-WS)*mean[k] + WS * sample_mean, which becomes:
-      mean[k] = mean[k] + WS * MmM;
-      // if WS==1 then varS is exact, otherwise update second moment
-      // centered around current mean[k] (ie. E[(Sk-mean[k])^2])
-      long double varS = SSum2[k]/count - MmM*MmM*(2*WS-WS*WS);
-      if(varS < 0) varS = 0;
-      std[k] = (1-WS) * std[k] + WS * std::sqrt(varS);
-      invstd[k] = 1/(std[k]+EPS);
-    }
+      updateStats(mean_state[k], std_state[k], invstd_state[k],
+                  WS, SSum1[k] / count, SSum2[k] / count);
   }
 }
 
@@ -139,7 +152,8 @@ void MemoryProcessing::updateReFERpenalization()
   // size N (bigger N decreases accuracy because there are more samples to
   // update). We pick coef 0.1 to match learning rate chosen in original paper:
   // we had B=256 and N=2^18 and eta=1e-4. 0.1*B*N \approx 1e-4
-  const Real learnRefer = 0.1 * settings.batchSize / nFarGlobal[1];
+  Real nDataSize = std::max((long double) settings.maxTotObsNum, nFarGlobal[1]);
+  const Real learnRefer = 0.1 * settings.batchSize / nDataSize;
   const auto fixPointIter = [&] (const Real val, const bool goTo0) {
     if (goTo0) // fixed point iter converging to 0:
       return (1 - std::min(learnRefer, val)) * val;
@@ -160,25 +174,26 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
   const bool bRecomputeProperties = ( (nGradSteps + 1) % 100) == 0;
   //shift data / gradient counters to maintain grad stepping to sample
   // collection ratio prescirbed by obsPerStep
-  Real C = settings.clipImpWeight, E = settings.epsAnneal;
+  const Real C = settings.clipImpWeight, D = settings.penalTol;
 
   if(ALGO == BATCHRL) {
-    const Real maxObsNum = settings.maxTotObsNum_local;
+    const Real maxObsNum = settings.maxTotObsNum_local, E = settings.epsAnneal;
     const Real factorUp = std::max((Real) 1, nTransitions.load() / maxObsNum);
     //const Real factorDw = std::min((Real)1, maxObsNum / obsNum);
     //D *= factorUp;
     //CmaxRet = 1 + C * factorDw
     CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, E) * factorUp;
   } else {
-    CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, E);
+    //CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, settings.epsAnneal);
+    CmaxRet = 1 + C;
   }
 
   CinvRet = 1 / CmaxRet;
   if(CmaxRet <= 1 and C > 0) die("Unallowed ReF-ER annealing values.");
   assert(CmaxRet>=1);
 
-  MostOffPolicyEp totMostOff; OldestDatasetEp totFirstIn;
-  MostFarPolicyEp totMostFar; HighestAvgDklEp totHighDkl;
+  MostOffPolicyEp totMostOff(D); OldestDatasetEp totFirstIn;
+  MostFarPolicyEp totMostFar;    HighestAvgDklEp totHighDkl;
 
   Real _avgR = 0;
   Real _totDKL = 0;
@@ -186,7 +201,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
   const Uint setSize = RM->readNSeq();
   #pragma omp parallel reduction(+ : _avgR, _totDKL, _nOffPol)
   {
-    OldestDatasetEp locFirstIn; MostOffPolicyEp locMostOff;
+    OldestDatasetEp locFirstIn; MostOffPolicyEp locMostOff(D);
     MostFarPolicyEp locMostFar; HighestAvgDklEp locHighDkl;
 
     #pragma omp for schedule(static, 1) nowait
@@ -228,7 +243,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
 
     case MAXKLDIV: indexOfEpisodeToDelete = totHighDkl(); break;
 
-    case BATCHRL: indexOfEpisodeToDelete = totMostOff(settings.penalTol); break;
+    case BATCHRL: indexOfEpisodeToDelete = totMostOff(); break;
   }
 
   if (indexOfEpisodeToDelete >= 0) {
@@ -280,6 +295,7 @@ void MemoryProcessing::prepareNextBatchAndDeleteStaleEp()
 void MemoryProcessing::getMetrics(std::ostringstream& buff)
 {
   Utilities::real2SS(buff, RM->avgCumulativeReward, 9, 0);
+  Utilities::real2SS(buff, mean_reward, 6, 0);
   Utilities::real2SS(buff, 1/invstd_reward, 6, 1);
   Utilities::real2SS(buff, avgKLdivergence, 5, 1);
 
@@ -303,7 +319,7 @@ void MemoryProcessing::getHeaders(std::ostringstream& buff)
 {
   buff <<
   //"|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nFarP ";
-  "|  avgR  | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
+  "|  avgR  | avgr | stdr | DKL | nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
   if(CmaxRet>1) {
     //buf << "| alph | beta ";
     buff << "| beta ";
@@ -330,7 +346,7 @@ void MemoryProcessing::histogramImportanceWeights()
         if(rho >= bounds[b] && rho < bounds[b+1]) counts[b] ++;
     }
   }
-  const auto harmoncMean = [](const Fval a, const Fval b) {
+  const auto harmonicMean = [](const Fval a, const Fval b) {
     return 2 * a * (b / (a + b));
   };
   std::ostringstream buff;
@@ -338,7 +354,7 @@ void MemoryProcessing::histogramImportanceWeights()
   buff<<"\nOFF-POLICY IMP WEIGHTS HISTOGRAMS\n";
   buff<<"weight pi/mu (harmonic mean of histogram's bounds):\n";
   for (Uint b = 0; b < nBins; ++b)
-    Utilities::real2SS(buff, harmoncMean(bounds[b], bounds[b+1]), 6, 1);
+    Utilities::real2SS(buff, harmonicMean(bounds[b], bounds[b+1]), 6, 1);
   buff<<"\nfraction of dataset:\n";
   const Real dataSize = RM->readNData();
   for (Uint b = 0; b < nBins; ++b)

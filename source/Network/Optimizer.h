@@ -45,7 +45,7 @@ public:
   const Real eta_init = settings.learnrate;
   nnReal eta = eta_init;
   const Uint batchSize = settings.batchSize;
-  const Real lambda = settings.nnLambda;
+  Real lambda = settings.nnLambda;
   const Real epsAnneal = settings.epsAnneal;
   const Real tgtUpdateAlpha = settings.targetDelay;
   long unsigned nStep = 0;

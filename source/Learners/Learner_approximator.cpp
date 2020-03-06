@@ -168,6 +168,7 @@ void Learner_approximator::setupDataCollectionTasks(TaskQueue& tasks)
   params.add(MDP.stateScale.size(), MDP.stateScale.data());
   params.add(MDP.stateMean.size(), MDP.stateMean.data());
   params.add(1, & MDP.rewardsScale);
+  params.add(1, & MDP.rewardsMean);
   for(const auto& net : networks)  net->gatherParameters(params);
 
   Learner::setupDataCollectionTasks(tasks);

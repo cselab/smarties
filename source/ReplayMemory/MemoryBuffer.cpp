@@ -42,24 +42,25 @@ void MemoryBuffer::restart(const std::string base)
       fflush(0);
     }
 
-    const Uint dimS = MDP.dimStateObserved; assert(mean.size() == dimS);
+    const Uint dimS = MDP.dimStateObserved; assert(mean_state.size() == dimS);
     std::vector<double> V(dimS);
     size_t size1 = fread(V.data(), sizeof(double), dimS, wFile);
-    mean   = std::vector<nnReal>(V.begin(), V.end());
+    mean_state   = std::vector<nnReal>(V.begin(), V.end());
     size_t size2 = fread(V.data(), sizeof(double), dimS, wFile);
-    invstd = std::vector<nnReal>(V.begin(), V.end());
+    invstd_state = std::vector<nnReal>(V.begin(), V.end());
     size_t size3 = fread(V.data(), sizeof(double), dimS, wFile);
-    std    = std::vector<nnReal>(V.begin(), V.end());
-    V.resize(2);
-    size_t size4 = fread(V.data(), sizeof(double),    2, wFile);
-    stddev_reward = V[0]; invstd_reward = V[1];
+    std_state    = std::vector<nnReal>(V.begin(), V.end());
+    V.resize(3);
+    size_t size4 = fread(V.data(), sizeof(double),    3, wFile);
+    std_reward = V[0]; invstd_reward = V[1]; mean_reward = V[2];
     fclose(wFile);
-    if (size1!=dimS || size2!=dimS || size3!=dimS || size4!=2)
+    if (size1 != dimS || size2 != dimS || size3 != dimS || size4 != 3)
       _die("Mismatch in restarted file %s.", (base+"_scaling.raw").c_str());
   }
 
   if(distrib.bTrain == false) {
     printf("Evaluating the policy: will skip restarting the Replay Buffer from file.\n");
+    chdir(currDirectory);
     return;
   }
 
@@ -122,14 +123,15 @@ void MemoryBuffer::save(const std::string base)
 {
   {
     const auto write2file = [&] (FILE * wFile) {
-      std::vector<double> V = std::vector<double>(mean.begin(), mean.end());
+      std::vector<double> V(mean_state.begin(), mean_state.end());
       fwrite(V.data(), sizeof(double), V.size(), wFile);
-      V = std::vector<double>(invstd.begin(), invstd.end());
+      V = std::vector<double>(invstd_state.begin(), invstd_state.end());
       fwrite(V.data(), sizeof(double), V.size(), wFile);
-      V = std::vector<double>(std.begin(), std.end());
+      V = std::vector<double>(std_state.begin(), std_state.end());
       fwrite(V.data(), sizeof(double), V.size(), wFile);
-      V.resize(2); V[0] = stddev_reward; V[1] = invstd_reward;
-      fwrite(V.data(), sizeof(double), 2, wFile);
+      V.resize(3);
+      V[0] = std_reward; V[1] = invstd_reward; V[2] = mean_reward;
+      fwrite(V.data(), sizeof(double), 3, wFile);
     };
 
     const std::string backname = base + "_scaling_backup.raw";
@@ -323,26 +325,31 @@ void MemoryBuffer::removeSequence(const Uint ind)
 
 void MemoryBuffer::pushBackSequence(Sequence & seq)
 {
-  const int wrank = MPICommRank(distrib.world_comm);
   const bool logSample =  distrib.logAllSamples==1 ||
                          (distrib.logAllSamples==2 && seq.agentID==0);
   char pathRew[2048], pathObs[2048], rewArg[1024];
-  snprintf(pathRew, 2048, "%s/agent_%02lu_rank%02d_cumulative_rewards.dat",
-          distrib.initial_runDir, learnID, wrank);
-  snprintf(pathObs, 2048, "%s/agent%03lu_rank%02d_obs.raw",
-          distrib.initial_runDir, learnID, wrank);
-  snprintf(rewArg, 2048, "%ld %ld %ld %lu %f", nGradSteps.load(),
-          std::max(nLocTimeStepsTrain(), (long)0),
-          seq.agentID, seq.nsteps(), seq.totR);
+
+  if(logSample) {
+    const int wrank = MPICommRank(distrib.world_comm);
+    snprintf(rewArg, 1024, "%ld %ld %ld %lu %f", nGradSteps.load(),
+              std::max(nLocTimeStepsTrain(), (long)0),
+              seq.agentID, seq.nsteps(), seq.totR);
+    snprintf(pathRew, 2048, "%s/agent_%02lu_rank%02d_cumulative_rewards.dat",
+              distrib.initial_runDir, learnID, wrank);
+    snprintf(pathObs, 2048, "%s/agent%03lu_rank%02d_obs.raw",
+              distrib.initial_runDir, learnID, wrank);
+  }
+
   const auto log = not logSample ? std::vector<float>(0) :
                    seq.logToFile(sI, aI, nSeenTransitions_loc.load());
 
   std::lock_guard<std::mutex> lock(dataset_mutex);
   assert( readNSeq() == (long) episodes.size() );
 
-  FILE * pFile = fopen (pathRew, "a");
-  fprintf (pFile, "%s\n", rewArg); fflush (pFile); fclose (pFile);
   if(logSample) {
+    FILE * pFile = fopen (pathRew, "a");
+    fprintf (pFile, "%s\n", rewArg);
+    fflush (pFile); fclose (pFile);
     pFile = fopen (pathObs, "ab");
     fwrite (log.data(), sizeof(float), log.size(), pFile);
     fflush(pFile); fclose(pFile);

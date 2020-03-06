@@ -63,8 +63,6 @@ struct Sequence
     nFarUndrPolSteps = p.nFarUndrPolSteps.load();   p.nFarUndrPolSteps = 0;   \
     sumKLDivergence  = p.sumKLDivergence.load();    p.sumKLDivergence = 0;    \
     sumSquaredErr    = p.sumSquaredErr.load();      p.sumSquaredErr = 0;      \
-    minImpW          = p.minImpW.load();            p.minImpW = 1;            \
-    avgImpW          = p.avgImpW.load();            p.avgImpW = 1;            \
     states           = std::move(p.states);         p.states.clear();         \
     actions          = std::move(p.actions);        p.actions.clear();        \
     policies         = std::move(p.policies);       p.policies.clear();       \
@@ -77,6 +75,9 @@ struct Sequence
     KullbLeibDiv     = std::move(p.KullbLeibDiv);   p.KullbLeibDiv.clear();   \
     priorityImpW     = std::move(p.priorityImpW);   p.priorityImpW.clear();   \
   } while (0)
+
+  // minImpW          = p.minImpW.load();            p.minImpW = 1;
+  // avgImpW          = p.avgImpW.load();            p.avgImpW = 1;
 
   Sequence(Sequence && p)
   {
@@ -97,8 +98,8 @@ struct Sequence
     nFarUndrPolSteps = 0;
     sumKLDivergence  = 0;
     sumSquaredErr    = 0;
-    minImpW          = 1;
-    avgImpW          = 1;
+    //minImpW          = 1;
+    //avgImpW          = 1;
 
     states.clear(); actions.clear(); policies.clear(); rewards.clear();
     SquaredError.clear(); offPolicImpW.clear(); KullbLeibDiv.clear();
@@ -136,30 +137,30 @@ struct Sequence
   std::atomic<Uint> nFarUndrPolSteps{0}; // pi/mu < 1/c
   std::atomic<Real> sumKLDivergence{0};
   std::atomic<Real> sumSquaredErr{0};
-  std::atomic<Real> minImpW{1};
-  std::atomic<Real> avgImpW{1};
+  //std::atomic<Real> minImpW{1};
+  //std::atomic<Real> avgImpW{1};
   //////////////////////////////////////////////////////////////////////////////
 
   void updateCumulative(const Fval C, const Fval invC)
   {
     const Uint N = ndata();
     Uint nOverFarPol = 0, nUndrFarPol = 0;
-    Real minRho = 9e9, avgRho = 1;
-    const Real invN = 1.0 / N;
+    //Real minRho = 9e9, avgRho = 1;
+    //const Real invN = 1.0 / N;
     for (Uint t = 0; t < N; ++t) {
       // float precision may cause DKL to be slightly negative:
       assert(KullbLeibDiv[t] >= - FVAL_EPS && offPolicImpW[t] >= 0);
       // sequence is off policy if offPol W is out of 1/C : C
       if (offPolicImpW[t] >    C) nOverFarPol++;
       if (offPolicImpW[t] < invC) nUndrFarPol++;
-      if (offPolicImpW[t] < minRho) minRho = offPolicImpW[t];
-      const Real clipRho = std::min((Fval) 1, offPolicImpW[t]);
-      avgRho *= std::pow(clipRho, invN);
+      //if (offPolicImpW[t] < minRho) minRho = offPolicImpW[t];
+      //const Real clipRho = std::min((Fval) 1, offPolicImpW[t]);
+      //avgRho *= std::pow(clipRho, invN);
     }
     nFarOverPolSteps = nOverFarPol;
     nFarUndrPolSteps = nUndrFarPol;
-    minImpW = minRho;
-    avgImpW = avgRho;
+    //minImpW = minRho;
+    //avgImpW = avgRho;
 
     assert(std::fabs(rewards[0])<1e-16);
     totR = Utilities::sum(rewards);
@@ -173,16 +174,16 @@ struct Sequence
     const Fval oldW = offPolicImpW[t];
     const Uint wasFarOver = oldW > C, wasFarUndr = oldW < invC;
     const Uint  isFarOver =    W > C,  isFarUndr =    W < invC;
-    const Real clipOldW = std::min((Fval) 1, oldW);
-    const Real clipNewW = std::min((Fval) 1,    W);
-    const Real invN = 1.0 / ndata();
+    //const Real clipOldW = std::min((Fval) 1, oldW);
+    //const Real clipNewW = std::min((Fval) 1,    W);
+    //const Real invN = 1.0 / ndata();
 
     sumKLDivergence.store(sumKLDivergence.load() - KullbLeibDiv[t] + D);
     sumSquaredErr.store(sumSquaredErr.load() - SquaredError[t] + E);
     nFarOverPolSteps += isFarOver - wasFarOver;
     nFarUndrPolSteps += isFarUndr - wasFarUndr;
-    avgImpW.store(avgImpW.load() * std::pow(clipNewW/clipOldW, invN));
-    if(W < minImpW.load()) minImpW = W;
+    //avgImpW.store(avgImpW.load() * std::pow(clipNewW/clipOldW, invN));
+    //if(W < minImpW.load()) minImpW = W;
 
     SquaredError[t] = E;
     KullbLeibDiv[t] = D;

@@ -25,7 +25,7 @@ static constexpr InfoDumpLevel level = DEBUG;
 //static constexpr InfoDumpLevel level = SCHEDULER;
 #endif
 
-void signal_handler(int signal);
+void signal_handler [[ noreturn ]] (int signal);
 
 void init_warnings();
 

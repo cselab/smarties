@@ -21,11 +21,11 @@ void RACER<Advantage_t, Policy_t, Action_t>::prepareCMALoss()
 
   #pragma omp parallel for schedule(static)
   for (Uint b=0; b<batchSize; ++b) {
+    Real avgRho_ = 0, avgAdv_ = 0;
     for(Uint w=0; w<ESpopSize; ++w) {
-      avgRho[b] += rhos[b][w];
-      avgAdv[b] += advs[b][w];
+      avgRho_ += rhos[b][w]; avgAdv_ += advs[b][w];
     }
-    avgRho[b] /= ESpopSize; avgAdv[b] /= ESpopSize;
+    avgRho[b] = avgRho_ / ESpopSize; avgAdv[b] = avgAdv_ / ESpopSize;
   }
 
   //for(Uint b=0; b<batchSize; ++b) { aR[b] = rhos[b][0]; aA[b] = advs[b][0]; }

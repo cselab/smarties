@@ -233,7 +233,7 @@ def setLaunchCommand(parsed, absRunPath):
     f = open(absRunPath + '/daint_sbatch','w')
     f.write('#!/bin/bash -l \n')
     f.write('#SBATCH --job-name=%s \n' % rundir)
-    if False:
+    if parsed.debug:
       f.write('#SBATCH --time=00:30:00 \n')
       f.write('#SBATCH --partition=debug \n')
     else:
@@ -346,6 +346,9 @@ if __name__ == '__main__':
   parser.add_argument('--interactive', dest='interactive', action='store_true',
     help="Run on Euler or Daint on interactive session.")
   parser.set_defaults(interactive=False)
+  parser.add_argument('--debug', dest='debug', action='store_true',
+    help="Run on Daint on debug partition.")
+  parser.set_defaults(debug=False)
   parser.add_argument('--clockHours', type=float, default=24.0,
       help="Number of hours to allocate if running on a cluster.")
   parser.add_argument('--nTaskPerNode', type=int, default=1,
@@ -385,6 +388,7 @@ if __name__ == '__main__':
   cmd = 'cd ${RUNDIR} \n'
   cmd = cmd + setEnvironmentFlags(parsed)
   cmd = cmd + setLaunchCommand(parsed, absRunPath)
+
   # print('COMMAND:' + cmd )
   signal.signal(signal.SIGINT, signal_handler)
   subprocess.run(cmd, executable=parsed.shell, shell=True)

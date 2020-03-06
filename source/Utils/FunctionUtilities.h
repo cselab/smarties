@@ -218,6 +218,15 @@ inline Rvec sum2Grads(const Rvec& f, const Rvec& g)
   return ret;
 }
 
+inline Rvec penalizeReFER(const Rvec& grad, const Rvec& penal, const Real beta)
+{
+  assert(grad.size() == penal.size());
+  Rvec ret(grad.size());
+  for(Uint i=0; i<grad.size(); ++i)
+    ret[i] = beta * grad[i]+ (1-beta)/beta * penal[i];
+  return ret;
+}
+
 inline Rvec weightSum2Grads(const Rvec& f, const Rvec& g, const Real W)
 {
   assert(g.size() == f.size());

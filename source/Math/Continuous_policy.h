@@ -404,7 +404,7 @@ struct BetaPolicy : public Base1Dpolicy
              "--explNoise) must be less than 1.\n");
       explNoise  = 1 - EPS;
     }
-    return ClipFunction::_inv( explNoise * explNoise );
+    return ClipFunction::_inv(explNoise * explNoise / 4);
   }
 
   Real sample_OrnsteinUhlenbeck(Rvec& state, const Real noise) const {
@@ -496,6 +496,14 @@ struct Continuous_policy
   static Rvec initial_Stdev(const ActionInfo& aI, const Real S) {
     Rvec ret; ret.reserve(aI.dim());
     setInitial_Stdev(aI, ret, S);
+    return ret;
+  }
+
+  static Rvec map2unbounded(const ActionInfo& aI, const Rvec & action) {
+    Rvec ret = action;
+    assert(action.size() == aI.dim());
+    for(Uint i=0; i<aI.dim(); ++i)
+        if(aI.isBounded(i)) ret[i] = BetaPolicy::ClipFunction::_inv(ret[i]);
     return ret;
   }
 
@@ -633,8 +641,8 @@ struct Continuous_policy
   }
 
   Rvec selectAction(Agent& agent, const bool bTrain) const {
-    if (not bTrain || not agent.trackSequence)
-        return getMean();
+    //if (not bTrain || not agent.trackSequence) return getMean();
+    if (not bTrain) return getMean();
     // else sample:
     Rvec act(nA);
     if (agent.MDP.bAgentsShareNoise) {
@@ -648,8 +656,8 @@ struct Continuous_policy
   }
 
   Rvec selectAction_OrnsteinUhlenbeck(Agent& agent, const bool bTrain, Rvec& state) const {
-    if (not bTrain || not agent.trackSequence)
-        return getMean();
+    //if (not bTrain || not agent.trackSequence) return getMean();
+    if (not bTrain) return getMean();
     // else sample:
     Rvec act(nA);
     if (agent.MDP.bAgentsShareNoise) {

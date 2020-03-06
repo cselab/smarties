@@ -59,7 +59,7 @@ struct MDPdescriptor
   std::vector<bool> bStateVarObserved;
   // mean and scale of state variables: will be computed from replay memory:
   std::vector<nnReal> stateMean, stateStdDev, stateScale;
-  nnReal rewardsStdDev=1, rewardsScale=1;
+  nnReal rewardsStdDev=1, rewardsScale=1, rewardsMean = 0;
 
   // TODO: vector describing shape of state. To enable environment having
   // separate preprocessing for sight as opposed to other sensors.

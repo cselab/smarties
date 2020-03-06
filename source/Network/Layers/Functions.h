@@ -309,29 +309,28 @@ struct HardSigmoid : public Function
   }
 };
 
-#define SoftSign_FAC 1
 struct SoftSign : public Function
 {
   std::string name() const override { return "SoftSign";}
   Real initFactor(const Uint inps, const Uint outs) const override
   {
-    return std::sqrt(6./(inps + outs));
+    return std::sqrt(6.0/(inps + outs));
   }
 
   static Real _initFactor(const Uint inps, const Uint outs)
   {
-    return std::sqrt(6./(inps + outs));
+    return std::sqrt(6.0/(inps + outs));
   }
 
   template <typename T> static T _eval(const T in)
   {
-    return SoftSign_FAC * in/(1 + SoftSign_FAC*std::fabs(in));
+    return in/(1 + std::fabs(in));
   }
 
   template <typename T> static T _evalDiff(const T in, const T out)
   {
-    const T denom = 1 + SoftSign_FAC*std::fabs(in);
-    return SoftSign_FAC/(denom*denom);
+    const T denom = 1 + std::fabs(in);
+    return 1/(denom*denom);
   }
 
   static void _eval(const nnReal*const in, nnReal*const out, const Uint N)
@@ -351,10 +350,48 @@ struct SoftSign : public Function
   nnReal inverse(const nnReal in) const override
   {
     assert(in > 0 && in < 1);
-    return in/(1-std::fabs(in))/SoftSign_FAC;
+    return in / (1 - std::fabs(in));
   }
   nnReal evalDiff(const nnReal in, const nnReal out) const override
   {
+    return _evalDiff(in, out);
+  }
+};
+
+struct SoftRBF : public Function
+{
+  std::string name() const override { return "SoftRBF";}
+
+  Real initFactor(const Uint inps, const Uint outs) const override {
+    return std::sqrt(6.0/(inps + outs));
+  }
+  static Real _initFactor(const Uint inps, const Uint outs) {
+    return std::sqrt(6.0/(inps + outs));
+  }
+
+  template <typename T> static T _eval(const T in) {
+    return 1/(1 + in * in);
+  }
+  template <typename T> static T _evalDiff(const T in, const T out) {
+    const T denom = 1 + in * in;
+    return - 2 * in / (denom * denom);
+  }
+  static void _eval(const nnReal*const in, nnReal*const out, const Uint N) {
+    #pragma omp simd aligned(in,out : VEC_WIDTH)
+    for (Uint i=0;i<N; ++i) out[i] = _eval(in[i]);
+  }
+
+  void eval(const nnReal*const in, nnReal*const out, const Uint N) const override {
+    return _eval(in, out, N);
+  }
+  nnReal eval(const nnReal in) const override {
+    return _eval(in);
+  }
+  nnReal inverse(const nnReal in) const override {
+    die("Not supported");
+    return in / (1 - std::fabs(in));
+  }
+  nnReal evalDiff(const nnReal in, const nnReal out) const override {
     return _evalDiff(in, out);
   }
 };
@@ -597,46 +634,6 @@ struct Exp : public Function
   nnReal evalDiff(const nnReal in, const nnReal out) const override
   {
     return _evalDiff(in, out);
-  }
-};
-
-struct DualRelu
-{
-  static Real _initFactor(const Uint inps, const Uint outs) {
-    return std::sqrt(2./inps);
-  }
-  static void _eval(const nnReal*const in, nnReal*const out, const Uint N)
-  {
-    #pragma omp simd aligned(in,out : VEC_WIDTH)
-    for (Uint i=0; i<N; ++i){
-      out[2*i +0] = in[i]<0 ? in[i] : 0;
-      out[2*i +1] = in[i]>0 ? in[i] : 0;
-    }
-  }
-  static void _evalDiff(const nnReal*const I, const nnReal*const O, nnReal*const E, const Uint N)
-  {
-    #pragma omp simd aligned(I,E : VEC_WIDTH)
-    for (Uint i=0; i<N; ++i)
-    E[i] = (I[i]<0 ? E[2*i+0] : 0) + (I[i]>0 ? E[2*i+1] : 0);
-  }
-};
-
-struct DualLRelu
-{
-  static Real _initFactor(const Uint inps, const Uint outs) {
-    return std::sqrt(2./inps);
-  }
-  static void _eval(const nnReal*const in, nnReal*const out, const Uint N) {
-    #pragma omp simd aligned(in,out : VEC_WIDTH)
-    for (Uint i=0;i<N; ++i){
-      out[2*i +0] = in[i]<0 ? in[i] : PRELU_FAC*in[i];
-      out[2*i +1] = in[i]>0 ? in[i] : PRELU_FAC*in[i];
-    }
-  }
-  static void _evalDiff(const nnReal*const I, const nnReal*const O, nnReal*const E, const Uint N) {
-    #pragma omp simd aligned(I,E : VEC_WIDTH)
-    for (Uint i=0;i<N; ++i)
-    E[i] = E[2*i]*(I[i]<0? 1:PRELU_FAC) +E[2*i+1]*(I[i]>0? 1:PRELU_FAC);
   }
 };
 

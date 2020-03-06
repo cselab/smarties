@@ -29,7 +29,7 @@ endif
 CPPFLAGS+= -fstrict-aliasing -march=native -mtune=native
 CPPFLAGS+= -ftree-vectorize #-ftree-vectorizer-verbose=2
 CPPFLAGS+= -fmerge-all-constants #-fassociative-math
-#CPPFLAGS+= -funsafe-loop-optimizations -ffast-math
+CPPFLAGS+= -funsafe-loop-optimizations -ffast-math
 CPPFLAGS+= -fvisibility=hidden
 CPPFLAGS+= -falign-functions=32 #-DBOOST_UBLAS_NDEBUG
 

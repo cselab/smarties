@@ -14,6 +14,7 @@
 #include "NAF.h"
 #include "ACER.h"
 #include "RACER.h"
+#include "MixedPG.h"
 #include "CMALearner.h"
 #include "Learner_pytorch.h"
 
@@ -52,7 +53,6 @@ inline static std::ifstream findSettingsFile(DistributionInfo& D, const Uint ID)
 
   // else return the default settings name for all settings files:
   ret.open("settings.json", std::ifstream::in);
-  if( ! ret.is_open() ) die("unable to find settings file");
   chdir(currDirectory);
   return ret;
 }
@@ -158,6 +158,19 @@ std::unique_ptr<Learner> createLearner(
     o << MDP.dimAction << " " << MDP.policyVecDim;
     printLogfile(o, "problem_size.log", distrib.world_rank);
     ret = std::make_unique<DPG>(MDP, settings, distrib);
+  }
+  else
+  if (settings.learner == "MixedPG")
+  {
+    if(MPICommRank(distrib.world_comm) == 0) printf(
+    "==========================================================================\n"
+    "     MixedPG : Balancing stochastic and deterministic policy gradients \n"
+    "==========================================================================\n"
+    );
+    MDP.policyVecDim = 2*MDP.dimAction;
+    o << MDP.dimAction << " " << MDP.policyVecDim;
+    printLogfile(o, "problem_size.log", distrib.world_rank);
+    ret = std::make_unique<MixedPG>(MDP, settings, distrib);
   }
   else
   if (settings.learner == "GAE" || settings.learner == "PPO")

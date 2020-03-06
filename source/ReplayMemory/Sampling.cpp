@@ -24,25 +24,24 @@ void Sampling::setMinMaxProb(const Real maxP, const Real minP) {
 }
 
 void Sampling::IDtoSeqStep(std::vector<Uint>& seq, std::vector<Uint>& obs,
-  const std::vector<Uint>& ret, const Uint nSeqs)
+  const std::vector<Uint>& sampledTsteps, const Uint nSeqs)
 {
-  // go through each element of ret to find corresponding seq and obs
+  // go through each element of sampledTsteps to find corresponding seq and obs
   const Uint Bsize = seq.size();
-  for (Uint k = 0, cntO = 0, i = 0; k<nSeqs; ++k) {
-    while(1) {
-      assert(ret[i] >= cntO && i < Bsize);
-      if(ret[i] < cntO + episodes[k].ndata()) { // is ret[i] in sequence k?
-        obs[i] = ret[i] - cntO; //if ret[i]==cntO then obs 0 of k and so forth
-        seq[i] = k;
-        ++i; // next iteration remember first i-1 were already found
-      }
-      else break;
-      if(i == Bsize) break; // then found all elements of sequence k
+  assert(obs.size() == Bsize and sampledTsteps.size() == Bsize);
+
+  for (Uint k=0, i=0; k < nSeqs && i < Bsize; ++k)
+  {
+    assert(sampledTsteps[i] >= episodes[k].prefix);
+    while (i < Bsize and
+           sampledTsteps[i] < episodes[k].prefix + episodes[k].ndata() )
+    {
+      // if ret[i]==prefix then obs 0 of k and so forth:
+      obs[i] = sampledTsteps[i] - episodes[k].prefix;
+      seq[i] = k;
+      ++i; // next iteration remember first i-1 were already found
     }
-    //assert(cntO == episodes[k].prefix);
-    if(i == Bsize) break; // then found all elements of ret
-    cntO += episodes[k].ndata(); // advance observation counter
-    if(k+1 == nSeqs) die(" "); // at last iter we must have found all
+    assert(k+1 < nSeqs or i == Bsize); // at last iter we must have found all
   }
 }
 
@@ -137,8 +136,7 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
       it = std::unique (ret.begin(), ret.end());
     } // ret is now also sorted!
     const auto nSeq = nSequences();
-    IDtoSeqStep_par(seq, obs, ret, nSeq);
-    //IDtoSeqStep(seq, obs, ret, nSeq);
+    IDtoSeqStep(seq, obs, ret, nSeq);
     #if 0
     auto obs2 = obs, seq2 = seq;
     IDtoSeqStep_par(seq2, obs2, ret, nSeq);
