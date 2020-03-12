@@ -10,6 +10,7 @@
 #define smarties_Parameters_h
 
 #include "Functions.h"
+#include "../../Utils/MPIUtilities.h"
 
 namespace smarties
 {

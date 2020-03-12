@@ -10,6 +10,7 @@
 #define smarties_Communicator_h
 
 #include "Core/Environment.h"
+#include "Utils/MPIUtilities.h"
 #include <random>
 
 namespace smarties

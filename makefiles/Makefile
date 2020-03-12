@@ -102,6 +102,7 @@ OBJ_FILES = \
 	Profiler.o \
 	Master.o \
 	Worker.o \
+	StateAction.o \
 	Engine.o \
 	Warnings.o \
 	smarties_extern.o

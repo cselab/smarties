@@ -1,4 +1,4 @@
-CXX ?= g++
+CXX=mpic++
 ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
 CXX=${SMARTIES_ROOT}/extern/bin/mpic++
 endif
@@ -27,7 +27,7 @@ endif
 
 .DEFAULT_GOAL := pp
 
-pp: $(OBJ_FILES)
+exec: $(OBJ_FILES)
 	$(CXX) $(extra) $(LIBS) $^ -o $@
 
 %.o: %.cpp

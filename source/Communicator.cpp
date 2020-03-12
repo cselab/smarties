@@ -35,9 +35,9 @@ void Communicator::setActionScales(const std::vector<double> uppr,
   setActionScales(uppr,lowr, std::vector<bool>(uppr.size(),bound), agentID);
 }
 void Communicator::setActionScales(const std::vector<double> upper,
-                                     const std::vector<double> lower,
-                                     const std::vector<bool>   bound,
-                                     const int agentID)
+                                   const std::vector<double> lower,
+                                   const std::vector<bool>   bound,
+                                   const int agentID)
 {
   if(ENV.bFinalized) {
     warn("Cannot edit env description after having sent first state."); return;

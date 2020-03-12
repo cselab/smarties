@@ -73,10 +73,6 @@ Now, we have to switch from Apple's LLVM compiler to the most recent LLVM compil
 
 .. code:: shell
 
-    echo "alias cc='/usr/local/opt/llvm/bin/clang'" >> ~/.bash_profile
-    echo "alias gcc='/usr/local/opt/llvm/bin/clang'" >> ~/.bash_profile
-    echo "alias g++='/usr/local/opt/llvm/bin/clang++'" >> ~/.bash_profile
-    echo "alias c++='/usr/local/opt/llvm/bin/clang++'" >> ~/.bash_profile
     echo "export PATH=/usr/local/opt/llvm/bin:\${PATH}" >> ~/.bash_profile
 
 Then we are ready to get and install smarties:

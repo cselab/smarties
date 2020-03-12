@@ -222,7 +222,26 @@ class InputLayer: public Layer
   void biasInitialValues(const std::vector<Real> init) override { }
   void forward( const Activation*const prev,
                 const Activation*const curr,
-                const Parameters*const para) const override { }
+                const Parameters*const para) const override
+  {
+    #ifdef SMARTIES_INPUT_SANITIZE
+      // In case input has a very wide kurtosis, network grads might explode.
+      // (Remember that smarties gradually learns mean and stdev, so each input
+      //  variable to the net can be thought to have mean 0 and stdev 1)
+      // Almost all inputs will be from -6 and 6 stdevs and will be untouched.
+      // From from 6 to 111 stdevs away, we smoothly transition to sqrt(x).
+      // Beyond 111 stdevs away we log the input to avoid exploding gradients.
+      nnReal* const ret = curr->Y(ID);
+      for (Uint j=0; j<size; ++j) {
+        const nnReal sign = ret[j]>0 ? 1 : -1, absX = std::fabs(ret[j]);
+        if        (absX > 111) {
+          ret[j] = sign * 9.02 * std::log(absX - 56.88);
+        } else if (absX >   6) {
+          ret[j] = sign * std::sqrt(12 * absX - 36);
+        } // else leave as is
+      }
+    #endif
+  }
 
   void backward(  const Activation*const prev,
                   const Activation*const curr,

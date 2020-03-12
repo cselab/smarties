@@ -26,6 +26,8 @@
 #include <csignal>
 #include <iostream>
 
+#include "MPIUtilities.h"
+
 namespace smarties
 {
 namespace Warnings
@@ -88,6 +90,11 @@ void print_stacktrace()
     fwrite(strace.str().c_str(), sizeof(char), strace.str().size(), stderr);
     fflush(stdout); fflush(stderr); fflush(0);
   #endif
+}
+
+void mpi_abort()
+{
+  MPI_Abort(MPI_COMM_WORLD, 1);
 }
 
 } // end namespace Warnings

@@ -9,8 +9,6 @@
 #ifndef smarties_Warnings_h
 #define smarties_Warnings_h
 
-#include "MPIUtilities.h"
-
 namespace smarties
 {
 namespace Warnings
@@ -33,15 +31,17 @@ void print_warning(const char * funcname, const char * filename,
                    int line, const char * fmt, ...);
 void print_stacktrace();
 
+void mpi_abort();
+
 #define    die(err_message)      do {                                          \
   using namespace smarties::Warnings;                                          \
   print_warning(__func__, __FILE__, __LINE__, err_message);                    \
-  print_stacktrace(); MPI_Abort(MPI_COMM_WORLD, 1); } while(0)
+  print_stacktrace(); mpi_abort(); } while(0)
 
 #define   _die(format, ...) do {                                               \
   using namespace smarties::Warnings;                                          \
   print_warning(__func__, __FILE__, __LINE__, format, __VA_ARGS__);            \
-  print_stacktrace(); MPI_Abort(MPI_COMM_WORLD, 1); } while(0)
+  print_stacktrace(); mpi_abort(); } while(0)
 
 #define   warn(err_message)  do { \
   if(Warnings::level >= smarties::Warnings::WARNINGS) {                        \

@@ -82,7 +82,7 @@ def applicationSetup(parsed, absRunPath):
     return
 
   # Else user created app. First find its folder.
-  if os.path.isdir( parsed.app ) :
+  if os.path.isdir( parsed.app ) or is_exe(parsed.app) :
     app = parsed.app
   elif os.path.isdir( SMARTIES_ROOT + '/apps/' + parsed.app ) :
     app = SMARTIES_ROOT + '/apps/' + parsed.app
@@ -113,11 +113,14 @@ def applicationSetup(parsed, absRunPath):
                "Contradiction between application setup and cmd line parsing"
       parsed.mpiProcsPerEnv = mpiProcsPerEnv
 
-    if len(setout[-1]) and parsed.execname is not 'exec':
+    if len(setout[-1]) and parsed.execname == 'exec': # if user did not specify
       execn = str(setout[-1], 'utf-8')
       print("app setup.sh: set executable name '%s'." % execn)
       parsed.execname = execn
 
+  elif is_exe(app):
+    shutil.copy(app, absRunPath + '/exec')
+    parsed.execname = 'exec'
   elif is_exe(app+'/'+parsed.execname):
     shutil.copy(app+'/'+parsed.execname, absRunPath + '/')
   elif is_exe(app+'/'+parsed.execname+'.py'):
@@ -129,7 +132,8 @@ def applicationSetup(parsed, absRunPath):
     print('WARNING: Using python executable already located in run directory.')
     parsed.execname = parsed.execname + '.py'
   else:
-    print('FATAL: Unable to locate application executable')
+    print('FATAL: Unable to locate application executable %s or %s.py'
+          % (parsed.execname, parsed.execname))
 
   #if os.path.getmtime(app) < os.path.getmtime( SMARTIES_ROOT + '/lib/libsmarties.so'):
   #  print("WARNING: Application is older then smarties, make sure used libraries still match.")

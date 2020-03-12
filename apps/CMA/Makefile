@@ -1,5 +1,5 @@
-CPP = g++
-CC = gcc
+CXX=mpic++
+CC=mpicc
 ifneq ($(wildcard ${SMARTIES_ROOT}/extern/.*),)
 CXX=${SMARTIES_ROOT}/extern/bin/mpic++
 CC=${SMARTIES_ROOT}/extern/bin/mpicc
