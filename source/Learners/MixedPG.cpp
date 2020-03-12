@@ -14,10 +14,6 @@
 #include "../ReplayMemory/Collector.h"
 #include "../Utils/SstreamUtilities.h"
 
-//#define DKL_filter
-#define DPG_RETRACE_TGT
-#define DPG_LEARN_STDEV
-
 namespace smarties
 {
 

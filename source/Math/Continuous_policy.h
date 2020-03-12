@@ -15,7 +15,6 @@
 namespace smarties
 {
 
-#if 1
 template<typename T> T digamma(T x)
 {
   T result = 0;
@@ -28,74 +27,6 @@ template<typename T> T digamma(T x)
         -(127.0/30720.0)*xx4*xx4;
   return result;
 }
-#else
-template<typename T> T digamma(T x)
-{
-  // The constant Pi in high precision 
-  constexpr T myPI = (T) 3.1415926535897932384626433832795029L;
-  // Euler's constant in high precision
-  //constexpr T myGAMMA = (T) 0.5772156649015328606065120900824024L;
-  // the natural logarithm of 2 in high precision
-  constexpr T myN2 = (T) 0.6931471805599453094172321214581766L;
-  // Force into the interval 1..3
-  // reflection formula:
-  if( x < 0 )           return digamma(1-x) + myPI/std::tan(myPI*(1-x));
-  else if( x < 1 )      return digamma(1+x) - 1/x;
-  // these ifs make code faster, but trigger warning and will "never" be used
-  //else if ( x == (T) 1) return -myGAMMA;
-  //else if ( x == (T) 2) return 1 - myGAMMA;
-  //else if ( x == (T) 3) return (T) 1.5 - myGAMMA;
-  // duplication formula:
-  else if ( x >  (T) 3) return 0.5 * (digamma(x/2) + digamma((x+1)/2)) + myN2;
-  else
-  {
-    constexpr T Kncoe[] = {
-        (T)  0.30459198558715155634315638246624251L,
-        (T)  0.72037977439182833573548891941219706L,
-        (T) -0.12454959243861367729528855995001087L,
-        (T)  0.27769457331927827002810119567456810e-1L,
-        (T) -0.67762371439822456447373550186163070e-2L,
-        (T)  0.17238755142247705209823876688592170e-2L,
-        (T) -0.44817699064252933515310345718960928e-3L,
-        (T)  0.11793660000155572716272710617753373e-3L,
-        (T) -0.31253894280980134452125172274246963e-4L,
-        (T)  0.83173997012173283398932708991137488e-5L,
-        (T) -0.22191427643780045431149221890172210e-5L,
-        (T)  0.59302266729329346291029599913617915e-6L,
-        (T) -0.15863051191470655433559920279603632e-6L,
-        (T)  0.42459203983193603241777510648681429e-7L,
-        (T) -0.11369129616951114238848106591780146e-7L,
-        (T)  0.30450221729593169840145916842340351e-8L,
-        (T) -0.81568455080753152802915013641723686e-9L,
-        (T)  0.21852324749975455125936715817306383e-9L,
-        (T) -0.58546491441689515680751900276454407e-10L,
-        (T)  0.15686348450871204869813586459513648e-10L,
-        (T) -0.42029496273143231373796179302482033e-11L,
-        (T)  0.11261435719264907097227520956710754e-11L,
-        (T) -0.30174353636860279765375177200637590e-12L,
-        (T)  0.80850955256389526647406571868193768e-13L,
-        (T) -0.21663779809421233144009565199997351e-13L,
-        (T)  0.58047634271339391495076374966835526e-14L,
-        (T) -0.15553767189204733561108869588173845e-14L,
-        (T)  0.41676108598040807753707828039353330e-15L,
-        (T) -0.11167065064221317094734023242188463e-15L
-    };
-
-    T Tn_1 = 1; // T_{n-1}(x), started at n=1
-    T Tn = x - 2; // T_{n}(x) , started at n=1
-    T result = Kncoe[0] + Kncoe[1] * Tn;
-    x -= 2;
-    for(size_t n = 2; n < sizeof(Kncoe)/sizeof(T); ++n) {
-      // Chebyshev recursion, Eq. 22.7.4 Abramowitz-Stegun
-      const T Tn1 = 2 * x * Tn - Tn_1;
-      result += Kncoe[n] * Tn1;
-      Tn_1 = Tn;
-      Tn = Tn1;
-    }
-    return result;
-  }
-}
-#endif
 
 struct Base1Dpolicy
 {
