@@ -16,47 +16,6 @@ namespace smarties
 
 #define ALIGNSPEC __attribute__(( aligned(VEC_WIDTH) ))
 
-#ifdef USE_OMPSIMD_BLAS
-template<Uint RowA, Uint ColA, Uint RowB, Uint ColB, bool transpA, bool transpB,
-         typename T>
-inline static void GEMMomp(const T * __restrict__ const _A,
-                           const T * __restrict__ const _B,
-                                 T * __restrict__ const _C)
-{
-  static constexpr Uint RowC = transpA ? ColA : RowA;
-  static constexpr Uint ColC = transpB ? RowB : ColB;
-  using TA = ALIGNSPEC T[RowA][ColA]; const TA & __restrict__ A = * (TA *) _A;
-  using TB = ALIGNSPEC T[RowB][ColB]; const TB & __restrict__ B = * (TB *) _B;
-  using TC = ALIGNSPEC T[RowC][ColC];       TC & __restrict__ C = * (TC *) _C;
-
-  if        ( transpA &&  transpB) {
-    assert(RowA == ColB && "inner product size mismatch");
-    for (size_t ca = 0; ca < ColA; ++ca)
-      for (size_t rb = 0; rb < RowB; ++rb)
-        for (size_t in = 0; in < ColB; ++in)
-            C[ca][rb] += A[in][ca] * B[rb][in];
-  } else if (!transpA &&  transpB) {
-    assert(ColA == ColB && "inner product size mismatch");
-    for (size_t ra = 0; ra < RowA; ++ra)
-      for (size_t in = 0; in < ColA; ++in)
-        for (size_t rb = 0; rb < RowB; ++rb)
-            C[ra][rb] += A[ra][in] * B[rb][in];
-  } else if ( transpA && !transpB) {
-    assert(RowA == RowB && "inner product size mismatch");
-    for (size_t ca = 0; ca < ColA; ++ca)
-      for (size_t in = 0; in < RowA; ++in)
-        for (size_t cb = 0; cb < ColB; ++cb)
-            C[ca][cb] += A[in][ca] * B[in][cb];
-  } else if (!transpA && !transpB) {
-    assert(ColA == RowB && "inner product size mismatch");
-    for (size_t ra = 0; ra < RowA; ++ra)
-      for (size_t in = 0; in < ColA; ++in)
-        for (size_t cb = 0; cb < ColB; ++cb)
-            C[ra][cb] += A[ra][in] * B[in][cb];
-  } else assert(false && "impossible");
-}
-#endif
-
 // Im2MatLayer gets as input an image of sizes InX * InY * InC
 // and prepares the output for convolution with a filter of size KnY * KnX * KnC
 // and output an image of size OpY * OpX * KnC
@@ -69,8 +28,6 @@ template
 >
 struct Conv2DLayer: public Layer
 {
-  static constexpr int inp_size = InC*KnY*KnX*OpY*OpX;
-  static constexpr int out_size = KnC*OpY*OpX;
 
   void requiredParameters(std::vector<Uint>& nWeight,
                           std::vector<Uint>& nBiases ) const override {
@@ -86,9 +43,9 @@ struct Conv2DLayer: public Layer
   }
   void biasInitialValues(const std::vector<Real> init) override { }
 
-  Conv2DLayer(int _ID, bool bOut, Uint iLink):
-    Layer(_ID, out_size, bOut, false, iLink)
-  {
+
+  Conv2DLayer(int _ID, bool bOut, Uint iLink) :
+    Layer(_ID, out_size, bOut, false, iLink) {
     spanCompInpGrads = inp_size;
     static_assert(InC>0 && InY>0 && InX>0, "Invalid input image size");
     static_assert(KnC>0 && KnY>0 && KnX>0, "Invalid kernel size");
@@ -108,6 +65,85 @@ struct Conv2DLayer: public Layer
      <<"] linked to Layer:"<<ID-link<<"\n";
     return o.str();
   }
+
+  void backward_bias(
+          nnReal* const dLdOut,          nnReal* const dLdBias,
+    const nnReal* const LinearOut, const nnReal* const NonLinOut) const
+  { // premultiply with derivative of non-linearity & grad of bias
+    #pragma omp simd aligned(dLdOut, LinearOut, NonLinOut, dLdBias : VEC_WIDTH)
+    for(int o = 0; o < out_size; ++o) {
+      dLdOut [o] *= func::_evalDiff(LinearOut[o], NonLinOut[o]);
+      dLdBias[o] += dLdOut[o];
+    }
+  }
+
+  #ifdef USE_OMPSIMD_BLAS
+
+  using Input  = ALIGNSPEC nnReal[InC][InY][InX];
+  using Kernel = ALIGNSPEC nnReal[KnC][InC][KnY][KnX];
+  using Output = ALIGNSPEC nnReal[KnC][OpY][OpX];
+  static constexpr int inp_size = InC * InX * InY;
+  static constexpr int out_size = KnC * OpY * OpX;
+
+  void forward(const Activation*const prev,
+               const Activation*const curr,
+               const Parameters*const para) const override
+  {
+    // Convert pointers to a reference to multi dim arrays for easy access:
+    const Input  & __restrict__ INP = * (Input *) curr->Y(ID-link);
+          Output & __restrict__ OUT = * (Output*) curr->X(ID);
+    const Kernel & __restrict__ K   = * (Kernel*) para->W(ID);
+
+    memcpy(curr->X(ID), para->B(ID), out_size * sizeof(nnReal));
+
+    for (int fc = 0; fc < KnC; ++fc) for (int ic = 0; ic < InC; ++ic)
+    for (int oy = 0; oy < OpY; ++oy) for (int fy = 0; fy < KnY; ++fy)
+    for (int ox = 0; ox < OpX; ++ox) for (int fx = 0; fx < KnX; ++fx) {
+      //starting position along input map for convolution with kernel
+      const int ix = ox*Sx - Px + fx; //index along input map of
+      const int iy = oy*Sy - Py + fy; //the convolution op
+      //padding: skip addition if outside input boundaries
+      if (ix < 0 || ix >= InX || iy < 0 || iy >= InY) continue;
+      OUT[fc][oy][ox] += K[fc][ic][fy][fx] * INP[ic][iy][ix];
+    }
+
+    func::_eval(curr->X(ID), curr->Y(ID), out_size);
+    // memset 0 because padding and forward assumes overwrite
+    memset(curr->Y(ID), 0, out_size * sizeof(nnReal) );
+  }
+
+  void backward(const Activation*const prev,
+                const Activation*const curr,
+                const Activation*const next,
+                const Parameters*const grad,
+                const Parameters*const para) const override
+  {
+    // premultiply with derivative of non-linearity & grad of bias:
+    backward_bias(curr->E(ID), grad->B(ID), curr->X(ID), curr->Y(ID));
+
+          Input  & __restrict__ dLdINP = * (Input *) curr->E(ID-link);
+    const Output & __restrict__ dLdOUT = * (Output*) curr->E(ID);
+          Kernel & __restrict__ dLdK   = * (Kernel*) grad->W(ID);
+    const Input  & __restrict__ INP    = * (Input *) curr->Y(ID-link);
+    const Kernel & __restrict__ K      = * (Kernel*) para->W(ID);
+    // no memset 0 of grad because backward assumed additive
+    for (int fc = 0; fc < KnC; ++fc) for (int ic = 0; ic < InC; ++ic)
+    for (int oy = 0; oy < OpY; ++oy) for (int fy = 0; fy < KnY; ++fy)
+    for (int ox = 0; ox < OpX; ++ox) for (int fx = 0; fx < KnX; ++fx) {
+      //starting position along input map for convolution with kernel
+      const int ix = ox*Sx - Px + fx; //index along input map of
+      const int iy = oy*Sy - Py + fy; //the convolution op
+      //padding: skip addition if outside input boundaries
+      if (ix < 0 || ix >= InX || iy < 0 || iy >= InY) continue;
+      dLdK[fc][ic][fy][fx] += dLdOUT[fc][oy][ox] * INP[ic][iy][ix];
+      dLdINP[ic][iy][ix]   += dLdOUT[fc][oy][ox] * K[fc][ic][fy][fx];
+    }
+  }
+
+  #else // USE_OMPSIMD_BLAS
+
+  static constexpr int inp_size = InC*KnY*KnX*OpY*OpX;
+  static constexpr int out_size = KnC*OpY*OpX;
 
   void forward(const Activation*const prev,
                const Activation*const curr,
@@ -132,17 +168,8 @@ struct Conv2DLayer: public Layer
                 const Parameters*const grad,
                 const Parameters*const para) const override
   {
-    { // premultiply with derivative of non-linearity & grad of bias
-            nnReal* const deltas = curr->E(ID);
-            nnReal* const grad_b = grad->B(ID);
-      const nnReal* const suminp = curr->X(ID);
-      const nnReal* const outval = curr->Y(ID);
-      #pragma omp simd aligned(deltas,suminp,outval,grad_b : VEC_WIDTH)
-      for(int o = 0; o < out_size; ++o) {
-        deltas[o] *= func::_evalDiff(suminp[o], outval[o]);
-        grad_b[o] += deltas[o];
-      }
-    }
+    // premultiply with derivative of non-linearity & grad of bias:
+    backward_bias(curr->E(ID), grad->B(ID), curr->X(ID), curr->Y(ID));
     {
       static constexpr int outRow = KnC, outCol = InC*KnY*KnX, nInner = OpY*OpX;
       // Compute gradient of error wrt to kernel parameters:
@@ -155,7 +182,8 @@ struct Conv2DLayer: public Layer
       1, curr->E(ID), nInner, curr->Y(ID-link), nInner, 1, grad->W(ID), outCol);
       #endif
     }
-    {
+    // if this is the second layer then this would compute useless dLossDPixels
+    if(ID>2) {
       // Compute gradient of error wrt to output of previous layer:
       //[InC*KnY*KnX][OpY*OpX] = ([KnC][InC*KnY*KnX])^T [KnC][OpY*OpX]
       static constexpr int outRow = InC*KnY*KnX, outCol = OpY*OpX, nInner = KnC;
@@ -168,6 +196,8 @@ struct Conv2DLayer: public Layer
       #endif
     }
   }
+
+  #endif // USE_OMPSIMD_BLAS
 
   void initialize(std::mt19937& G, const Parameters*const W,
                   Real initializationFac) const override
@@ -204,6 +234,7 @@ struct Conv2DLayer: public Layer
   }
 };
 
+#ifndef USE_OMPSIMD_BLAS
 // Im2MatLayer gets as input an image of sizes InX * InY * InC
 // and prepares the output for convolution with a filter of size KnY * KnX * KnC
 // and output an image of size OpY * OpX * KnC
@@ -283,6 +314,8 @@ struct Mat2ImLayer: public Layer
                 const Parameters*const grad,
                 const Parameters*const para) const override
   {
+    // if this is the first layer then this would compute useless dLossDPixels
+    if(ID==1) return;
           Input  & __restrict__ dLdINP = * (Input *) curr->E(ID-link);
     const Output & __restrict__ dLdOUT = * (Output*) curr->E(ID);
     // no memset 0 of grad because backward assumed additive
@@ -305,6 +338,8 @@ struct Mat2ImLayer: public Layer
   size_t restart(const Parameters * const para,
                       const float * tmp) const override { return 0; }
 };
+
+#endif // USE_OMPSIMD_BLAS
 
 #undef ALIGNSPEC
 

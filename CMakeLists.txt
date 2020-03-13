@@ -128,7 +128,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 # OpenBLAS
-if(FALSE) # OpenBLAS broken on Mac ...
+# if(FALSE) # OpenBLAS broken on Mac ...
 find_package(BLAS REQUIRED)
 find_path(BLAS_INCLUDE_DIRS cblas.h
   /usr/include
@@ -141,7 +141,7 @@ find_path(BLAS_INCLUDE_DIRS cblas.h
   $ENV{SMARTIES_ROOT}/extern/include)
 include_directories(${BLAS_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_OPENBLAS")
-endif() # ... OpenBLAS broken on Mac
+# endif() # ... OpenBLAS broken on Mac: use Makefile
 
 # Targets.
 if (COMPILE_SO)

@@ -73,7 +73,7 @@ Now, we have to switch from Apple's LLVM compiler to the most recent LLVM compil
 
 .. code:: shell
 
-    echo "export PATH=/usr/local/opt/llvm/bin:\${PATH}" >> ~/.bash_profile
+    echo "export OMPI_CXX=/usr/local/opt/llvm/bin/clang++" >> ~/.bash_profile
 
 Then we are ready to get and install smarties:
 
@@ -82,6 +82,16 @@ Then we are ready to get and install smarties:
     git clone https://github.com/cselab/smarties.git
     cd smarties/makefiles
     make -j
+
+
+*Alternative*: if mpic++ still points to the Apple clang binary, you may try:
+
+.. code:: shell
+
+    ln -s /usr/local/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/g++
+    ln -s /usr/local/opt/llvm/bin/clang++ /usr/local/opt/llvm/bin/c++
+    echo "export PATH=/usr/local/opt/llvm/bin:\${PATH}" >> ~/.bash_profile
+
 
 
 Environment code samples

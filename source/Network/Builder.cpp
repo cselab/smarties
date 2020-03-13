@@ -167,9 +167,15 @@ void Builder::build(const bool isInputNet)
     opt = std::make_shared<AdamOptimizer>(settings,distrib,weights,threadGrads);
 }
 
-inline bool matchConv2D(const Conv2D_Descriptor& DESCR,
-                    Uint InX, Uint InY, Uint InC, Uint KnX, Uint KnY, Uint KnC,
-                    Uint Sx,  Uint Sy,  Uint Px,  Uint Py,  Uint OpX, Uint OpY)
+template
+< int InX, int InY, int InC, //input image: x:width, y:height, c:color channels
+  int KnX, int KnY, int KnC, //filter:      x:width, y:height, c:color channels
+  int Sx, int Sy, int Px, int Py, // stride and padding x/y
+  int OpX, int OpY //output img: x:width, y:height, same color channels as KnC
+>
+inline bool ifMatchAddConv2D(const bool bOutput, const Uint iLink,
+      const Conv2D_Descriptor & DESCR,
+      std::vector<std::unique_ptr<Layer>> & layers)
 {
   bool sameInp = DESCR.inpFeatures==InC && DESCR.inpY==InX && DESCR.inpX==InY;
   bool sameOut = DESCR.outFeatures==KnC && DESCR.outY==OpY && DESCR.outX==OpX;
@@ -177,7 +183,19 @@ inline bool matchConv2D(const Conv2D_Descriptor& DESCR,
   bool sameStride  = DESCR.stridex== Sx && DESCR.stridey== Sy;
   bool samePadding = DESCR.paddinx== Px && DESCR.paddiny== Py;
   if( KnC*OpX*OpY == 0 ) die("Requested empty layer.");
-  return sameInp && sameOut && sameFilter && sameStride && samePadding;
+  if(sameInp && sameOut && sameFilter && sameStride && samePadding)
+  {
+    #ifndef USE_OMPSIMD_BLAS
+      layers.emplace_back(std::make_unique<
+        Mat2ImLayer<InX,InY,InC, KnX,KnY,KnC, Sx,Sy, Px,Py, OpX,OpY> >
+          (layers.size(), false, iLink) );
+    #endif
+    layers.emplace_back(std::make_unique<
+      Conv2DLayer<SoftSign, InX,InY,InC, KnX,KnY,KnC, Sx,Sy, Px,Py, OpX,OpY> >
+        (layers.size(), bOutput, 1) );
+    return true;
+  }
+  return false;
 }
 
 void Builder::addConv2d(const Conv2D_Descriptor& descr, bool bOut, Uint iLink)
@@ -193,36 +211,18 @@ void Builder::addConv2d(const Conv2D_Descriptor& descr, bool bOut, Uint iLink)
       inpSize, layers.back()->nOutputs() );
 
   // I defined here the conv layers used in the Atari paper. To add new ones add
-  // an if-pattern matching the other ones and refer to the `matchConv2D`
+  // an if-pattern matching the other ones and refer to the `ifMatchAddConv2D`
   // function above to interpret the arguments. Useful rule of thumb to remember
   // is: outSize should be : (InSize - FilterSize + 2*Padding)/Stride + 1
-  if (      matchConv2D(descr, 84,84, 4, 8,8,32, 4,4, 0,0, 20,20) ) {
-    layers.emplace_back(
-      std::make_unique<Mat2ImLayer<         84,84, 4, 8,8,32, 4,4, 0,0, 20,20>>
-        (ID, false, iLink) );
-    layers.emplace_back(
-      std::make_unique<Conv2DLayer<SoftSign,84,84, 4, 8,8,32, 4,4, 0,0, 20,20>>
-        (ID+1, bOut, 1) );
-  }
-  else
-  if (      matchConv2D(descr, 20,20,32, 4,4,64, 2,2, 0,0,  9, 9) ) {
-    layers.emplace_back(
-      std::make_unique<Mat2ImLayer<         20,20,32, 4,4,64, 2,2, 0,0,  9, 9>>
-        (ID, false, iLink) );
-    layers.emplace_back(
-      std::make_unique<Conv2DLayer<SoftSign,20,20,32, 4,4,64, 2,2, 0,0,  9, 9>>
-        (ID+1, bOut, 1) );
-  }
-  else
-  if (      matchConv2D(descr,  9, 9,64, 3,3,64, 1,1, 0,0,  7, 7) ) {
-    layers.emplace_back(
-      std::make_unique<Mat2ImLayer<          9, 9,64, 3,3,64, 1,1, 0,0,  7, 7>>
-        (ID, false, iLink) );
-    layers.emplace_back(
-      std::make_unique<Conv2DLayer<SoftSign, 9, 9,64, 3,3,64, 1,1, 0,0,  7, 7>>
-        (ID+1, bOut, 1) );
-  }
-  else
+  bool foundStaticDefinition = false;
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D<84,84, 4, 8,8,32, 4,4,0,0, 20,20>(bOut,iLink,descr,layers);
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D<20,20,32, 4,4,64, 2,2,0,0,  9, 9>(bOut,iLink,descr,layers);
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D< 9, 9,64, 3,3,64, 1,1,0,0,  7, 7>(bOut,iLink,descr,layers);
+
+  if(not foundStaticDefinition)
     die("Detected undeclared conv2d description. This will be frustrating... "
         "In order to remove dependencies, keep the code low latency, and high "
         "performance, conv2d are templated. Whatever conv2d op you want must "
