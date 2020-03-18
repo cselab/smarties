@@ -64,7 +64,7 @@ void Learner::initializeLearner()
   const Uint setSize = data->readNSeq();
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i=0; i<setSize; ++i) {
-    Sequence& SEQ = data->get(i);
+    Episode& SEQ = data->get(i);
     for(Uint j = SEQ.ndata(); j>0; --j)
         SEQ.propagateRetrace(j, gamma, data->scaledReward(SEQ, j));
   }
@@ -88,7 +88,7 @@ void Learner::updateRetraceEstimates()
 
   #pragma omp parallel for schedule(dynamic, 1)
   for(Uint i = 0; i < setSize; ++i) {
-    Sequence& SEQ = data->get(sampled[i]);
+    Episode& SEQ = data->get(sampled[i]);
     assert(std::fabs(SEQ.Q_RET[SEQ.ndata()]) < 1e-16);
     assert(std::fabs(SEQ.action_adv[SEQ.ndata()]) < 1e-16);
     if( SEQ.isTerminal(SEQ.ndata()) )

@@ -210,7 +210,7 @@ std::unique_ptr<Learner> createLearner(
     "                          Continuous-action ACER                          \n"
     "==========================================================================\n"
     );
-    settings.bSampleSequences = true;
+    settings.bSampleEpisodes = true;
     if(MDP.bDiscreteActions)
       die("implemented ACER supports only continuous-action problems");
     MDP.policyVecDim = ACER::getnDimPolicy(&aInfo);

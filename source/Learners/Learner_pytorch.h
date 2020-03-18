@@ -23,7 +23,7 @@ namespace smarties
 class Learner_pytorch: public Learner
 {
  public:
-  const bool bSampleSequences = settings.bSampleSequences;
+  const bool bSampleEpisodes = settings.bSampleEpisodes;
   // hyper-parameters:
   const Uint batchSize = settings.batchSize_local;
   const Uint ESpopSize = settings.ESpopSize;

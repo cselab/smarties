@@ -249,7 +249,7 @@ struct AgentContext
     assert(batch not_eq nullptr);
     return batch->action(0, t);
   }
-  const Sequence* episode() const
+  const Episode* episode() const
   {
     assert(batch not_eq nullptr);
     assert(batch->episodes.size() == 1 && batch->episodes[0] not_eq nullptr);

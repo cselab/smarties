@@ -93,14 +93,14 @@ void DataCoordinator::distributePendingEpisodes()
   std::lock_guard<std::mutex> lockQueue(complete_mutex);
   while ( episodes.size() )
   {
-    Sequence & EP = episodes.back();
-    if (sharingDest == sharingRank) replay->pushBackSequence(EP);
+    Episode & EP = episodes.back();
+    if (sharingDest == sharingRank) replay->pushBackEpisode(EP);
     else {
       assert(bLearnersEpsSharing);
       const int dest = sharingDest, tag = 737283+MDPID;
       if( sharingReq[dest] not_eq MPI_REQUEST_NULL)
         MPI(Wait, & sharingReq[dest], MPI_STATUS_IGNORE);
-      sharingSeq[dest] = EP.packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
+      sharingSeq[dest] = EP.packEpisode(sI.dimObs(), aI.dim(), aI.dimPol());
       MPI(Isend, sharingSeq[dest].data(), sharingSeq[dest].size(),
           SMARTIES_MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
     }
@@ -133,8 +133,8 @@ void DataCoordinator::mastersRecvEpisodes()
   {
     const Fvec sharedEP = recvEp(sharingComm, status);
     if(sharedEP.size()) {
-      Sequence tmp(sharedEP, sI.dimObs(), aI.dim(), aI.dimPol());
-      replay->pushBackSequence(tmp);
+      Episode tmp(sharedEP, sI.dimObs(), aI.dim(), aI.dimPol());
+      replay->pushBackEpisode(tmp);
     }
   }
   /*{ // IS THIS NEEDED???
@@ -156,17 +156,17 @@ void DataCoordinator::mastersRecvEpisodes()
 
   if(workersEP.size())
   {
-    const Uint nStep = Sequence::computeTotalEpisodeNstep(
+    const Uint nStep = Episode::computeTotalEpisodeNstep(
       sI.dimObs(), aI.dim(), aI.dimPol(), workersEP.size() );
     nSeenTransitions_loc += nStep - 1; // we do not count init state
-    nSeenSequences_loc   += 1;
+    nSeenEpisodes_loc   += 1;
 
     // data sharing among masters:
     if (sharingDest == sharingRank) { // keep the episode
-      Sequence tmp(workersEP, sI.dimObs(), aI.dim(), aI.dimPol());
+      Episode tmp(workersEP, sI.dimObs(), aI.dim(), aI.dimPol());
       assert(nStep == tmp.ndata() + 1);
       //printf("%lu storing new sequence of size %lu\n", MDPID, tmp.ndata());
-      replay->pushBackSequence(tmp);
+      replay->pushBackEpisode(tmp);
     } else {                          // send the episode to an other master
       const int dest = sharingDest, tag = 737283+MDPID;
       if( sharingReq[dest] not_eq MPI_REQUEST_NULL)
@@ -189,7 +189,7 @@ void DataCoordinator::mastersRecvEpisodes()
 }
 
 // called externally
-void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
+void DataCoordinator::addComplete(Episode& EP, const bool bUpdateParams)
 {
   if(bLearnersEpsSharing)
   {
@@ -202,9 +202,9 @@ void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
     // if we created data structures for worker to send eps to master
     // this better be a worker!
     assert(workerRank>0 && workerSize>1 && not distrib.bIsMaster);
-    const Fvec MSG = EP.packSequence(sI.dimObs(), aI.dim(), aI.dimPol());
+    const Fvec MSG = EP.packEpisode(sI.dimObs(), aI.dim(), aI.dimPol());
     #ifndef NDEBUG
-      const Sequence tmp(MSG, sI.dimObs(), aI.dim(), aI.dimPol());
+      const Episode tmp(MSG, sI.dimObs(), aI.dim(), aI.dimPol());
       assert(EP.isEqual(tmp));
     #endif
     EP.clear();
@@ -226,7 +226,7 @@ void DataCoordinator::addComplete(Sequence& EP, const bool bUpdateParams)
   else // data stays here
   {
     //_warn("%lu stored episode of size %lu", MDPID,EP->ndata() );
-    replay->pushBackSequence(EP);
+    replay->pushBackEpisode(EP);
   }
 }
 

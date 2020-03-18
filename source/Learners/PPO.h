@@ -48,7 +48,7 @@ class PPO : public Learner_approximator
   static std::vector<Uint> count_pol_starts(const ActionInfo*const aI);
 
   void updateDKL_target(const bool farPolSample, const Real DivKL) const;
-  void updateGAE(Sequence& seq) const;
+  void updateGAE(Episode& seq) const;
   void initializeGAE();
   void setupNet();
 

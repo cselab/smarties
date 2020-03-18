@@ -67,7 +67,7 @@ class RACER : public Learner_approximator
 
   void prepareCMALoss();
 
-  //void TrainBySequences(const Uint seq, const Uint wID,
+  //void TrainByEpisodes(const Uint seq, const Uint wID,
   //  const Uint bID, const Uint tID) const override;
 
   void Train(const MiniBatch&MB, const Uint wID,const Uint bID) const override;

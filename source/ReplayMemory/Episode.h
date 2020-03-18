@@ -6,8 +6,8 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#ifndef smarties_Sequence_h
-#define smarties_Sequence_h
+#ifndef smarties_Episode_h
+#define smarties_Episode_h
 
 #include "../Utils/FunctionUtilities.h"
 #include "../Core/StateAction.h"
@@ -37,20 +37,20 @@ inline bool distFarPolicy(const Fval D, const Fval target)
   return target>0 && D > target;
 }
 
-struct Sequence
+struct Episode
 {
   static constexpr Fval FVAL_EPS = std::numeric_limits<Fval>::epsilon();
-  Sequence()
+  Episode()
   {
     states.reserve(MAX_SEQ_LEN);
     actions.reserve(MAX_SEQ_LEN);
     policies.reserve(MAX_SEQ_LEN);
     rewards.reserve(MAX_SEQ_LEN);
   }
-  Sequence(const std::vector<Fval>&, const Uint dS,const Uint dA,const Uint dP);
-  ~Sequence() = default;
-  Sequence(const Sequence &p) = delete;
-  Sequence& operator=(const Sequence &p) = delete;
+  Episode(const std::vector<Fval>&, const Uint dS,const Uint dA,const Uint dP);
+  ~Episode() = default;
+  Episode(const Episode &p) = delete;
+  Episode& operator=(const Episode &p) = delete;
 
   #define MOVE_SEQUENCE() do {                                                \
     ended            = p.ended;                     p.ended = false;          \
@@ -79,11 +79,11 @@ struct Sequence
   // minImpW          = p.minImpW.load();            p.minImpW = 1;
   // avgImpW          = p.avgImpW.load();            p.avgImpW = 1;
 
-  Sequence(Sequence && p)
+  Episode(Episode && p)
   {
     MOVE_SEQUENCE();
   }
-  Sequence& operator=(Sequence && p)
+  Episode& operator=(Episode && p)
   {
     MOVE_SEQUENCE();
     return * this;
@@ -213,7 +213,7 @@ struct Sequence
   {
     return t+1 == states.size() && not ended;
   }
-  bool isEqual(const Sequence & S) const;
+  bool isEqual(const Episode & S) const;
 
   void setSampled(const int t) //update ind of latest sampled time step
   {
@@ -258,9 +258,9 @@ struct Sequence
   int restart(FILE * f, const Uint dS, const Uint dA, const Uint dP);
   void save(FILE * f, const Uint dS, const Uint dA, const Uint dP);
 
-  void unpackSequence(const std::vector<Fval>& data, const Uint dS,
+  void unpackEpisode(const std::vector<Fval>& data, const Uint dS,
     const Uint dA, const Uint dP);
-  std::vector<Fval> packSequence(const Uint dS, const Uint dA, const Uint dP);
+  std::vector<Fval> packEpisode(const Uint dS, const Uint dA, const Uint dP);
 
   static Uint computeTotalEpisodeSize(const Uint dS, const Uint dA,
     const Uint dP, const Uint Nstep)
@@ -279,7 +279,7 @@ struct Sequence
     static constexpr Uint infoSize = 6; //adv,val,ret, mse,dkl,impW
     static constexpr Uint extraSize = 10;
     const Uint nStep = (size - extraSize)/(tuplSize+infoSize);
-    assert(Sequence::computeTotalEpisodeSize(dS,dA,dP,nStep) == size);
+    assert(Episode::computeTotalEpisodeSize(dS,dA,dP,nStep) == size);
     return nStep;
   }
 
@@ -296,4 +296,4 @@ struct Sequence
 };
 
 } // namespace smarties
-#endif // smarties_Sequence_h
+#endif // smarties_Episode_h

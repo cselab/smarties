@@ -82,7 +82,7 @@ OBJ_FILES = \
 	Learner_pytorch.o \
 	Learner_approximator.o \
 	AlgoFactory.o \
-	Sequence.o \
+	Episode.o \
 	Learner.o \
 	Sampling.o \
 	Collector.o \

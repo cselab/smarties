@@ -83,7 +83,7 @@ void MixedPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 void MixedPG::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
   for (const auto & net : networks ) net->load(MB, agent, 0);
   const Uint currStep = EP.nsteps() - 1; assert(EP.nsteps()>0);

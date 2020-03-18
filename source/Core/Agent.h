@@ -46,7 +46,7 @@ struct Agent
   unsigned learnerGradStepID = 0;
   double learnerAvgCumulativeReward = 0;
 
-  bool trackSequence = true;
+  bool trackEpisodes = true;
 
   MDPdescriptor& MDP;
   const StateInfo  sInfo = StateInfo(MDP);

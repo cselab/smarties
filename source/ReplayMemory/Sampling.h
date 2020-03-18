@@ -22,10 +22,10 @@ class Sampling
  protected:
   std::vector<std::mt19937>& gens;
   MemoryBuffer* const RM;
-  std::vector<Sequence>& episodes;
-  const bool bSampleSequences;
+  std::vector<Episode>& episodes;
+  const bool bSampleEpisodes;
 
-  long nSequences() const;
+  long nEpisodes() const;
   long nTransitions() const;
   void setMinMaxProb(const Real maxP, const Real minP);
   void updatePrefixes();

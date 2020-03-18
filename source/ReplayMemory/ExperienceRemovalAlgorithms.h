@@ -1,7 +1,7 @@
 #ifndef smarties_ExperienceRemovalAlgorithms_h
 #define smarties_ExperienceRemovalAlgorithms_h
 
-#include "Sequence.h"
+#include "Episode.h"
 
 namespace smarties
 {
@@ -14,7 +14,7 @@ struct MostOffPolicyEp
 
   Real avgOnPolicyR = 0;
   Uint countOnPolicyEps = 0;
-  void updateAvgOnPolReward(const Sequence & EP, const int ep_ind)
+  void updateAvgOnPolReward(const Episode & EP, const int ep_ind)
   {
     if(EP.nFarPolicySteps() > tol * EP.ndata()) return;
     countOnPolicyEps ++;
@@ -24,7 +24,7 @@ struct MostOffPolicyEp
   int indUndr = -1;
   //Real avgClipImpW = 9e9, mostOffR = 0;
   Real mostOffR = 0; Uint mostFarPolicySteps = 0;
-  void updateMostFarUndrPol(const Sequence & EP, const int ep_ind)
+  void updateMostFarUndrPol(const Episode & EP, const int ep_ind)
   {
     #if 0
     const Real EP_avgClipImpW = EP.avgImpW;
@@ -45,7 +45,7 @@ struct MostOffPolicyEp
 
   int indOver = -1;
   Real fracFarOverPol = -1; //, fracFarUndrPol = -1;
-  void updateMostFarOverPol(const Sequence & EP, const int ep_ind)
+  void updateMostFarOverPol(const Episode & EP, const int ep_ind)
   {
     const Real EP_fracFarOverPol = EP.nFarOverPolSteps / (Real) EP.ndata();
     //const Real EP_fracFarUndrPol = EP.nFarUndrPolSteps / (Real) EP.ndata();
@@ -56,7 +56,7 @@ struct MostOffPolicyEp
     //if(EP_fracFarUndrPol > fracFarUndrPol) fracFarUndrPol = EP_fracFarUndrPol;
   }
 
-  void compare(const Sequence & EP, const int ep_ind)
+  void compare(const Episode & EP, const int ep_ind)
   {
     updateAvgOnPolReward(EP, ep_ind);
     updateMostFarUndrPol(EP, ep_ind);
@@ -102,7 +102,7 @@ struct MostFarPolicyEp
 {
   int ind = -1;
   Real fracFarPol = -1;
-  void compare(const Sequence & EP, const int ep_ind)
+  void compare(const Episode & EP, const int ep_ind)
   {
     const Real EP_fracFarPol = EP.nFarPolicySteps()  / (Real) EP.ndata();
     if(EP_fracFarPol>fracFarPol) {
@@ -129,7 +129,7 @@ struct HighestAvgDklEp
 {
   int ind = -1;
   Real averageDkl = -1;
-  void compare(const Sequence & EP, const int ep_ind)
+  void compare(const Episode & EP, const int ep_ind)
   {
     const Real EP_avgDkl = EP.sumKLDivergence / EP.ndata();
     if(EP_avgDkl > averageDkl) {
@@ -156,7 +156,7 @@ struct OldestDatasetEp
 {
   int ind = -1;
   Sint timestamp = std::numeric_limits<Sint>::max();
-  void compare(const Sequence & EP, const int ep_ind)
+  void compare(const Episode & EP, const int ep_ind)
   {
     if(EP.ID < timestamp) {
       ind = ep_ind;

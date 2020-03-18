@@ -139,7 +139,7 @@ struct Settings
   // whether Recurrent network (figured out in main)
   bool bRecurrent = false;
   // whether sampling minibatch of episodes or of timesteps, determined by algo
-  bool bSampleSequences = false;
+  bool bSampleEpisodes = false;
 };
 
 } // end namespace smarties

@@ -20,7 +20,7 @@ Learner_approximator::Learner_approximator(MDPdescriptor& MDP_,
                                            DistributionInfo& D_) :
                                            Learner(MDP_, S_, D_)
 {
-  if(!settings.bSampleSequences && nObsB4StartTraining<(long)settings.batchSize)
+  if(!settings.bSampleEpisodes && nObsB4StartTraining<(long)settings.batchSize)
     die("Parameter minTotObsNum is too low for given problem");
 }
 
@@ -36,7 +36,7 @@ Learner_approximator::~Learner_approximator()
 
 void Learner_approximator::spawnTrainTasks()
 {
-  if(settings.bSampleSequences && data->readNSeq() < (long) settings.batchSize)
+  if(settings.bSampleEpisodes && data->readNSeq() < (long) settings.batchSize)
     die("Parameter minTotObsNum is too low for given problem");
 
   profiler->start("SAMP");
@@ -45,7 +45,7 @@ void Learner_approximator::spawnTrainTasks()
   const MiniBatch MB = data->sampleMinibatch(batchSize, nGradSteps() );
   profiler->stop();
 
-  if(settings.bSampleSequences)
+  if(settings.bSampleEpisodes)
   {
     #pragma omp parallel for collapse(2) schedule(dynamic,1) num_threads(nThr)
     for (Uint wID=0; wID<ESpopSize; ++wID)

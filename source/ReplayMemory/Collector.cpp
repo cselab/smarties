@@ -27,10 +27,10 @@ void Collector::add_state(Agent&a)
 {
   assert(a.ID < inProgress.size());
   //assert(replay->MDP.localID == a.localID);
-  Sequence & S = inProgress[a.ID];
+  Episode & S = inProgress[a.ID];
   const Fvec storedState = a.getObservedState<Fval>();
 
-  if(a.trackSequence == false) {
+  if(a.trackEpisodes == false) {
     // contain only one state and do not add more. to not store rewards either
     // RNNs then become automatically not supported because no time series!
     // (this is accompained by check in approximator)
@@ -83,7 +83,7 @@ void Collector::add_action(const Agent& a, const Rvec pol)
 {
   assert(pol.size() == aI.dimPol());
   assert(a.agentStatus < TERM);
-  if(a.trackSequence == false) {
+  if(a.trackEpisodes == false) {
     // do not store more stuff in sequence but also do not track data counter
     inProgress[a.ID].actions = std::vector<Rvec>{ a.action };
     inProgress[a.ID].policies = std::vector<Rvec>{ pol };
@@ -102,7 +102,7 @@ void Collector::add_action(const Agent& a, const Rvec pol)
 void Collector::terminate_seq(Agent&a)
 {
   assert(a.agentStatus >= TERM);
-  if(a.trackSequence == false) return; // do not store seq
+  if(a.trackEpisodes == false) return; // do not store seq
   // fill empty action and empty policy: last step of episode never has actions
   const Rvec dummyAct = Rvec(aI.dim(), 0), dummyPol = Rvec(aI.dimPol(), 0);
   a.resetActionNoise();
@@ -122,7 +122,7 @@ void Collector::push_back(const size_t agentId)
   assert(agentId < inProgress.size());
   if(inProgress[agentId].nsteps() < 2) die("Seq must at least have s0 and sT");
 
-  inProgress[agentId].finalize( nSeenSequences_loc.load() );
+  inProgress[agentId].finalize( nSeenEpisodes_loc.load() );
 
   if(sharing->bRunParameterServer)
   {
@@ -141,7 +141,7 @@ void Collector::push_back(const size_t agentId)
       fullEnvReset = fullEnvReset && inProgress[i].nsteps() == 0;
     }
     //printf("\n");
-    Sequence EP = std::move(inProgress[agentId]);
+    Episode EP = std::move(inProgress[agentId]);
     assert(inProgress[agentId].nsteps() == 0);
     //Unlock with empy inProgress, such that next agent can check if it is last.
     lock.unlock();
@@ -154,7 +154,7 @@ void Collector::push_back(const size_t agentId)
   }
 
   nSeenTransitions_loc++;
-  nSeenSequences_loc++;
+  nSeenEpisodes_loc++;
 }
 
 Collector::~Collector() {}

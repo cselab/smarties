@@ -222,6 +222,15 @@ void Builder::addConv2d(const Conv2D_Descriptor& descr, bool bOut, Uint iLink)
   foundStaticDefinition = foundStaticDefinition or
     ifMatchAddConv2D< 9, 9,64, 3,3,64, 1,1,0,0,  7, 7>(bOut,iLink,descr,layers);
 
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D<84,84, 4, 8,8, 8, 4,4,0,0, 20,20>(bOut,iLink,descr,layers);
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D<20,20, 8, 6,6,16, 2,2,0,0,  8, 8>(bOut,iLink,descr,layers);
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D< 8, 8,16, 4,4,32, 1,1,0,0,  5, 5>(bOut,iLink,descr,layers);
+  foundStaticDefinition = foundStaticDefinition or
+    ifMatchAddConv2D< 5, 5,32, 3,3,64, 1,1,0,0,  3, 3>(bOut,iLink,descr,layers);
+
   if(not foundStaticDefinition)
     die("Detected undeclared conv2d description. This will be frustrating... "
         "In order to remove dependencies, keep the code low latency, and high "

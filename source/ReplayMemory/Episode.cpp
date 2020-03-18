@@ -6,7 +6,7 @@
 //  Created by Guido Novati (novatig@ethz.ch).
 //
 
-#include "Sequence.h"
+#include "Episode.h"
 #include "../Core/Agent.h"
 #include <cstring>
 #include <cmath>
@@ -15,18 +15,18 @@
 namespace smarties
 {
 
-Sequence::Sequence(const std::vector<Fval>& data,
+Episode::Episode(const std::vector<Fval>& data,
                    const Uint dS, const Uint dA, const Uint dP)
 {
-  unpackSequence(data, dS, dA, dP);
+  unpackEpisode(data, dS, dA, dP);
 }
 
-std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uint dP)
+std::vector<Fval> Episode::packEpisode(const Uint dS, const Uint dA, const Uint dP)
 {
   const Uint seq_len = states.size();
   assert(states.size() == actions.size() && states.size() == policies.size());
-  const Uint totalSize = Sequence::computeTotalEpisodeSize(dS, dA, dP, seq_len);
-  assert( seq_len == Sequence::computeTotalEpisodeNstep(dS,dA,dP,totalSize) );
+  const Uint totalSize = Episode::computeTotalEpisodeSize(dS, dA, dP, seq_len);
+  assert( seq_len == Episode::computeTotalEpisodeNstep(dS,dA,dP,totalSize) );
   std::vector<Fval> ret(totalSize, 0);
   Fval* buf = ret.data();
 
@@ -84,18 +84,18 @@ std::vector<Fval> Sequence::packSequence(const Uint dS, const Uint dA, const Uin
   return ret;
 }
 
-void Sequence::save(FILE * f, const Uint dS, const Uint dA, const Uint dP) {
+void Episode::save(FILE * f, const Uint dS, const Uint dA, const Uint dP) {
   const Uint seq_len = states.size();
   fwrite(& seq_len, sizeof(Uint), 1, f);
-  Fvec buffer = packSequence(dS, dA, dP);
+  Fvec buffer = packEpisode(dS, dA, dP);
   fwrite(buffer.data(), sizeof(Fval), buffer.size(), f);
 }
 
-void Sequence::unpackSequence(const std::vector<Fval>& data, const Uint dS,
+void Episode::unpackEpisode(const std::vector<Fval>& data, const Uint dS,
   const Uint dA, const Uint dP)
 {
-  const Uint seq_len = Sequence::computeTotalEpisodeNstep(dS,dA,dP,data.size());
-  assert( data.size() == Sequence::computeTotalEpisodeSize(dS,dA,dP,seq_len) );
+  const Uint seq_len = Episode::computeTotalEpisodeNstep(dS,dA,dP,data.size());
+  assert( data.size() == Episode::computeTotalEpisodeSize(dS,dA,dP,seq_len) );
   const Fval* buf = data.data();
   assert(states.size() == 0);
   for (Uint i = 0; i<seq_len; ++i) {
@@ -128,15 +128,15 @@ void Sequence::unpackSequence(const std::vector<Fval>& data, const Uint dS,
   //assert(buf-data.data()==(ptrdiff_t)computeTotalEpisodeSize(dS,dA,dP,seq_len));
 }
 
-int Sequence::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
+int Episode::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
 {
   Uint seq_len = 0;
   if(fread(& seq_len, sizeof(Uint), 1, f) != 1) return 1;
-  const Uint totalSize = Sequence::computeTotalEpisodeSize(dS, dA, dP, seq_len);
+  const Uint totalSize = Episode::computeTotalEpisodeSize(dS, dA, dP, seq_len);
   std::vector<Fval> buffer(totalSize);
   if(fread(buffer.data(), sizeof(Fval), totalSize, f) != totalSize)
     die("mismatch");
-  unpackSequence(buffer, dS, dA, dP);
+  unpackEpisode(buffer, dS, dA, dP);
   return 0;
 }
 
@@ -159,7 +159,7 @@ inline bool isDifferent(const std::vector<T>& a, const std::vector<T>& b) {
   return false;
 }
 
-bool Sequence::isEqual(const Sequence & S) const
+bool Episode::isEqual(const Episode & S) const
 {
   if(isDifferent(S.states      , states      )) assert(false && "states");
   if(isDifferent(S.actions     , actions     )) assert(false && "actions");
@@ -182,7 +182,7 @@ bool Sequence::isEqual(const Sequence & S) const
   return true;
 }
 
-std::vector<float> Sequence::logToFile(
+std::vector<float> Episode::logToFile(
   const StateInfo& sInfo, const ActionInfo& aInfo, const Uint iterStep) const
 {
   const Uint seq_len = states.size();

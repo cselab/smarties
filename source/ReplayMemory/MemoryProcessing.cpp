@@ -27,7 +27,7 @@ MemoryProcessing::MemoryProcessing(MemoryBuffer*const _RM) : RM(_RM),
     initGuessStateRewStats[MDP.dimStateObserved*2 + 2] = 1;
     StateRewRdx.update(initGuessStateRewStats);
 
-    globalStep_reduce.update( { nSeenSequences_loc.load(),
+    globalStep_reduce.update( { nSeenEpisodes_loc.load(),
                                 nSeenTransitions_loc.load() } );
 
     ReFER_reduce.update({(long double)0, (long double) settings.maxTotObsNum });
@@ -39,12 +39,12 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
   // contained in the memory buffer. Used for rescaling and numerical safety.
 
   //////////////////////////////////////////////////////////////////////////////
-  //_warn("globalStep_reduce %ld %ld", nSeenSequences_loc.load(), nSeenTransitions_loc.load());
-  globalStep_reduce.update( { nSeenSequences_loc.load(),
+  //_warn("globalStep_reduce %ld %ld", nSeenEpisodes_loc.load(), nSeenTransitions_loc.load());
+  globalStep_reduce.update( { nSeenEpisodes_loc.load(),
                               nSeenTransitions_loc.load() } );
   const std::vector<long> nDataGlobal = globalStep_reduce.get(bInit);
   //_warn("nDataGlobal %ld %ld", nDataGlobal[0], nDataGlobal[1]);
-  nSeenSequences = nDataGlobal[0];
+  nSeenEpisodes = nDataGlobal[0];
   nSeenTransitions = nDataGlobal[1];
   //////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ void MemoryProcessing::updateRewardsStats(const Real WR, const Real WS, const bo
       std::vector<long double> thNewSSum(dimS, 0), thNewSSqSum(dimS, 0);
       #pragma omp for schedule(dynamic, 1) nowait
       for(Uint i=0; i<setSize; ++i) {
-        const Sequence & EP = episodes[i];
+        const Episode & EP = episodes[i];
         const Uint N = EP.ndata();
         count += N;
         for(Uint j=0; j<N; ++j) {
@@ -207,7 +207,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
     #pragma omp for schedule(static, 1) nowait
     for (Uint i = 0; i < setSize; ++i)
     {
-      Sequence & EP = episodes[i];
+      Episode & EP = episodes[i];
       if (bRecomputeProperties) EP.updateCumulative(CmaxRet, CinvRet);
       _nOffPol += EP.nFarPolicySteps();
       _totDKL  += EP.sumKLDivergence;
@@ -248,7 +248,7 @@ void MemoryProcessing::selectEpisodeToDelete(const FORGET ALGO)
 
   if (indexOfEpisodeToDelete >= 0) {
     // prevent any race condition from causing deletion of newest data:
-    const Sequence & EP2delete = episodes[indexOfEpisodeToDelete];
+    const Episode & EP2delete = episodes[indexOfEpisodeToDelete];
     if (episodes[totFirstIn.ind].ID + (Sint) setSize < EP2delete.ID)
         indexOfEpisodeToDelete = totFirstIn.ind;
   }
@@ -266,7 +266,7 @@ void MemoryProcessing::prepareNextBatchAndDeleteStaleEp()
   const std::vector<Uint>& sampled = RM->lastSampledEpisodes();
   const Uint sampledSize = sampled.size();
   for(Uint i = 0; i < sampledSize; ++i) {
-    Sequence & S = RM->get(sampled[i]);
+    Episode & S = RM->get(sampled[i]);
     assert(S.just_sampled >= 0);
     S.just_sampled = -1;
   }
@@ -283,7 +283,7 @@ void MemoryProcessing::prepareNextBatchAndDeleteStaleEp()
     if(RM->readNData() - episodes[indexOfEpisodeToDelete].ndata() > maxTotObs)
     {
       //warn("Deleting episode");
-      RM->removeSequence(indexOfEpisodeToDelete);
+      RM->removeEpisode(indexOfEpisodeToDelete);
       nPrunedEps ++;
     }
     indexOfEpisodeToDelete = -1;
@@ -299,11 +299,11 @@ void MemoryProcessing::getMetrics(std::ostringstream& buff)
   Utilities::real2SS(buff, 1/invstd_reward, 6, 1);
   Utilities::real2SS(buff, avgKLdivergence, 5, 1);
 
-  buff<<" "<<std::setw(5)<<nSequences.load();
+  buff<<" "<<std::setw(5)<<nEpisodes.load();
   buff<<" "<<std::setw(7)<<nTransitions.load();
-  buff<<" "<<std::setw(7)<<nSeenSequences.load();
+  buff<<" "<<std::setw(7)<<nSeenEpisodes.load();
   buff<<" "<<std::setw(8)<<nSeenTransitions.load();
-  //buff<<" "<<std::setw(7)<<nSeenSequences_loc.load();
+  //buff<<" "<<std::setw(7)<<nSeenEpisodes_loc.load();
   //buff<<" "<<std::setw(8)<<nSeenTransitions_loc.load();
   buff<<" "<<std::setw(7)<<oldestStoresTimeStamp;
   buff<<" "<<std::setw(4)<<nPrunedEps;

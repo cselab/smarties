@@ -14,9 +14,9 @@ namespace smarties
 {
 
 Sampling::Sampling(std::vector<std::mt19937>&G, MemoryBuffer*const R, bool bSeq)
-: gens(G), RM(R), episodes(RM->episodes), bSampleSequences(bSeq) {}
+: gens(G), RM(R), episodes(RM->episodes), bSampleEpisodes(bSeq) {}
 
-long Sampling::nSequences() const { return RM->readNSeq(); }
+long Sampling::nEpisodes() const { return RM->readNSeq(); }
 long Sampling::nTransitions() const { return RM->readNData(); }
 void Sampling::setMinMaxProb(const Real maxP, const Real minP) {
     RM->minPriorityImpW = minP;
@@ -69,7 +69,7 @@ void Sampling::IDtoSeqStep_par(std::vector<Uint>& seq, std::vector<Uint>& obs,
 
 void Sampling::updatePrefixes()
 {
-  const long nSeqs = nSequences();
+  const long nSeqs = nEpisodes();
   for(long i=0, locPrefix=0; i<nSeqs; ++i) {
     episodes[i].prefix = locPrefix;
     locPrefix += episodes[i].ndata();
@@ -79,7 +79,7 @@ void Sampling::updatePrefixes()
 void Sampling::checkPrefixes()
 {
   #ifndef NDEBUG
-    const long nSeqs = nSequences(), nData = nTransitions();
+    const long nSeqs = nEpisodes(), nData = nTransitions();
     assert(episodes.size() == (size_t) nSeqs);
     for(long i=0, locPrefix=0; i<nSeqs; ++i) {
       assert(episodes[i].prefix == (Uint) locPrefix);
@@ -105,9 +105,9 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
   }
   #endif
 
-  if(bSampleSequences)
+  if(bSampleEpisodes)
   {
-    const long nSeqs = nSequences();
+    const long nSeqs = nEpisodes();
     std::uniform_int_distribution<Uint> distSeq(0, nSeqs-1);
     std::vector<Uint>::iterator it = seq.begin();
     while(it not_eq seq.end())
@@ -135,7 +135,7 @@ void Sample_uniform::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
       std::sort(ret.begin(), ret.end());
       it = std::unique (ret.begin(), ret.end());
     } // ret is now also sorted!
-    const auto nSeq = nSequences();
+    const auto nSeq = nEpisodes();
     IDtoSeqStep(seq, obs, ret, nSeq);
     #if 0
     auto obs2 = obs, seq2 = seq;
@@ -169,7 +169,7 @@ void Sample_impLen::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
   if(seq.size() not_eq obs.size()) die(" ");
   const Uint nBatch = obs.size();
 
-  if(bSampleSequences)
+  if(bSampleEpisodes)
   {
     std::vector<Uint>::iterator it = seq.begin();
     while(it not_eq seq.end())
@@ -210,7 +210,7 @@ void Sample_impLen::prepare(std::atomic<bool>& needs_pass)
 {
   if(not needs_pass) return;
   needs_pass = false;
-  const Uint nSeqs = nSequences();
+  const Uint nSeqs = nEpisodes();
   std::vector<float> probs(nSeqs, 0);
 
   #pragma omp parallel for schedule(static)
@@ -228,7 +228,7 @@ void TSample_shuffle::prepare(std::atomic<bool>& needs_pass)
   if(not needs_pass) return;
   needs_pass = false;
 
-  const long nSeqs = nSequences(), nData = nTransitions();
+  const long nSeqs = nEpisodes(), nData = nTransitions();
   samples.resize(nData);
 
   updatePrefixes();
@@ -272,7 +272,7 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
   // 3) compute inv sqrt of all errors, same sweep also get minP
   //const float EPS = numeric_limits<float>::epsilon();
   using TupEST = std::tuple<float, unsigned, unsigned>;
-  const unsigned nSeqs = nSequences(), nData = nTransitions();
+  const unsigned nSeqs = nEpisodes(), nData = nTransitions();
 
   std::vector<TupEST> errors(nData);
   // 1)
@@ -318,7 +318,7 @@ void TSample_impRank::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 
   // Drawing of samples is either uniform (each sample has same prob)
   // or based on importance sampling. The latter is TODO
-  const long nSeqs = nSequences();
+  const long nSeqs = nEpisodes();
   std::vector<Uint> ret(seq.size());
   std::vector<Uint>::iterator it = ret.begin();
   while(it not_eq ret.end())
@@ -342,7 +342,7 @@ void TSample_impErr::prepare(std::atomic<bool>& needs_pass)
   needs_pass = false;
 
   const float EPS = std::numeric_limits<float>::epsilon();
-  const long nSeqs = nSequences(), nData = nTransitions();
+  const long nSeqs = nEpisodes(), nData = nTransitions();
   std::vector<float> probs = std::vector<float>(nData, 1);
 
   updatePrefixes();
@@ -383,7 +383,7 @@ void TSample_impErr::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
 
   // Drawing of samples is either uniform (each sample has same prob)
   // or based on importance sampling. The latter is TODO
-  const long nSeqs = nSequences();
+  const long nSeqs = nEpisodes();
   std::vector<Uint> ret(seq.size());
   std::vector<Uint>::iterator it = ret.begin();
   while(it not_eq ret.end())
@@ -407,7 +407,7 @@ void Sample_impSeq::prepare(std::atomic<bool>& needs_pass)
   needs_pass = false;
 
   const float EPS = std::numeric_limits<float>::epsilon();
-  const long nSeqs = nSequences();
+  const long nSeqs = nEpisodes();
   std::vector<float> probs = std::vector<float>(nSeqs, 1);
 
   Real maxMSE = 0;
@@ -441,7 +441,7 @@ void Sample_impSeq::sample(std::vector<Uint>& seq, std::vector<Uint>& obs)
   if(seq.size() not_eq obs.size()) die(" ");
   const Uint nBatch = obs.size();
 
-  if(bSampleSequences)
+  if(bSampleEpisodes)
   {
     std::vector<Uint>::iterator it = seq.begin();
     while(it not_eq seq.end())
@@ -487,46 +487,46 @@ std::unique_ptr<Sampling> Sampling::prepareSampler(MemoryBuffer* const R,
   if(S.dataSamplingAlgo == "uniform") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: uniform probability.\n");
-    ret = std::make_unique<Sample_uniform>(D.generators,R,S.bSampleSequences);
+    ret = std::make_unique<Sample_uniform>(D.generators,R,S.bSampleEpisodes);
   }
 
   if(S.dataSamplingAlgo == "impLen") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "probability is proportional to episode-length.%s\n",
-           S.bSampleSequences? "" : " Equivalent to uniform probability.");
-    ret = std::make_unique<Sample_impLen>(D.generators,R,S.bSampleSequences);
+           S.bSampleEpisodes? "" : " Equivalent to uniform probability.");
+    ret = std::make_unique<Sample_impLen>(D.generators,R,S.bSampleEpisodes);
   }
 
   if(S.dataSamplingAlgo == "shuffle") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "shuffle-based uniform probability.\n");
-    ret = std::make_unique<TSample_shuffle>(D.generators,R,S.bSampleSequences);
-    if(S.bSampleSequences) die("Change importance sampling algorithm");
+    ret = std::make_unique<TSample_shuffle>(D.generators,R,S.bSampleEpisodes);
+    if(S.bSampleEpisodes) die("Change importance sampling algorithm");
   }
 
   if(S.dataSamplingAlgo == "PERrank") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "rank based prioritized replay.\n");
-    ret = std::make_unique<TSample_impRank>(D.generators,R,S.bSampleSequences);
-    if(S.bSampleSequences) die("Change importance sampling algorithm");
+    ret = std::make_unique<TSample_impRank>(D.generators,R,S.bSampleEpisodes);
+    if(S.bSampleEpisodes) die("Change importance sampling algorithm");
   }
 
   if(S.dataSamplingAlgo == "PERerr") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "error value based prioritized replay.\n");
-    ret = std::make_unique<TSample_impErr>(D.generators,R,S.bSampleSequences);
-    if(S.bSampleSequences) die("Change importance sampling algorithm");
+    ret = std::make_unique<TSample_impErr>(D.generators,R,S.bSampleEpisodes);
+    if(S.bSampleEpisodes) die("Change importance sampling algorithm");
   }
 
   if(S.dataSamplingAlgo == "PERseq") {
     if(D.world_rank == 0)
     printf("Experience Replay sampling algorithm: "
            "episodes' mean squared error based prioritized replay.\n");
-    ret = std::make_unique<Sample_impSeq>(D.generators,R,S.bSampleSequences);
+    ret = std::make_unique<Sample_impSeq>(D.generators,R,S.bSampleEpisodes);
   }
 
   assert(ret not_eq nullptr);

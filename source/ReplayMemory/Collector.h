@@ -28,9 +28,9 @@ private:
   //const StateInfo& sI = replay->sI;
   const ActionInfo& aI = replay->aI;
 
-  std::vector<Sequence> inProgress;
+  std::vector<Episode> inProgress;
 
-  std::atomic<long>& nSeenSequences_loc = replay->nSeenSequences_loc;
+  std::atomic<long>& nSeenEpisodes_loc = replay->nSeenEpisodes_loc;
   std::atomic<long>& nSeenTransitions_loc = replay->nSeenTransitions_loc;
 
   std::mutex envTerminationCheck;
@@ -41,7 +41,7 @@ public:
   void terminate_seq(Agent&a);
   void push_back(const size_t agentId);
 
-  inline Sequence& get(const Uint ID) {
+  inline Episode& get(const Uint ID) {
     return inProgress[ID];
   }
   inline Uint nInProgress() const {

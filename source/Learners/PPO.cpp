@@ -35,7 +35,7 @@ template<typename Policy_t, typename Action_t>
 void PPO<Policy_t, Action_t>::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
   for (const auto & net : networks ) net->load(MB, agent, 0);
 

@@ -114,7 +114,7 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 void ACER::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
 
   if( agent.agentStatus < TERM ) // not end of sequence

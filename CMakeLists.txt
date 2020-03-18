@@ -80,9 +80,9 @@ set(COMMON_SOURCES
     ${ROOT_FOLDER}/source/Learners/AlgoFactory.cpp
     ${ROOT_FOLDER}/source/Learners/Learner.cpp
 
+    ${ROOT_FOLDER}/source/ReplayMemory/Episode.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/Sampling.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/Collector.cpp
-    ${ROOT_FOLDER}/source/ReplayMemory/Sequence.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/MemoryBuffer.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/DataCoordinator.cpp
     ${ROOT_FOLDER}/source/ReplayMemory/MemoryProcessing.cpp
@@ -152,6 +152,10 @@ if (COMPILE_SO)
 endif()
 
 if (COMPILE_PY_SO)
+    set(COMMON_SOURCES
+         ${COMMON_SOURCES}
+         ${ROOT_FOLDER}/source/smarties_pybind11.cpp
+    )
     set(PY_SO "smarties${PY_SO_SUFFIX}")
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${ROOT_FOLDER}/lib)
     add_library(${PY_SO} SHARED ${COMMON_SOURCES} )

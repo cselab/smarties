@@ -101,12 +101,12 @@ void MemoryBuffer::restart(const std::string base)
     assert(doneGradSteps >= 0 && pass == 1);
     fclose(fstat);
     nSeenTransitions_loc = nLocalSeenObs; nTransitions = nStoredObs;
-    nSeenSequences_loc   = nLocalSeenEps; nSequences   = nStoredEps;
+    nSeenEpisodes_loc   = nLocalSeenEps; nEpisodes   = nStoredEps;
     nGatheredB4Startup   = nInitialData;  nGradSteps   = doneGradSteps;
   }
 
   {
-    episodes.resize(nSequences);
+    episodes.resize(nEpisodes);
     const size_t dimS = sI.dimObs(), dimA = aI.dim(), dimP = aI.dimPol();
     for(Uint i = 0; i < episodes.size(); ++i) {
       if( episodes[i].restart(fdata, dimS, dimA, dimP) )
@@ -147,7 +147,7 @@ void MemoryBuffer::save(const std::string base)
 
   const long doneGradSteps = nGradSteps;
   const Uint nStoredObs = nTransitions, nLocalSeenObs = nSeenTransitions_loc;
-  const Uint nStoredEps = nSequences, nLocalSeenEps = nSeenSequences_loc;
+  const Uint nStoredEps = nEpisodes, nLocalSeenEps = nSeenEpisodes_loc;
   assert(fstat != NULL);
   fprintf(fstat, "nStoredEps: %lu\n",    nStoredEps);
   fprintf(fstat, "nStoredObs: %lu\n",    nStoredObs);
@@ -174,7 +174,7 @@ void MemoryBuffer::clearAll()
   //delete already-used trajectories
   episodes.clear(); //clear trajectories used for learning
   nTransitions = 0;
-  nSequences = 0;
+  nEpisodes = 0;
   needs_pass = true;
 }
 
@@ -191,10 +191,10 @@ Uint MemoryBuffer::clearOffPol(const Real C, const Real tol)
       _nOffPol += EP.offPolicImpW[j] > 1+C || EP.offPolicImpW[j] < 1-C;
     if(_nOffPol > tol*N) {
       std::swap(episodes[i], episodes.back());
-      nSequences   --;
+      nEpisodes   --;
       nTransitions -= N;
       episodes.pop_back();
-      assert(nSequences == (long) episodes.size());
+      assert(nEpisodes == (long) episodes.size());
     }
     else ++i;
   }
@@ -224,7 +224,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
     ret.episodes[b] = & episodes[ sampleEID[b] ];
     ret.episodes[b]->setSampled(sampleT[b]);
     const Uint nEpSteps = ret.episodes[b]->nsteps();
-    if (settings.bSampleSequences)
+    if (settings.bSampleEpisodes)
     {
       // check that we may have to update estimators from S_{0} to S_{T_1}
       assert( sampleT[b] == ret.episodes[b]->ndata() - 1 );
@@ -249,7 +249,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
     const Uint nSteps = ret.endTimeStep[b] - ret.begTimeStep[b];
     ret.resizeStep(b, nSteps);
   }
-  const std::vector<Sequence*>& sampleE = ret.episodes;
+  const std::vector<Episode*>& sampleE = ret.episodes;
   const nnReal impSampAnneal = std::min( (Real)1, stepID*settings.epsAnneal);
   const nnReal annealExp = 0.5 + 0.5 * impSampAnneal; //a.k.a. beta in PER paper
   const bool bReqImpSamp = bRequireImportanceSampling();
@@ -257,7 +257,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
   #pragma omp parallel for schedule(static) // collapse(2)
   for(Uint b=0; b<batchSize; ++b)
   {
-    const Sequence& EP = * sampleE[b];
+    const Episode& EP = * sampleE[b];
     for(Sint t=ret.begTimeStep[b]; t<ret.endTimeStep[b]; ++t)
     {
       ret.state(b, t)  = standardizedState<nnReal>(EP, t);
@@ -281,11 +281,11 @@ bool MemoryBuffer::bRequireImportanceSampling() const
   return sampler->requireImportanceWeights();
 }
 
-MiniBatch MemoryBuffer::agentToMinibatch(Sequence & inProgress) const
+MiniBatch MemoryBuffer::agentToMinibatch(Episode & inProgress) const
 {
   MiniBatch ret(1, settings.gamma);
   ret.episodes[0] = & inProgress;
-  if (settings.bSampleSequences) {
+  if (settings.bSampleEpisodes) {
     // we may have to update estimators from S_{0} to S_{T_1}
     ret.begTimeStep[0] = 0;        // prepare to compute for steps from init
     ret.endTimeStep[0] = inProgress.nsteps(); // to current step
@@ -310,20 +310,20 @@ MiniBatch MemoryBuffer::agentToMinibatch(Sequence & inProgress) const
   return ret;
 }
 
-void MemoryBuffer::removeSequence(const Uint ind)
+void MemoryBuffer::removeEpisode(const Uint ind)
 {
   assert(readNSeq()>0);
   std::lock_guard<std::mutex> lock(dataset_mutex);
   assert(nTransitions >= (long) episodes[ind].ndata());
-  nSequences--;
+  nEpisodes--;
   needs_pass = true;
   nTransitions -= episodes[ind].ndata();
   std::swap(episodes[ind], episodes.back());
   episodes.pop_back();
-  assert(nSequences == (long) episodes.size());
+  assert(nEpisodes == (long) episodes.size());
 }
 
-void MemoryBuffer::pushBackSequence(Sequence & seq)
+void MemoryBuffer::pushBackEpisode(Episode & seq)
 {
   const bool logSample =  distrib.logAllSamples==1 ||
                          (distrib.logAllSamples==2 && seq.agentID==0);
@@ -356,10 +356,10 @@ void MemoryBuffer::pushBackSequence(Sequence & seq)
   }
 
   const size_t ind = episodes.size(), len = seq.ndata();
-  seq.ID = nSeenSequences.load();
+  seq.ID = nSeenEpisodes.load();
   seq.prefix = ind>0? episodes[ind-1].prefix + episodes[ind-1].ndata() : 0;
   episodes.emplace_back(std::move(seq));
-  nSequences++;
+  nEpisodes++;
   nTransitions += len;
   needs_pass = true;
   assert( readNSeq() == (long) episodes.size());
@@ -369,7 +369,7 @@ void MemoryBuffer::initialize()
 {
   { // All seqs obtained before this point should share the same time stamp
     std::lock_guard<std::mutex> lock(dataset_mutex);
-    for(Uint i=0;i<episodes.size(); ++i) episodes[i].ID = nSeenSequences.load();
+    for(Uint i=0;i<episodes.size(); ++i) episodes[i].ID = nSeenEpisodes.load();
   } // free mutex for sampler
   needs_pass = true;
   sampler->prepare(needs_pass);
@@ -386,7 +386,7 @@ void MemoryBuffer::checkNData()
       cntSamp += episodes[i].ndata();
     }
     assert(cntSamp==nTransitions);
-    assert(nSequences==(long)episodes.size());
+    assert(nEpisodes==(long)episodes.size());
   #endif
 }
 

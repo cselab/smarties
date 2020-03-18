@@ -159,7 +159,7 @@ void Learner_pytorch::setupTasks(TaskQueue& tasks)
 
 void Learner_pytorch::spawnTrainTasks()
 {
-  if(settings.bSampleSequences && data->readNSeq() < (long) settings.batchSize)
+  if(settings.bSampleEpisodes && data->readNSeq() < (long) settings.batchSize)
     die("Parameter minTotObsNum is too low for given problem");
 
   profiler->stop_start("SAMP");
@@ -177,7 +177,7 @@ void Learner_pytorch::spawnTrainTasks()
 
   // UPDATING RETRACE ESTIMATES
   for (Uint bID=0; bID<batchSize; ++bID) {
-    Sequence& S = MB.getEpisode(bID);
+    Episode& S = MB.getEpisode(bID);
     const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
     //Update Qret of eps' last state if sampled T-1. (and V(s_T) for truncated ep)
     if( S.isTruncated(t+1) ) {
@@ -204,7 +204,7 @@ void Learner_pytorch::select(Agent& agent)
   // std::cout << "PYTORCH: AGENT SELECTING ACTION!" << std::endl;
 
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
 
   const MiniBatch MB = data->agentToMinibatch(EP);
 

@@ -39,7 +39,7 @@ computeAction(Agent& agent, const Rvec netOutput) const
   Rvec pol = netOutput; // will store representation of policy
   Rvec act = netOutput; // will store action sent to agent
   const Uint nA = aInfo.dim();
-  const bool bSamplePol = settings.explNoise>0 && agent.trackSequence;
+  const bool bSamplePol = settings.explNoise>0 && agent.trackEpisodes;
   if(bSamplePol) {
     assert(pol.size() == 2 * nA);
     Continuous_policy POL({0, nA}, aInfo, netOutput);
@@ -53,7 +53,7 @@ computeAction(Agent& agent, const Rvec netOutput) const
 template<typename Action_t> void CMALearner<Action_t>::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
   const Uint envID = agent.workerID;
 

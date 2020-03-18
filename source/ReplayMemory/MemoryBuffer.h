@@ -57,13 +57,13 @@ class MemoryBuffer
   nnReal& invstd_reward = MDP.rewardsScale;
   nnReal&   mean_reward = MDP.rewardsMean;
 
-  const bool bSampleSequences = settings.bSampleSequences;
+  const bool bSampleEpisodes = settings.bSampleEpisodes;
   const Uint nAppended = MDP.nAppendedObs;
   const Real gamma = settings.gamma;
 
   std::atomic<bool> needs_pass {false};
 
-  std::vector<Sequence> episodes;
+  std::vector<Episode> episodes;
   std::vector<Uint> lastSampledEps;
 
   // num of grad steps performed by owning learner:
@@ -72,13 +72,13 @@ class MemoryBuffer
   long nGatheredB4Startup = std::numeric_limits<long>::max();
 
   // num of samples contained in dataset:
-  std::atomic<long> nSequences{0}; // num of episodes
+  std::atomic<long> nEpisodes{0}; // num of episodes
   std::atomic<long> nTransitions{0}; // num of individual time steps
   // num of samples seen from the beginning
-  std::atomic<long> nSeenSequences{0};
+  std::atomic<long> nSeenEpisodes{0};
   std::atomic<long> nSeenTransitions{0};
   // num of samples seen from beginning locally:
-  std::atomic<long> nSeenSequences_loc{0};
+  std::atomic<long> nSeenEpisodes_loc{0};
   std::atomic<long> nSeenTransitions_loc{0};
 
   const std::unique_ptr<Sampling> sampler;
@@ -103,7 +103,7 @@ class MemoryBuffer
     return standardizedState<V>(episodes[seq], samp);
   }
   template<typename V = nnReal, typename T>
-  std::vector<V> standardizedState(const Sequence& seq, const T samp) const
+  std::vector<V> standardizedState(const Episode& seq, const T samp) const
   {
     const Uint dimS = sI.dimObs();
     std::vector<V> ret( dimS * (1+nAppended) );
@@ -123,7 +123,7 @@ class MemoryBuffer
     return scaledReward(episodes[seq], samp);
   }
   template<typename T>
-  Real scaledReward(const Sequence& seq, const T samp) const {
+  Real scaledReward(const Episode& seq, const T samp) const {
     assert(samp < (T) seq.rewards.size());
     return scaledReward(seq.rewards[samp]);
   }
@@ -137,14 +137,14 @@ class MemoryBuffer
   MiniBatch sampleMinibatch(const Uint batchSize, const Uint stepID);
   const std::vector<Uint>& lastSampledEpisodes() { return lastSampledEps; }
 
-  MiniBatch agentToMinibatch(Sequence & inProgress) const;
+  MiniBatch agentToMinibatch(Episode & inProgress) const;
 
   bool bRequireImportanceSampling() const;
 
   long readNSeen_loc()    const { return nSeenTransitions_loc.load();  }
-  long readNSeenSeq_loc() const { return nSeenSequences_loc.load();  }
+  long readNSeenSeq_loc() const { return nSeenEpisodes_loc.load();  }
   long readNData()        const { return nTransitions.load();  }
-  long readNSeq()         const { return nSequences.load();  }
+  long readNSeq()         const { return nEpisodes.load();  }
   long nLocTimeStepsTrain() const {
     return readNSeen_loc() - nGatheredB4Startup;
   }
@@ -155,10 +155,10 @@ class MemoryBuffer
     return avgCumulativeReward;
   }
 
-  void removeSequence(const Uint ind);
-  void pushBackSequence(Sequence & seq);
+  void removeEpisode(const Uint ind);
+  void pushBackEpisode(Episode & seq);
 
-  Sequence& get(const Uint ID) {
+  Episode& get(const Uint ID) {
     return episodes[ID];
   }
 };

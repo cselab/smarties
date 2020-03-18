@@ -34,7 +34,7 @@ select(Agent& agent)
 {
   data_get->add_state(agent);
   const Approximator* const NET = networks[0];
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
   NET->load(MB, agent, 0);
 

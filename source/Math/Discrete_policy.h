@@ -174,7 +174,7 @@ struct Discrete_policy
   }
 
   Uint selectAction(Agent& agent, const bool bTrain) const {
-    const bool bSample = bTrain && agent.trackSequence;
+    const bool bSample = bTrain && agent.trackEpisodes;
     return bSample? sample(agent.generator) : Utilities::maxInd(probs);
   }
 

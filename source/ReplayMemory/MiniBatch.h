@@ -9,7 +9,7 @@
 #ifndef smarties_MiniBatch_h
 #define smarties_MiniBatch_h
 
-#include "Sequence.h"
+#include "Episode.h"
 
 namespace smarties
 {
@@ -31,7 +31,7 @@ struct MiniBatch
   MiniBatch(const MiniBatch &p) = delete;
   MiniBatch& operator=(const MiniBatch &p) = delete;
 
-  std::vector<Sequence*> episodes;
+  std::vector<Episode*> episodes;
   std::vector<Sint> begTimeStep;
   std::vector<Sint> endTimeStep;
   std::vector<Sint> sampledTimeStep;
@@ -62,7 +62,7 @@ struct MiniBatch
   std::vector< std::vector< Real  > > R;  // scaled reward
   std::vector< std::vector< nnReal> > PERW;  // prioritized sampling
 
-  Sequence& getEpisode(const Uint b) const
+  Episode& getEpisode(const Uint b) const
   {
     return * episodes[b];
   }
@@ -166,7 +166,7 @@ struct MiniBatch
   {
     assert(W >= 0);
     if(t == 0) return 0; // at time 0, no reward, QRET is undefined
-    Sequence& EP = getEpisode(b);
+    Episode& EP = getEpisode(b);
     EP.action_adv[t] = A; EP.state_vals[t] = V;
     const Fval reward = R[b][mapTime2Ind(b, t)];
     const Fval oldRet = EP.Q_RET[t-1], clipW = W<1 ? W:1;

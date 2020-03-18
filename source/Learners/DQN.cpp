@@ -41,7 +41,7 @@ DQN::DQN(MDPdescriptor& MDP_, Settings& S_, DistributionInfo& D_):
 void DQN::select(Agent& agent)
 {
   data_get->add_state(agent);
-  Sequence& EP = data_get->get(agent.ID);
+  Episode& EP = data_get->get(agent.ID);
   const MiniBatch MB = data->agentToMinibatch(EP);
 
   if( agent.agentStatus < TERM )

@@ -44,13 +44,13 @@ private:
   DelayedReductor<long> globalStep_reduce;
   DelayedReductor<long double> ReFER_reduce;
 
-  std::vector<Sequence>& episodes = RM->episodes;
+  std::vector<Episode>& episodes = RM->episodes;
   std::atomic<long>& nGradSteps = RM->nGradSteps;
-  std::atomic<long>& nSequences = RM->nSequences;
+  std::atomic<long>& nEpisodes = RM->nEpisodes;
   std::atomic<long>& nTransitions = RM->nTransitions;
-  std::atomic<long>& nSeenSequences = RM->nSeenSequences;
+  std::atomic<long>& nSeenEpisodes = RM->nSeenEpisodes;
   std::atomic<long>& nSeenTransitions = RM->nSeenTransitions;
-  std::atomic<long>& nSeenSequences_loc = RM->nSeenSequences_loc;
+  std::atomic<long>& nSeenEpisodes_loc = RM->nSeenEpisodes_loc;
   std::atomic<long>& nSeenTransitions_loc = RM->nSeenTransitions_loc;
 
 public:

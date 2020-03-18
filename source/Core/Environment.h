@@ -77,7 +77,7 @@ struct Environment
       const Uint descriptorID = i % nDescriptors;
       MDPdescriptor& D = * descriptors[descriptorID].get();
       agents.emplace_back( std::make_unique<Agent>(i, workerID, localID, D) );
-      agents[i]->trackSequence = bTrainFromAgentData[localID];
+      agents[i]->trackEpisodes = bTrainFromAgentData[localID];
     }
   }
 
