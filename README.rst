@@ -54,7 +54,7 @@ Smarties requires gcc version 6.1 or greater, a thread-safe (at least ``MPI_THRE
 
 .. code:: shell
 
-    git clone https://github.com/cselab/smarties.git
+    git clone --recursive https://github.com/cselab/smarties.git
     cd smarties
     mkdir -p build
     cd build
@@ -79,7 +79,7 @@ Then we are ready to get and install smarties:
 
 .. code:: shell
 
-    git clone https://github.com/cselab/smarties.git
+    git clone --recursive https://github.com/cselab/smarties.git
     cd smarties/makefiles
     make -j
 
