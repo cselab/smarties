@@ -148,7 +148,6 @@ void Learner::logStats()
 {
   const Uint currStep = nGradSteps()+1;
   const Uint fProfl = freqPrint * PRFL_DMPFRQ;
-  const Uint fBackup = std::ceil(settings.saveFreq / (Real)fProfl) * fProfl;
 
   if(currStep % fProfl == 0 && learn_rank == 0) {
     printf("%s\n", profiler->printStatAndReset().c_str() );
@@ -156,7 +155,7 @@ void Learner::logStats()
     data_proc->histogramImportanceWeights();
   }
 
-  if(currStep % fBackup == 0 && learn_rank == 0) save();
+  if(currStep % settings.saveFreq == 0 && learn_rank == 0) save();
 
   if(currStep % freqPrint == 0) {
     profiler->start("STAT");
