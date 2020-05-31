@@ -36,7 +36,8 @@ def plotReward(args, ax, ensambleList, agentid, rank, colorid):
         DATA = DATA.reshape(DATA.size//5, 5) # t_step grad_step worker seqlen R
         N = (DATA.shape[0] // L)*L
         span = DATA.shape[0] - N + np.arange(0, N)
-        X = DATA[span, 1] - DATA[0,1]
+        #X = DATA[span, 1] - DATA[0,1]
+        X = np.arange(0, N)
         Y = DATA[span, 4]
         newSize0 = X.size//L
         if newSize0 == 0 : continue

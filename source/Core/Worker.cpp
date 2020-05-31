@@ -80,7 +80,7 @@ void Worker::runTraining()
     bool over = true;
     const Real factor = learners.size()==1? 1.0/ENV.nAgentsPerEnvironment : 1;
     for(const auto& L : learners)
-      over = over && L->nLocTimeStepsTrain() * factor >= distrib.totNumSteps;
+      over = over && L->nLocTimeStepsTrain() * factor >= distrib.nTrainSteps;
     return over;
   };
   const std::function<bool()> isOverTesting = [&] ()
@@ -91,15 +91,15 @@ void Worker::runTraining()
     long nEnvSeqs = std::numeric_limits<long>::max();
     for(const auto& L : learners)
       nEnvSeqs = std::min(nEnvSeqs, L->nSeqsEval() / factor);
-    const Real perc = 100.0 * nEnvSeqs / (Real) distrib.totNumSteps;
-    if(nEnvSeqs >= (long) distrib.totNumSteps) {
+    const Real perc = 100.0 * nEnvSeqs / (Real) distrib.nEvalEpisodes;
+    if(nEnvSeqs >= (long) distrib.nEvalEpisodes) {
       printf("\rFinished collecting %ld environment episodes " \
-        "(option --totNumSteps) to evaluate restarted policies.\n", nEnvSeqs);
+        "(option --nEvalEpisodes) to evaluate restarted policies.\n", nEnvSeqs);
       return true;
     } else if(perc >= percentageReady+5) {
       percentageReady = perc;
       printf("\rCollected %ld environment episodes out of %lu " \
-        " to evaluate restarted policies.", nEnvSeqs, distrib.totNumSteps);
+        " to evaluate restarted policies.", nEnvSeqs, distrib.nEvalEpisodes);
       fflush(0);
     }
     return false;

@@ -58,9 +58,14 @@ PYBIND11_MODULE(smarties, m)
          & smarties::Engine::setRandSeed, py::arg("randSeed"),
          "Overrides the seed for the random number generators.")
 
-    .def("setTotNumTimeSteps",
-         & smarties::Engine::setTotNumTimeSteps, py::arg("totNumSteps"),
-         "Sets the total number of time steps to perform training on.")
+    .def("setNumTrainingTimeSteps",
+         & smarties::Engine::setNumTrainingTimeSteps, py::arg("numSteps"),
+         "Total number of time steps before end of training.")
+
+    .def("setNumEvaluationEpisodes",
+         & smarties::Engine::setNumEvaluationEpisodes, py::arg("numEpisodes"),
+         "Total number of episodes to evaluate training policy. "
+         "If >0, training is DISABLED and network parameters frozen.")
 
     .def("setSimulationArgumentsFilePath",
          & smarties::Engine::setSimulationArgumentsFilePath,
@@ -77,10 +82,6 @@ PYBIND11_MODULE(smarties, m)
     .def("setRestartFolderPath",
          & smarties::Engine::setRestartFolderPath, py::arg("restart"),
          "Sets the path of the restart files of the RL algorithms.")
-
-    .def("setIsTraining",
-         & smarties::Engine::setIsTraining, py::arg("bTrain"),
-         "Sets whether to run training or evaluating a policy.")
 
     .def("setIsLoggingAllData",
          & smarties::Engine::setIsLoggingAllData, py::arg("bLogAllData"),

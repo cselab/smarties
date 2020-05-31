@@ -32,7 +32,7 @@ struct DistributionInfo
   void commonInit();
   int parse();
 
-  void initialzePRNG();
+  void initialze();
   void figureOutWorkersPattern();
 
   char initial_runDir[1024];
@@ -66,7 +66,8 @@ struct DistributionInfo
   Uint nEnvironments = 1;
   Uint workerProcessesPerEnv = 1;
   Uint randSeed = 0;
-  Uint totNumSteps = 10000000; // total number of env time steps
+  Uint nTrainSteps = 10000000; // if training: total number of env time steps
+  Uint nEvalEpisodes = 0; // if not training: number of episode to evaluate on
 
   std::string nStepPappSett = "0";
   std::string appSettings = "";
@@ -103,7 +104,7 @@ struct Settings
   Real penalTol = 0.1;
   Real klDivConstraint = 0.01;
   Real targetDelay = 0;
-  Real epsAnneal = 0;
+  Real epsAnneal = 5e-7;
 
   Uint minTotObsNum =  65536;
   Uint maxTotObsNum = 262144;

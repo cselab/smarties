@@ -119,6 +119,10 @@ struct Agent
     return sInfo.state2observed<T>(state);
   }
   template<typename T = nnReal>
+  std::vector<T> getLatentState() const {
+    return sInfo.state2nonObserved<T>(state);
+  }
+  template<typename T = nnReal>
   std::vector<T> getObservedOldState() const {
     return sInfo.state2observed<T>(sOld);
   }

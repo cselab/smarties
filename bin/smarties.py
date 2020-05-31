@@ -173,14 +173,23 @@ def setComputationalResources(parsed):
                  " --workerProcessesPerEnv %d " % (parsed.nEnvironments, \
                  parsed.nLearners, parsed.nThreads, parsed.mpiProcsPerEnv)
 
-  if parsed.nEvalSeqs == 0:
-    parsed.args += " --bTrain 1 --nTrainSteps %d " % parsed.nTrainSteps
+  if parsed.nEvalEpisodes == 0:
+    parsed.args += " --nTrainSteps %d " % parsed.nTrainSteps
     if parsed.restart is None: parsed.args += " --restart none "
     else: parsed.args += " --restart %s " % parsed.restart
   else:
-    parsed.args += " --bTrain 0 --totNumSteps %d " % parsed.nEvalSeqs
+    parsed.args += " --nEvalEpisodes %d " % parsed.nEvalEpisodes
     if parsed.restart is None: parsed.args += " --restart ./ "
-    else: parsed.args += " --restart %s " % parsed.restart
+    else:
+      if os.path.isdir( parsed.runprefix + "/" + parsed.restart ):
+        absRestartPath = os.path.abspath(parsed.runprefix+"/"+parsed.restart)
+        parsed.args += " --restart %s " % absRestartPath
+      elif os.path.isdir( parsed.restart ):
+        absRestartPath = os.path.abspath(parsed.restart)
+        parsed.args += " --restart %s " % absRestartPath
+      else:
+        print('FATAL: Did not find the restart dir %s' % parsed.restart)
+        exit()
 
   if parsed.netsOnlyLearners:
     parsed.args += " --learnersOnWorkers 0 "
@@ -326,9 +335,9 @@ if __name__ == '__main__':
   parser.add_argument('--restart', default=None,
       help="Path to existing directory which contains smarties output files "
            "needed to restart already trained agents.")
-  parser.add_argument('-t','--nTrainSteps', type=int, default=10000000,
+  parser.add_argument('-t','--nTrainSteps', type=int, default=100000000,
       help="Total number of time steps before end of learning.")
-  parser.add_argument('--nEvalSeqs', type=int, default=0,
+  parser.add_argument('--nEvalEpisodes', type=int, default=0,
       help="Number of environment episodes to evaluate trained policy. " \
            "This option automatically disables training.")
 

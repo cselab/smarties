@@ -35,11 +35,10 @@ void Collector::add_state(Agent&a)
     // RNNs then become automatically not supported because no time series!
     // (this is accompained by check in approximator)
     S.states  = std::vector<Fvec>{ storedState };
-    S.rewards = std::vector<Real>{ (Real)0 };
-    S.actions.clear(); S.policies.clear();
-    S.SquaredError.clear(); S.Q_RET.clear();
-    S.offPolicImpW.clear(); S.action_adv.clear();
-    S.KullbLeibDiv.clear(); S.state_vals.clear();
+    S.rewards = std::vector<Real>{ (Real) 0 };
+    S.actions.clear();      S.policies.clear();     S.latent_states.clear();
+    S.SquaredError.clear(); S.offPolicImpW.clear(); S.KullbLeibDiv.clear();
+    S.state_vals.clear();   S.action_adv.clear();   S.Q_RET.clear();
 
     a.agentStatus = INIT; // one state stored, lie to avoid catching asserts
     assert(S.agentID == -1 && "Untracked sequences are not tagged to agent");
@@ -62,8 +61,7 @@ void Collector::add_state(Agent&a)
         auto D = std::max({std::fabs(memSold[i]), std::fabs(vecSold[i]), fEPS});
         same = same && std::fabs(memSold[i]-vecSold[i])/D < 100*fEPS;
       }
-      //debugS("Agent %s and %s",
-      //  print(vecSold).c_str(), print(memSold).c_str() );
+      //debugS("Agent %s and %s",print(vecSold).c_str(),print(memSold).c_str());
       if (!same) _die("Unexpected termination of EP a %u step %u seqT %lu\n",
         a.ID, a.timeStepInEpisode, S.nsteps());
     }
@@ -73,6 +71,7 @@ void Collector::add_state(Agent&a)
   //env->pickReward(a);
   S.ended = a.agentStatus == TERM;
   S.states.push_back(storedState);
+  S.latent_states.push_back( a.getLatentState<Fval>() );
   S.rewards.push_back(a.reward);
   if( a.agentStatus not_eq INIT ) S.totR += a.reward;
   else assert(std::fabs(a.reward)<2.2e-16); //rew for init state must be 0
@@ -93,9 +92,6 @@ void Collector::add_action(const Agent& a, const Rvec pol)
   if(a.agentStatus not_eq INIT) nSeenTransitions_loc ++;
   inProgress[a.ID].actions.push_back( a.action );
   inProgress[a.ID].policies.push_back(pol);
-  //if(distrib.logAllSamples) // TODO was learner rank
-  //  a.writeData(distrib.initial_runDir, distrib.world_rank,
-  //              pol, nSeenTransitions_loc.load());
 }
 
 // If the state is terminal, instead of calling `add_action`, call this:
@@ -110,9 +106,6 @@ void Collector::terminate_seq(Agent&a)
   inProgress[a.ID].actions.push_back( dummyAct );
   inProgress[a.ID].policies.push_back( dummyPol );
 
-  //if(distrib.logAllSamples) // TODO was learner rank
-  //  a.writeData(distrib.initial_runDir, distrib.world_rank,
-  //              dummyPol, nSeenTransitions_loc.load());
   push_back(a.ID);
 }
 

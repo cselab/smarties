@@ -107,9 +107,8 @@ void MemoryBuffer::restart(const std::string base)
 
   {
     episodes.resize(nEpisodes);
-    const size_t dimS = sI.dimObs(), dimA = aI.dim(), dimP = aI.dimPol();
     for(Uint i = 0; i < episodes.size(); ++i) {
-      if( episodes[i].restart(fdata, dimS, dimA, dimP) )
+      if( episodes[i].restart(fdata, MDP) )
         _die("Unable to find sequence %u\n", i);
       episodes[i].updateCumulative(CmaxRet, CinvRet);
     }
@@ -160,8 +159,7 @@ void MemoryBuffer::save(const std::string base)
   fflush(fstat); fclose(fstat);
 
   assert(fdata != NULL);
-  const size_t dimS = sI.dimObs(), dimA = aI.dim(), dimP = aI.dimPol();
-  for(Uint i = 0; i <nStoredEps; ++i) episodes[i].save(fdata, dimS, dimA, dimP);
+  for(Uint i = 0; i <nStoredEps; ++i) episodes[i].save(fdata, MDP);
   fflush(fdata); fclose(fdata);
 
   Utilities::copyFile(fName + "status_backup.raw", fName + "status.raw");

@@ -15,63 +15,63 @@
 namespace smarties
 {
 
-Episode::Episode(const std::vector<Fval>& data,
-                   const Uint dS, const Uint dA, const Uint dP)
+Episode::Episode(const std::vector<Fval>& data, const MDPdescriptor& MDP)
 {
-  unpackEpisode(data, dS, dA, dP);
+  unpackEpisode(data, MDP);
 }
 
-std::vector<Fval> Episode::packEpisode(const Uint dS, const Uint dA, const Uint dP)
+std::vector<Fval> Episode::packEpisode(const MDPdescriptor& MDP)
 {
-  const Uint seq_len = states.size();
+  const Uint dS = MDP.dimStateObserved, dI = MDP.dimState-MDP.dimStateObserved;
+  const Uint dA = MDP.dimAction, dP = MDP.policyVecDim, N = states.size();
   assert(states.size() == actions.size() && states.size() == policies.size());
-  const Uint totalSize = Episode::computeTotalEpisodeSize(dS, dA, dP, seq_len);
-  assert( seq_len == Episode::computeTotalEpisodeNstep(dS,dA,dP,totalSize) );
+  const Uint totalSize = Episode::computeTotalEpisodeSize(MDP, N);
+  assert( N == Episode::computeTotalEpisodeNstep(MDP, totalSize) );
   std::vector<Fval> ret(totalSize, 0);
   Fval* buf = ret.data();
 
-  for (Uint i = 0; i<seq_len; ++i)
+  for (Uint i = 0; i<N; ++i)
   {
-    assert(states[i].size() == dS);
-    assert(actions[i].size() == dA);
-    assert(policies[i].size() == dP);
+    assert(states[i].size() == dS and latent_states[i].size() == dI);
+    assert(actions[i].size() == dA and policies[i].size() == dP);
     std::copy(states[i].begin(), states[i].end(), buf);
     buf[dS] = rewards[i]; buf += dS + 1;
     std::copy(actions[i].begin(),  actions[i].end(),  buf); buf += dA;
     std::copy(policies[i].begin(), policies[i].end(), buf); buf += dP;
+    std::copy(latent_states[i].begin(), latent_states[i].end(), buf); buf += dI;
   }
 
   /////////////////////////////////////////////////////////////////////////////
-  // following vectors may be of size less than seq_len because
+  // following vectors may be of size less than N because
   // some algorithms do not allocate them. I.e. Q-learning-based
   // algorithms do not need to advance retrace-like value estimates
 
-  assert(Q_RET.size() <= seq_len);        Q_RET.resize(seq_len);
-  std::copy(Q_RET.begin(), Q_RET.end(), buf); buf += seq_len;
+  assert(Q_RET.size() <= N);        Q_RET.resize(N);
+  std::copy(Q_RET.begin(), Q_RET.end(), buf); buf += N;
 
-  assert(action_adv.size() <= seq_len);   action_adv.resize(seq_len);
-  std::copy(action_adv.begin(), action_adv.end(), buf); buf += seq_len;
+  assert(action_adv.size() <= N);   action_adv.resize(N);
+  std::copy(action_adv.begin(), action_adv.end(), buf); buf += N;
 
-  assert(state_vals.size() <= seq_len);   state_vals.resize(seq_len);
-  std::copy(state_vals.begin(), state_vals.end(), buf); buf += seq_len;
+  assert(state_vals.size() <= N);   state_vals.resize(N);
+  std::copy(state_vals.begin(), state_vals.end(), buf); buf += N;
 
   /////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////
   // post processing quantities might not be already allocated
 
-  assert(SquaredError.size() <= seq_len); SquaredError.resize(seq_len);
-  std::copy(SquaredError.begin(), SquaredError.end(), buf); buf += seq_len;
+  assert(SquaredError.size() <= N); SquaredError.resize(N);
+  std::copy(SquaredError.begin(), SquaredError.end(), buf); buf += N;
 
-  assert(offPolicImpW.size() <= seq_len); offPolicImpW.resize(seq_len);
-  std::copy(offPolicImpW.begin(), offPolicImpW.end(), buf); buf += seq_len;
+  assert(offPolicImpW.size() <= N); offPolicImpW.resize(N);
+  std::copy(offPolicImpW.begin(), offPolicImpW.end(), buf); buf += N;
 
-  assert(KullbLeibDiv.size() <= seq_len); KullbLeibDiv.resize(seq_len);
-  std::copy(KullbLeibDiv.begin(), KullbLeibDiv.end(), buf); buf += seq_len;
+  assert(KullbLeibDiv.size() <= N); KullbLeibDiv.resize(N);
+  std::copy(KullbLeibDiv.begin(), KullbLeibDiv.end(), buf); buf += N;
 
   /////////////////////////////////////////////////////////////////////////////
 
-  assert((Uint) (buf-ret.data()) == (dS+dA+dP+7) * seq_len);
+  assert((Uint) (buf-ret.data()) == (dS + dA + dP + dI + 7) * N);
 
   char * charPos = (char*) buf;
   memcpy(charPos, &       ended, sizeof(bool)); charPos += sizeof(bool);
@@ -84,38 +84,40 @@ std::vector<Fval> Episode::packEpisode(const Uint dS, const Uint dA, const Uint 
   return ret;
 }
 
-void Episode::save(FILE * f, const Uint dS, const Uint dA, const Uint dP) {
+void Episode::save(FILE * f, const MDPdescriptor& MDP) {
   const Uint seq_len = states.size();
   fwrite(& seq_len, sizeof(Uint), 1, f);
-  Fvec buffer = packEpisode(dS, dA, dP);
+  Fvec buffer = packEpisode(MDP);
   fwrite(buffer.data(), sizeof(Fval), buffer.size(), f);
 }
 
-void Episode::unpackEpisode(const std::vector<Fval>& data, const Uint dS,
-  const Uint dA, const Uint dP)
+void Episode::unpackEpisode(const std::vector<Fval>& data, const MDPdescriptor& MDP)
 {
-  const Uint seq_len = Episode::computeTotalEpisodeNstep(dS,dA,dP,data.size());
-  assert( data.size() == Episode::computeTotalEpisodeSize(dS,dA,dP,seq_len) );
+  const Uint dS = MDP.dimStateObserved, dI = MDP.dimState-MDP.dimStateObserved;
+  const Uint dA = MDP.dimAction, dP = MDP.policyVecDim;
+  const Uint N = Episode::computeTotalEpisodeNstep(MDP, data.size());
+  assert( data.size() == Episode::computeTotalEpisodeSize(MDP, N) );
   const Fval* buf = data.data();
   assert(states.size() == 0);
-  for (Uint i = 0; i<seq_len; ++i) {
-    states.push_back(  Fvec(buf, buf+dS));
+  for (Uint i = 0; i<N; ++i) {
+    states.push_back(  Fvec(buf, buf + dS));
     rewards.push_back(buf[dS]); buf += dS + 1;
-    actions.push_back( Rvec(buf, buf+dA)); buf += dA;
-    policies.push_back(Rvec(buf, buf+dP)); buf += dP;
+    actions.push_back( Rvec(buf, buf + dA)); buf += dA;
+    policies.push_back(Rvec(buf, buf + dP)); buf += dP;
+    latent_states.push_back(Fvec(buf, buf + dI)); buf += dI;
   }
 
   /////////////////////////////////////////////////////////////////////////////
-  Q_RET      = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
-  action_adv = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
-  state_vals = std::vector<nnReal>(buf, buf + seq_len); buf += seq_len;
+  Q_RET      = std::vector<nnReal>(buf, buf + N); buf += N;
+  action_adv = std::vector<nnReal>(buf, buf + N); buf += N;
+  state_vals = std::vector<nnReal>(buf, buf + N); buf += N;
   /////////////////////////////////////////////////////////////////////////////
-  SquaredError = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
-  offPolicImpW = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
-  KullbLeibDiv = std::vector<Fval>(buf, buf + seq_len); buf += seq_len;
+  SquaredError = std::vector<Fval>(buf, buf + N); buf += N;
+  offPolicImpW = std::vector<Fval>(buf, buf + N); buf += N;
+  KullbLeibDiv = std::vector<Fval>(buf, buf + N); buf += N;
   /////////////////////////////////////////////////////////////////////////////
-  assert((Uint) (buf - data.data()) == (dS+dA+dP+7) * seq_len);
-  priorityImpW = std::vector<float>(seq_len, 1);
+  assert((Uint) (buf - data.data()) == (dS + dA + dP + dI + 7) * N);
+  priorityImpW = std::vector<float>(N, 1);
   totR = Utilities::sum(rewards);
   /////////////////////////////////////////////////////////////////////////////
 
@@ -125,18 +127,17 @@ void Episode::unpackEpisode(const std::vector<Fval>& data, const Uint dS,
   memcpy(&just_sampled, charPos, sizeof(Sint)); charPos += sizeof(Sint);
   memcpy(&      prefix, charPos, sizeof(Uint)); charPos += sizeof(Uint);
   memcpy(&     agentID, charPos, sizeof(Sint)); charPos += sizeof(Sint);
-  //assert(buf-data.data()==(ptrdiff_t)computeTotalEpisodeSize(dS,dA,dP,seq_len));
 }
 
-int Episode::restart(FILE * f, const Uint dS, const Uint dA, const Uint dP)
+int Episode::restart(FILE * f, const MDPdescriptor& MDP)
 {
-  Uint seq_len = 0;
-  if(fread(& seq_len, sizeof(Uint), 1, f) != 1) return 1;
-  const Uint totalSize = Episode::computeTotalEpisodeSize(dS, dA, dP, seq_len);
+  Uint N = 0;
+  if(fread(& N, sizeof(Uint), 1, f) != 1) return 1;
+  const Uint totalSize = Episode::computeTotalEpisodeSize(MDP, N);
   std::vector<Fval> buffer(totalSize);
   if(fread(buffer.data(), sizeof(Fval), totalSize, f) != totalSize)
     die("mismatch");
-  unpackEpisode(buffer, dS, dA, dP);
+  unpackEpisode(buffer, MDP);
   return 0;
 }
 
@@ -183,28 +184,30 @@ bool Episode::isEqual(const Episode & S) const
 }
 
 std::vector<float> Episode::logToFile(
-  const StateInfo& sInfo, const ActionInfo& aInfo, const Uint iterStep) const
+    const StateInfo& sInfo, const ActionInfo& aInfo, const Uint iterStep) const
 {
-  const Uint seq_len = states.size();
-  const Uint dimA = actions[0].size(), dimP = policies[0].size();
-  std::vector<float> buffer(seq_len * (4 + sInfo.dim() + dimA + dimP));
+  const Uint dS = sInfo.dimObs(), dI = sInfo.dimInfo();
+  const Uint dA = aInfo.dim(), dP = aInfo.dimPol(), N = states.size();
+
+  std::vector<float> buffer(N * (4 + dS + dI + dA + dP));
   float * pos = buffer.data();
-  for (Uint t=0; t<seq_len; ++t) {
+  for (Uint t=0; t<N; ++t)
+  {
+    assert(states[t].size() == dS and dI == latent_states[t].size());
+    assert(actions[t].size() == dA and dP == policies[t].size());
     *(pos++) = iterStep + 0.1;
     const auto steptype = t==0 ? INIT : ( isTerminal(t) ? TERM : (
                           isTruncated(t) ? TRNC : CONT ) );
     *(pos++) = status2int(steptype) + 0.1;
     *(pos++) = t + 0.1;
-    std::copy(  states[t].begin(),   states[t].end(), pos);
-    pos += sInfo.dim();
+    const auto S = sInfo.observedAndLatent2state(states[t], latent_states[t]);
+    std::copy(S.begin(), S.end(), pos);           pos += dS + dI;
     const auto envAct = aInfo.learnerAction2envAction<float>(actions[t]);
-    std::copy(envAct.begin(), envAct.end(), pos);
-    pos += dimA;
+    std::copy(envAct.begin(), envAct.end(), pos); pos += dA;
     *(pos++) = rewards[t];
     const auto envPol = aInfo.learnerPolicy2envPolicy<float>(policies[t]);
-    std::copy(envPol.begin(), envPol.end(), pos);
-    pos += dimP;
-    assert(envAct.size() == dimA && envPol.size() == dimP);
+    std::copy(envPol.begin(), envPol.end(), pos); pos += dP;
+    assert(envAct.size() == dA and envPol.size() == dP and S.size() == dS + dI);
   }
   return buffer;
 }

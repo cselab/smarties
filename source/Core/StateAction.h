@@ -114,21 +114,38 @@ struct StateInfo
   Uint dimInfo() const { return  MDP.dimState - MDP.dimStateObserved; }
 
   template<typename T = Real>
-  std::vector<T> state2observed(const Rvec& state) const
+  std::vector<T> state2observed(const Rvec& state) const {
+    return state2observed<T>(state, MDP);
+  }
+  template<typename T = Real, typename TS>
+  static std::vector<T> state2observed(const std::vector<TS>& S, const MDPdescriptor& MDP)
   {
-    assert(state.size() == dim());
-    std::vector<T> ret(dimObs());
-    for (Uint i=0, k=0; i<dim(); ++i)
-      if (MDP.bStateVarObserved[i]) ret[k++] = state[i];
+    assert(S.size() == MDP.dimState);
+    std::vector<T> ret(MDP.dimStateObserved);
+    for (Uint i=0, k=0; i<MDP.dimState; ++i)
+      if (MDP.bStateVarObserved[i]) ret[k++] = S[i];
     return ret;
   }
-  template<typename T = Real>
-  std::vector<T> state2nonObserved(const Rvec& state) const
+  template<typename T = Real, typename TS>
+  std::vector<T> state2nonObserved(const std::vector<TS>& state) const
   {
     assert(state.size() == dim());
     std::vector<T> ret( dimInfo() );
     for (Uint i=0, k=0; i<dim(); ++i)
       if (not MDP.bStateVarObserved[i]) ret[k++] = state[i];
+    return ret;
+  }
+
+  template<typename T = Real>
+  std::vector<T> observedAndLatent2state(const std::vector<T>& observ,
+                                         const std::vector<T>& latent) const
+  {
+    assert(observ.size() == dimObs() and latent.size() == dimInfo());
+    std::vector<T> ret( dim() );
+    for (Uint i=0, o=0, l=0; i<dim(); ++i) {
+      if (    MDP.bStateVarObserved[i]) ret[i] = observ[o++];
+      if (not MDP.bStateVarObserved[i]) ret[i] = latent[l++];
+    }
     return ret;
   }
 

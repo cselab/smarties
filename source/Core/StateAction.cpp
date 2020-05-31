@@ -42,31 +42,35 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
   if( bStateVarObserved.size() not_eq (size_t) dimState)
     die("Application error in setup of bStateVarObserved.");
 
-  // by default state vector scaling is assumed to be with mean 0 and std 1
-  if(stateMean.size() == 0) stateMean = std::vector<nnReal> (dimState, 0);
-  sendRecvVectorFunc(sendRecvFunc, stateMean);
-  if( stateMean.size() not_eq (size_t) dimState)
-    die("Application error in setup of stateMean.");
-
-  // by default agent can observer all components of action vector
-  if(stateStdDev.size() == 0) stateStdDev = std::vector<nnReal> (dimState, 1);
-  sendRecvVectorFunc(sendRecvFunc, stateStdDev);
-  if( stateStdDev.size() not_eq (size_t) dimState)
-    die("Application error in setup of stateStdDev.");
-
-  stateScale.resize(dimState);
-  for(Uint i=0; i<dimState; ++i) {
-    if( stateStdDev[i] < std::numeric_limits<Real>::epsilon() )
-      _die("Invalid value in scaling of state component %u.", i);
-    stateScale[i] = 1/stateStdDev[i];
-  }
-
   dimStateObserved = 0;
   for(Uint i=0; i<dimState; ++i) if(bStateVarObserved[i]) dimStateObserved++;
   if(world_rank == 0) {
    printf("SETUP: State vector has %lu components, %lu of which are observed. "
    "Action vector has %lu %s-valued components.\n", dimState,
    dimStateObserved, dimAction, bDiscreteActions? "discrete" : "continuous");
+  }
+
+  // by default state vector scaling is assumed to be with mean 0 and std 1
+  if(stateMean.size()==0) stateMean = std::vector<nnReal>(dimStateObserved, 0);
+  if(stateMean.size()==dimState and dimState > dimStateObserved)
+    stateMean = StateInfo::state2observed<nnReal>(stateMean, *this);
+  sendRecvVectorFunc(sendRecvFunc, stateMean);
+  if( stateMean.size() not_eq (size_t) dimStateObserved)
+    die("Application error in setup of stateMean.");
+
+  // by default agent can observer all components of action vector
+  if(stateStdDev.size()==0) stateStdDev = std::vector<nnReal>(dimStateObserved, 1);
+  if(stateStdDev.size()==dimState and dimState > dimStateObserved)
+    stateStdDev = StateInfo::state2observed<nnReal>(stateStdDev, *this);
+  sendRecvVectorFunc(sendRecvFunc, stateStdDev);
+  if( stateStdDev.size() not_eq (size_t) dimStateObserved)
+    die("Application error in setup of stateStdDev.");
+
+  stateScale.resize(dimStateObserved);
+  for(Uint i=0; i<dimStateObserved; ++i) {
+    if( stateStdDev[i] < std::numeric_limits<Real>::epsilon() )
+      _die("Invalid value in scaling of state component %u.", i);
+    stateScale[i] = 1/stateStdDev[i];
   }
 
   // by default agent's action space is unbounded

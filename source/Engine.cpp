@@ -50,8 +50,14 @@ void Engine::setRandSeed(const Uint randSeed) {
   distrib->randSeed = randSeed;
 }
 
-void Engine::setTotNumTimeSteps(const Uint totNumSteps) {
-  distrib->totNumSteps = totNumSteps;
+void Engine::setNumTrainingTimeSteps(const Uint numSteps) {
+  distrib->nTrainSteps = numSteps;
+  distrib->bTrain = 1;
+}
+
+void Engine::setNumEvaluationEpisodes(const Uint numEpisodes) {
+  distrib->nEvalEpisodes = numEpisodes;
+  distrib->bTrain = 0;
 }
 
 void Engine::setSimulationArgumentsFilePath(const std::string& appSettings) {
@@ -64,10 +70,6 @@ void Engine::setSimulationSetupFolderPath(const std::string& setupFolder) {
 
 void Engine::setRestartFolderPath(const std::string& restart) {
   distrib->restart = restart;
-}
-
-void Engine::setIsTraining(const bool bTrain) {
-  distrib->bTrain = bTrain;
 }
 
 void Engine::setIsLoggingAllData(const int logAllSamples) {
@@ -84,7 +86,7 @@ void Engine::setRedirectAppScreenOutput(const bool redirect) {
 
 void Engine::init()
 {
-  distrib->initialzePRNG();
+  distrib->initialze();
   distrib->figureOutWorkersPattern();
 
   if(distrib->bTrain == false && distrib->restart == "none") {

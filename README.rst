@@ -83,7 +83,7 @@ Then we are ready to get and install smarties:
     cd smarties/makefiles
     make -j
 
-
+The compilation should take few minutes.
 *Alternative*: if mpic++ still points to the Apple clang binary, you may try:
 
 .. code:: shell
@@ -221,7 +221,7 @@ Most useful options:
 
 * ``--runname RUNNAME`` will execute the training run from folder ``RUNNAME`` and create all output and setup files therein. The path of the folder is by default ``SMARTIES_ROOT/runs/RUNNAME``, but may be modified for example as ``--runprefix ./``, which will create ``RUNNAME`` in the current directory.
 
-* ``--nEvalSeqs N`` tells smarties that it should evaluate and not modify an already trained policy for ``N`` sequences (the smarties-generated restart files should be already located in the run directory or at path ``--restart /path/to/restart/``).
+* ``--nEvalEpisodes N`` tells smarties that it should evaluate and not modify an already trained policy for ``N`` sequences (the smarties-generated restart files should be already located in the run directory or at path ``--restart /path/to/restart/``).
 
 * ``--args "arg1 arg2 ..`` in order to pass line arguments to the application.
 
@@ -268,6 +268,8 @@ The applications that are already included are:
 - ``apps/Deepmind_control``: code to run the Deepmind Control Suite control problems
 
 - ``apps/CUP2D_2fish``: and similarly named applications require `CubismUP 2D <https://github.com/novatig/CubismUP_2D>`_.
+
+- ``apps/CUP3D_LES_HIT``: requires `CubismUP 3D <https://github.com/cselab/CubismUP_3D>`_. Refer to the README file therein for more information and to access pre-trained models.  
 
 Examples of solved problems
 ---------------------------

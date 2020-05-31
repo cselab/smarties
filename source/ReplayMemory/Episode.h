@@ -46,8 +46,9 @@ struct Episode
     actions.reserve(MAX_SEQ_LEN);
     policies.reserve(MAX_SEQ_LEN);
     rewards.reserve(MAX_SEQ_LEN);
+    latent_states.reserve(MAX_SEQ_LEN);
   }
-  Episode(const std::vector<Fval>&, const Uint dS,const Uint dA,const Uint dP);
+  Episode(const std::vector<Fval>&, const MDPdescriptor& MDP);
   ~Episode() = default;
   Episode(const Episode &p) = delete;
   Episode& operator=(const Episode &p) = delete;
@@ -74,6 +75,7 @@ struct Episode
     offPolicImpW     = std::move(p.offPolicImpW);   p.offPolicImpW.clear();   \
     KullbLeibDiv     = std::move(p.KullbLeibDiv);   p.KullbLeibDiv.clear();   \
     priorityImpW     = std::move(p.priorityImpW);   p.priorityImpW.clear();   \
+    latent_states    = std::move(p.latent_states);  p.latent_states.clear();  \
   } while (0)
 
   // minImpW          = p.minImpW.load();            p.minImpW = 1;
@@ -98,12 +100,11 @@ struct Episode
     nFarUndrPolSteps = 0;
     sumKLDivergence  = 0;
     sumSquaredErr    = 0;
-    //minImpW          = 1;
-    //avgImpW          = 1;
 
     states.clear(); actions.clear(); policies.clear(); rewards.clear();
     SquaredError.clear(); offPolicImpW.clear(); KullbLeibDiv.clear();
-    action_adv.clear(); state_vals.clear(); Q_RET.clear(); priorityImpW.clear();
+    action_adv.clear(); state_vals.clear(); Q_RET.clear();
+    priorityImpW.clear(); latent_states.clear();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -131,6 +132,9 @@ struct Episode
   //Used for sampling, filtering, and sorting off policy data:
   Fvec SquaredError, offPolicImpW, KullbLeibDiv;
   std::vector<float> priorityImpW;
+
+  // auxilliary state variables, not passed to the network
+  std::vector<Fvec> latent_states;
 
   // some quantities needed for processing of experiences
   std::atomic<Uint> nFarOverPolSteps{0}; // pi/mu > c
@@ -239,14 +243,14 @@ struct Episode
   void finalize(const Uint index)
   {
     ID = index;
-    const Uint seq_len = states.size();
+    const Uint N = states.size();
     // whatever the meaning of SquaredError, initialize with all zeros
     // this must be taken into account when sorting/filtering
-    SquaredError.resize(seq_len, 0);
+    SquaredError.resize(N, 0);
     // off pol importance weights are initialized to 1s
-    offPolicImpW.resize(seq_len, 1);
-    KullbLeibDiv.resize(seq_len, 0);
-    priorityImpW.resize(seq_len, 1);
+    offPolicImpW.resize(N, 1);
+    KullbLeibDiv.resize(N, 0);
+    priorityImpW.resize(N, 1);
     #ifndef NDEBUG
       Fval dbg_sumR = std::accumulate(rewards.begin(), rewards.end(), (Fval)0);
       //Fval dbg_norm = std::max(std::fabs(totR), std::fabs(dbg_sumR));
@@ -255,31 +259,28 @@ struct Episode
     #endif
   }
 
-  int restart(FILE * f, const Uint dS, const Uint dA, const Uint dP);
-  void save(FILE * f, const Uint dS, const Uint dA, const Uint dP);
+  int restart(FILE * f, const MDPdescriptor& MDP);
+  void save(FILE * f, const MDPdescriptor& MDP);
 
-  void unpackEpisode(const std::vector<Fval>& data, const Uint dS,
-    const Uint dA, const Uint dP);
-  std::vector<Fval> packEpisode(const Uint dS, const Uint dA, const Uint dP);
+  void unpackEpisode(const std::vector<Fval>& data, const MDPdescriptor& MDP);
+  std::vector<Fval> packEpisode(const MDPdescriptor& MDP);
 
-  static Uint computeTotalEpisodeSize(const Uint dS, const Uint dA,
-    const Uint dP, const Uint Nstep)
+  static Uint computeTotalEpisodeSize(const MDPdescriptor& MDP, const Uint Nstep)
   {
-    const Uint tuplSize = dS+dA+dP+1;
+    const Uint tuplSize = MDP.dimState + MDP.dimAction + MDP.policyVecDim + 1;
     static constexpr Uint infoSize = 6; //adv,val,ret, mse,dkl,impW
     //extras : ended,ID,sampled,prefix,agentID x 2 for conversion safety
     static constexpr Uint extraSize = 10;
     const Uint ret = (tuplSize+infoSize)*Nstep + extraSize;
     return ret;
   }
-  static Uint computeTotalEpisodeNstep(const Uint dS, const Uint dA,
-    const Uint dP, const Uint size)
+  static Uint computeTotalEpisodeNstep(const MDPdescriptor& MDP, const Uint size)
   {
-    const Uint tuplSize = dS+dA+dP+1;
+    const Uint tuplSize = MDP.dimState + MDP.dimAction + MDP.policyVecDim + 1;
     static constexpr Uint infoSize = 6; //adv,val,ret, mse,dkl,impW
     static constexpr Uint extraSize = 10;
     const Uint nStep = (size - extraSize)/(tuplSize+infoSize);
-    assert(Episode::computeTotalEpisodeSize(dS,dA,dP,nStep) == size);
+    assert(Episode::computeTotalEpisodeSize(MDP, nStep) == size);
     return nStep;
   }
 

@@ -54,15 +54,15 @@ public:
 
   VISIBLE void setRandSeed(const Uint randSeed);
 
-  VISIBLE void setTotNumTimeSteps(const Uint totNumSteps);
+  VISIBLE void setNumTrainingTimeSteps(const Uint numSteps);
+
+  VISIBLE void setNumEvaluationEpisodes(const Uint numEpisodes);
 
   VISIBLE void setSimulationArgumentsFilePath(const std::string& appSettings);
 
   VISIBLE void setSimulationSetupFolderPath(const std::string& setupFolder);
 
   VISIBLE void setRestartFolderPath(const std::string& restart);
-
-  VISIBLE void setIsTraining(const bool bTrain);
 
   VISIBLE void setIsLoggingAllData(const int logAllSamples);
 
