@@ -70,6 +70,13 @@ Using the script
 
 will evaluate the policy saved in ``training_directory_name`` at Reynolds in log-intervals from 60 to 205, each in a separate directory.
 Each evaluation directory will be named according to the Reynolds like: ``training_directory_name_RE%03d``.
+To evaluate the trained policy provided with this repository, you can use the command:
+
+.. code:: shell
+
+    python3 eval_all_train.py Trained_FFNN_4blocks_08act --restartsPath ./
+
+This problem should take several minutes per Reynolds number, again depending on the software stack and CPU (should be under one hour with a modern laptop per simulation). To speed things up, you may evaluate on a subset of Reynolds by modidfying the ``eval_all_train.py`` script itself.
 
 Evaluating the trained policy
 ==============================
