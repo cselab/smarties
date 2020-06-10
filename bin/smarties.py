@@ -270,7 +270,8 @@ def setLaunchCommand(parsed, absRunPath):
 if __name__ == '__main__':
   assert len(SMARTIES_ROOT)>0, \
          "FATAL: Environment variable SMARTIES_ROOT is unset. Read the README"
-  assert os.path.isfile(SMARTIES_ROOT+'/lib/libsmarties.so'), \
+  assert os.path.isfile(SMARTIES_ROOT+'/lib/libsmarties.so') or \
+         os.path.isfile(SMARTIES_ROOT+'/lib/libsmarties.dylib'), \
          "FATAL: smarties library not found."
 
   runprefix, nThreads = getDefaults()
