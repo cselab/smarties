@@ -13,7 +13,7 @@ CPPFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -Wno-div-by-zero
 
 .DEFAULT_GOAL := cart-pole
 
-cart-pole: cart-pole.o
+exec: cart-pole.o
 	$(CXX) $(extra) -o $@ $^ ${LIBS}
 
 %.o: %.cpp

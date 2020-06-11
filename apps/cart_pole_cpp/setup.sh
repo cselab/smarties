@@ -1,3 +1,7 @@
+mkdir -p build/
+cd build
+cmake ..
 make
+cd ..
 
-cp cart-pole ${RUNDIR}/exec
+cp exec ${RUNDIR}/exec
