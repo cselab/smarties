@@ -48,7 +48,7 @@ On Mac, ``LD_LIBRARY_PATH`` has to be replaced with ``DYLD_LIBRARY_PATH``.
 The environment variable ``SMARTIES_ROOT`` is used to compile most of the applications in the 'apps' folder.
 
 Linux
-------
+-----
 
 Smarties requires gcc version 6.1 or greater, a thread-safe (at least ``MPI_THREAD_SERIALIZED``) implementation of MPI, and a serial BLAS implementation with CBLAS interface. Furthermore, in order to test on the benchmark problems, OpenAI gym or the DeepMind Control Suite with python>=3.5. MPI and OpenBLAS can be installed by running the ``install_dependencies.sh`` script.
 
@@ -75,14 +75,7 @@ Now, we have to switch from Apple's LLVM compiler to the most recent LLVM compil
 
     echo "export OMPI_CXX=/usr/local/opt/llvm/bin/clang++" >> ~/.bash_profile
 
-Then we are ready to get and install smarties:
-
-.. code:: shell
-
-    git clone --recursive https://github.com/cselab/smarties.git
-    cd smarties/makefiles
-    make -j
-
+Then we are ready to get and install smarties with the same commands as for Linux.
 The compilation should take few minutes.
 *Alternative*: if mpic++ still points to the Apple clang binary, you may try:
 
