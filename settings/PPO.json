@@ -4,7 +4,6 @@
   "clipImpWeight": 0.2,
   "encoderLayerSizes": [64],
   "epsAnneal": 0,
-  "explNoise": 0.4472136,
   "gamma": 0.995,
   "lambda": 0.97,
   "obsPerStep": 6.4,

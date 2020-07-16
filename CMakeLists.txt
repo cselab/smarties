@@ -21,45 +21,46 @@ set(source_dir ${root_folder}/source)
 set(lib_output ${root_folder}/lib)
 
 set(smarties_sources
-    ${source_dir}/Learners/PPO.cpp
-    ${source_dir}/Learners/MixedPG.cpp
-    ${source_dir}/Learners/NAF.cpp
-    ${source_dir}/Learners/DPG.cpp
-    ${source_dir}/Learners/DQN.cpp
-    ${source_dir}/Learners/ACER.cpp
-    ${source_dir}/Learners/RACER.cpp
-    ${source_dir}/Learners/CMALearner.cpp
-    ${source_dir}/Learners/Learner_pytorch.cpp
-    ${source_dir}/Learners/Learner_approximator.cpp
-    ${source_dir}/Learners/AlgoFactory.cpp
-    ${source_dir}/Learners/Learner.cpp
+    ${source_dir}/smarties/Learners/PPO.cpp
+    ${source_dir}/smarties/Learners/MixedPG.cpp
+    ${source_dir}/smarties/Learners/NAF.cpp
+    ${source_dir}/smarties/Learners/DPG.cpp
+    ${source_dir}/smarties/Learners/DQN.cpp
+    ${source_dir}/smarties/Learners/ACER.cpp
+    ${source_dir}/smarties/Learners/RACER.cpp
+    ${source_dir}/smarties/Learners/CMALearner.cpp
+    ${source_dir}/smarties/Learners/Learner_pytorch.cpp
+    ${source_dir}/smarties/Learners/Learner_approximator.cpp
+    ${source_dir}/smarties/Learners/AlgoFactory.cpp
+    ${source_dir}/smarties/Learners/Learner.cpp
 
-    ${source_dir}/ReplayMemory/Episode.cpp
-    ${source_dir}/ReplayMemory/Sampling.cpp
-    ${source_dir}/ReplayMemory/Collector.cpp
-    ${source_dir}/ReplayMemory/MemoryBuffer.cpp
-    ${source_dir}/ReplayMemory/DataCoordinator.cpp
-    ${source_dir}/ReplayMemory/MemoryProcessing.cpp
+    ${source_dir}/smarties/ReplayMemory/Episode.cpp
+    ${source_dir}/smarties/ReplayMemory/Sampling.cpp
+    ${source_dir}/smarties/ReplayMemory/MemoryBuffer.cpp
+    ${source_dir}/smarties/ReplayMemory/DataCoordinator.cpp
+    ${source_dir}/smarties/ReplayMemory/MemoryProcessing.cpp
 
-    ${source_dir}/Math/Math_tests.cpp
-    ${source_dir}/Utils/Warnings.cpp
-    ${source_dir}/Utils/Profiler.cpp
-    ${source_dir}/Utils/StatsTracker.cpp
+    ${source_dir}/smarties/Math/Math_tests.cpp
+    ${source_dir}/smarties/Utils/Warnings.cpp
+    ${source_dir}/smarties/Utils/Profiler.cpp
+    ${source_dir}/smarties/Utils/StatsTracker.cpp
+    ${source_dir}/smarties/Utils/DelayedReductor.cpp
+    ${source_dir}/smarties/Settings/ExecutionInfo.cpp
+    ${source_dir}/smarties/Settings/HyperParameters.cpp
 
-    ${source_dir}/Core/Launcher.cpp
-    ${source_dir}/Core/Master.cpp
-    ${source_dir}/Core/Worker.cpp
-    ${source_dir}/Core/StateAction.cpp
+    ${source_dir}/smarties/Core/Launcher.cpp
+    ${source_dir}/smarties/Core/Master.cpp
+    ${source_dir}/smarties/Core/Worker.cpp
+    ${source_dir}/smarties/Core/StateAction.cpp
 
-    ${source_dir}/Communicator.cpp
-    ${source_dir}/Settings.cpp
-    ${source_dir}/Engine.cpp
+    ${source_dir}/smarties/Communicator.cpp
+    ${source_dir}/smarties/Engine.cpp
 
-    ${source_dir}/Network/Approximator.cpp
-    ${source_dir}/Network/Builder.cpp
-    ${source_dir}/Network/Network.cpp
-    ${source_dir}/Network/Optimizer.cpp
-    ${source_dir}/Network/CMA_Optimizer.cpp
+    ${source_dir}/smarties/Network/Approximator.cpp
+    ${source_dir}/smarties/Network/Builder.cpp
+    ${source_dir}/smarties/Network/Network.cpp
+    ${source_dir}/smarties/Network/Optimizer.cpp
+    ${source_dir}/smarties/Network/CMA_Optimizer.cpp
 )
 
 set(smarties_core "libsmarties")
@@ -140,7 +141,7 @@ if (COMPILE_PY_SO)
 
   set(smarties_py "smarties")
   
-  add_library(${smarties_py} MODULE ${source_dir}/smarties_pybind11.cpp)
+  add_library(${smarties_py} MODULE ${source_dir}/smarties/smarties_pybind11.cpp)
   target_link_libraries(${smarties_py} PRIVATE ${smarties_core} pybind11::module)
 
   set_target_properties(${smarties_py} PROPERTIES

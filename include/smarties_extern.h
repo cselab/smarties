@@ -1,7 +1,7 @@
 #ifndef smarties_extern_h
 #define smarties_extern_h
 
-#include "../source/Communicator.h"
+#include "../source/smarties/Communicator.h"
 
 //==============================================================================
 //

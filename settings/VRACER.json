@@ -1,6 +1,4 @@
 {
   "learner": "VRACER",
-  "epsAnneal": 1e-7,
-  "penalTol": 0.1,
-  "ERoldSeqFilter": "default"
+  "epsAnneal": 5e-7
 }

@@ -15,7 +15,7 @@
 inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
 {
   const int control_vars = 1; // force along x
-  const int state_vars = 6; // x, y, angvel, angle, cosine, sine
+  const int state_vars = 6; // x, vel, angvel, angle, cosine, sine
   comm->setStateActionDims(state_vars, control_vars);
 
   //OPTIONAL: action bounds
@@ -30,15 +30,11 @@ inline void app_main(smarties::Communicator*const comm, int argc, char**argv)
     // will receive either 0 or 1, app chooses resulting outcome
   */
 
-  //OPTIONAL: hide state variables.
-  // e.g. show cosine/sine but not angle
+  //OPTIONAL: hide state variables. e.g. show cosine/sine but not angle
   std::vector<bool> b_observable = {true, true, true, false, true, true};
+  //std::vector<bool> b_observable = {true, false, false, false, true, true};
   comm->setStateObservable(b_observable);
-
-  //OPTIONAL: set space bounds
-  std::vector<double> upper_state_bound{ 1,  1,  1,  1,  1,  1};
-  std::vector<double> lower_state_bound{-1, -1, -1, -1, -1, -1};
-  comm->setStateScales(upper_state_bound, lower_state_bound);
+  //comm->setIsPartiallyObservable();
 
   CartPole env;
 

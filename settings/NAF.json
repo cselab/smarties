@@ -1,13 +1,11 @@
 {
   "learner": "NAF",
+  "returnsEstimator": "retrace",
   "batchSize": 256,
-  "clipImpWeight": 4,
   "epsAnneal": 5e-7,
   "explNoise": 0.2,
   "gamma": 0.995,
   "learnrate": 0.0001,
-  "maxTotObsNum": 262144,
-  "minTotObsNum": 131072,
   "nnLayerSizes": [128, 128],
-  "targetDelay": 0.001
+  "targetDelay": 0.0001
 }
