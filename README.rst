@@ -48,7 +48,7 @@ On Mac, ``LD_LIBRARY_PATH`` has to be replaced with ``DYLD_LIBRARY_PATH``.
 The environment variable ``SMARTIES_ROOT`` is used to compile most of the applications in the 'apps' folder.
 
 Linux
-------
+-----
 
 Smarties requires gcc version 6.1 or greater, a thread-safe (at least ``MPI_THREAD_SERIALIZED``) implementation of MPI, and a serial BLAS implementation with CBLAS interface. Furthermore, in order to test on the benchmark problems, OpenAI gym or the DeepMind Control Suite with python>=3.5. MPI and OpenBLAS can be installed by running the ``install_dependencies.sh`` script.
 
@@ -75,14 +75,7 @@ Now, we have to switch from Apple's LLVM compiler to the most recent LLVM compil
 
     echo "export OMPI_CXX=/usr/local/opt/llvm/bin/clang++" >> ~/.bash_profile
 
-Then we are ready to get and install smarties:
-
-.. code:: shell
-
-    git clone --recursive https://github.com/cselab/smarties.git
-    cd smarties/makefiles
-    make -j
-
+Then we are ready to get and install smarties with the same commands as for Linux.
 The compilation should take few minutes.
 *Alternative*: if mpic++ still points to the Apple clang binary, you may try:
 
@@ -300,6 +293,80 @@ Examples of solved problems
 * The fourth is from  G. Novati, S. Verma, D. Alexeev, D. Rossinelli, W. M. van Rees, and P. Koumoutsakos, “Synchronisation through learning for two self-propelled swimmers," Bioinspiration & biomimetics, vol. 12, iss. 3, p. 36001, 2017.
 * Se also G. Novati, L. Mahadevan, and P. Koumoutsakos, “Controlled gliding and perching through deep-reinforcement-learning," Physical review fluids, vol. 4, iss. 9, 2019 for an introduction to using deep RL to obtain optimal control policies in fluid mechanics problems.
 
+Learner settings (.json) files
+------------------------------
+
+The second argument when launching ``smarties`` is the settings file describing the learning algorithm. If unset, ``settings/VRACER.json`` is selected. I will run through each variable:
+
+|
+
+- "learner": Chosen learning algorithm. One of: 'VRACER', 'RACER', 'PPO', 'DPG', 'ACER', 'NAF', 'DQN', 'CMA', 'PYTORCH'. Default is VRACER.
+    
+- "ERoldSeqFilter": Filter algorithm to remove old episodes from memory buffer. Accepts: 'oldest', 'farpolfrac', 'maxkldiv'. Oldest is default and corresponds to first-in-first-out.
+    
+- "dataSamplingAlgo": Algorithm for sampling the Replay Buffer. Accepts 'uniform', 'PERrank', 'PERerr' (prioritized experience replay), and other experimental implementations of uniform sampling. Uniform is default (and best).
+    
+|
+
+- "gamma": Discount factor.
+    
+- "lambda": Lambda for off-policy return-based estimators (used in retrace and GAE).
+    
+|
+
+- "clipImpWeight": Clipping range for off-policy importance weights. Triggers usage of ReF-ER when selected with (V)RACER, DDPG, NAF, DQN. Corresponds to: C in ReF-ER's Rule 1, epsilon in PPO's surrogate policy objective, c in ACER's truncation and bias correction.
+    
+- "klDivConstraint": Constraint on max KL div. USed by PPO and ACER. Corresponds to: d_targ in PPO's penalization, delta in ACER's truncation and bias correction.
+    
+- "explNoise": Noise added to policy. For discrete policies it may be the probability of picking a random action (detail depend on learning algo), for continuous policies it is the (initial) standard deviation.
+    
+- "penalTol": Tolerance used for adaptive off-policy penalization methods. Currently corresponds only to D in ReF-ER's Rule 2.
+    
+|
+
+- "maxTotObsNum": Max number of transitions in training buffer.
+    
+- "minTotObsNum": Min number of transitions in training buffer before training starts. If minTotObsNum=0, is set equal to maxTotObsNum i.e. fill RM before training starts.
+    
+- "obsPerStep": Ratio of observed *transitions* to gradient steps. E.g. 0.1 means that for every observation learner does 10 gradient steps.
+    
+|
+
+- "learnrate": Learning rate.
+    
+- "ESpopSize": Population size for CMA-ES algorithm. Only compatible with (V)RACER. If unset, or set to <2, we use Adam to optimize network parameters.
+    
+- "batchSize": Network training batch size.
+    
+- "epsAnneal": Annealing rate for network learning rate and ReF-ER clipping parameters (if enabled).
+    
+- "nnLambda": Penalization factor for network weights. It will be multiplied by learn rate: w -= eta * nnLambda * w .
+    
+- "targetDelay": Copy delay for Target Nets (TNs). If 0, TNs are disabled. If 'val'>1: every 'val' grad steps network's W copied onto TN (like DQN). If 'val'<1: every grad step TN updated by exp. averaging with rate 'val' (like DPG). Only compatible with ACER, DQN, DDPG, and NAF.
+  
+|
+
+- "nnType": Type of non-output layers read from settings. Accepts 'RNN', 'GRU', 'LSTM', everything else maps to feed-forward NN. Conv2D layers need to be built in environment directly with the API described below.
+    
+- "nnLayerSizes": Sizes of non-convolutional layers (LSTM/RNN/FFNN). E.g. '64 64'.
+    
+- "encoderLayerSizes": Sizes of non-convolutional encoder layers (LSTM/RNN/FFNN). E.g. '64 64'. This only applies to networks which have multiple networks (e.g. policy and value). The encoder layers (and any Conv2D layers) are shared by all networks. For example, when using PPO, setting "encoderLayerSizes" to 64 and "nnLayerSizes" to 64 means that an encoder layer of size 64 will be created. The policy and value network will have one layer of size 64 and take as input the output of the encoder.
+  
+|
+
+- "nnBPTTseq": Number of previous steps considered by RNN's back-propagation through time window. No effect if using FFNN.
+    
+- "nnFunc": Activation function for non-output layers (which is almost always linear) which are built from settings. ('Relu', 'Tanh', 'Sigm', 'PRelu', 'softSign', 'softPlus', ...).
+    
+- "nnOutputFunc": Activation function for output layers.
+    
+- "outWeightsPrefac": Output weights initialization factor (will be multiplied by default fan-in factor). Picking 1 leads to treating output layers with normal Xavier initialization.
+  
+|
+
+- "saveFreq": Number of gradient steps between writing of checkpoint file of learner's state.
+
+In ``settings/default.json`` we list all values the hyper-parameters take if the fields are left empty in the .json file.
 
 Outputs and postprocessing
 ==========================
