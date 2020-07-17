@@ -138,10 +138,10 @@ RACER(MDPdescriptor& MDP_, HyperParameters& S, ExecutionInfo& D):
   if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
-    "    Single net with outputs: [%lu] : V(s),\n"
+    "    Single net with outputs: [%u] : V(s),\n"
     "                             [%s] : policy mean and stdev,\n"
     "                             [%s] : advantage\n"
-    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
+    "    Size per entry = [%s].\n", (unsigned) VsID, vec2string(pol_start).c_str(),
       vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
@@ -195,10 +195,10 @@ RACER(MDPdescriptor& MDP_, HyperParameters& S, ExecutionInfo& D):
   if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
-    "    Single net with outputs: [%lu] : V(s),\n"
+    "    Single net with outputs: [%u] : V(s),\n"
     "                             [%s] : policy mean and stdev,\n"
     "                             [%s] : advantage\n"
-    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
+    "    Size per entry = [%s].\n", (unsigned) VsID, vec2string(pol_start).c_str(),
       vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
@@ -249,10 +249,10 @@ RACER(MDPdescriptor& MDP_, HyperParameters& S, ExecutionInfo& D):
   if(D.world_rank == 0) {
     using Utilities::vec2string;
     printf(
-    "    Single net with outputs: [%lu] : V(s),\n"
+    "    Single net with outputs: [%u] : V(s),\n"
     "                             [%s] : policy mean and stdev,\n"
-    "    Size per entry = [%s].\n", VsID, vec2string(pol_start).c_str(),
-      vec2string(net_outputs).c_str());
+    "    Size per entry = [%s].\n", (unsigned) VsID,
+      vec2string(pol_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
   testContinuousPolicy(distrib.generators[0], aInfo);

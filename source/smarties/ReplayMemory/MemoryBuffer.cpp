@@ -66,7 +66,7 @@ void MemoryBuffer::storeState(Agent&a)
 
   // assign or check id of agent generating episode
   if (a.agentStatus == INIT) S.agentID = a.localID;
-  else assert(S.agentID == a.localID);
+  else assert(S.agentID == (Sint) a.localID);
 
   // if no tuples, init state. if tuples, cannot be initial state:
   assert( (S.nsteps() == 0) == (a.agentStatus == INIT) );
@@ -214,11 +214,11 @@ void MemoryBuffer::restart(const std::string base)
   }
 
   const Uint learn_rank = MPICommRank(distrib.learners_train_comm);
-  snprintf(fName, 512, "%s_rank_%03lu_learner_status.raw",
-      base.c_str(), learn_rank);
+  snprintf(fName, 512, "%s_rank_%03u_learner_status.raw",
+      base.c_str(), (unsigned) learn_rank);
   FILE * const fstat = fopen(fName, "r");
-  snprintf(fName, 512, "%s_rank_%03lu_learner_data.raw",
-      base.c_str(), learn_rank);
+  snprintf(fName, 512, "%s_rank_%03u_learner_data.raw",
+      base.c_str(), (unsigned) learn_rank);
   FILE * const fdata = fopen(fName, "rb");
 
   if(fstat == NULL || fdata == NULL)
@@ -488,12 +488,12 @@ void MemoryBuffer::pushBackEpisode(Episode & seq)
   const long tStamp = std::max(nLocTimeStepsTrain(), (long)0);
   if(logSample) {
     const int wrank = MPICommRank(distrib.world_comm);
-    snprintf(rewArg, 1024, "%ld %ld %ld %lu %f", nGrads, tStamp,
-              seq.agentID, seq.nsteps(), seq.totR);
-    snprintf(pathRew, 2048, "%s/agent_%02lu_rank%02d_cumulative_rewards.dat",
-              distrib.initial_runDir, learnID, wrank);
-    snprintf(pathObs, 2048, "%s/agent%03lu_rank%02d_obs.raw",
-              distrib.initial_runDir, learnID, wrank);
+    snprintf(rewArg, 1024, "%ld %ld %d %u %f", nGrads, tStamp,
+              (int) seq.agentID, (unsigned) seq.nsteps(), seq.totR);
+    snprintf(pathRew, 2048, "%s/agent_%02u_rank_%03d_cumulative_rewards.dat",
+              distrib.initial_runDir, (unsigned) learnID, wrank);
+    snprintf(pathObs, 2048, "%s/agent_%02u_rank_%03d_obs.raw",
+              distrib.initial_runDir, (unsigned) learnID, wrank);
   }
 
   const auto log = logSample? seq.logToFile(tStamp) : std::vector<float>(0);

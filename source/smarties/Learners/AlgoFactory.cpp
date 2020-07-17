@@ -43,7 +43,7 @@ inline static std::ifstream findSettingsFile(ExecutionInfo& D, const Uint ID)
   // TODO: allow user to set name?
   std::ifstream ret;
   char settingsName[256];
-  snprintf(settingsName, 256, "settings_%02lu.json", ID);
+  snprintf(settingsName, 256, "settings_%02u.json", (unsigned) ID);
   ret.open(settingsName, std::ifstream::in);
   // if found a json for this learner specifically, then read it
   if( ret.is_open() ) {
@@ -62,9 +62,9 @@ std::unique_ptr<Learner> createLearner(
 )
 {
   char lName[256];
-  snprintf(lName, 256, "agent_%02lu", learnerID);
+  snprintf(lName, 256, "agent_%02u", (unsigned) learnerID);
   if(distrib.world_rank == 0)
-    printf("Creating learning algorithm #%02lu\n", learnerID);
+    printf("Creating learning algorithm #%02u\n", (unsigned) learnerID);
 
   const ActionInfo aInfo = ActionInfo(MDP);
   HyperParameters settings(MDP.dimObs(), MDP.dimAct());

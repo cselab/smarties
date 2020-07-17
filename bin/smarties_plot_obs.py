@@ -68,7 +68,7 @@ if __name__ == '__main__':
   else:
     ICOL = parsed.plotCol
 
-  FILE = "%s/agent%03d_rank%02d_obs.raw" \
+  FILE = "%s/agent_%02d_rank_%03d_obs.raw" \
          % (parsed.folder, parsed.agentID, parsed.workerRank)
   if os.path.isfile(FILE) is False:
     FILE = "%s/agent%03d_rank%02d_obs.raw" % (parsed.folder, parsed.agentID, 1)

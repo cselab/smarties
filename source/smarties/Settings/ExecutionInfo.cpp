@@ -225,13 +225,13 @@ void ExecutionInfo::figureOutWorkersPattern()
   if(    forkableApplication &&     bThereAreWorkerProcesses) {
     nEnvironments = std::ceil(nEnvironments / (Real) nWorkers) * nWorkers;
     if(world_rank == 0)
-      printf("%lu worker ranks will split %lu simulation processes.",
-            nWorkers, nEnvironments);
+      printf("%u worker ranks will split %u simulation processes.",
+            (unsigned) nWorkers, (unsigned) nEnvironments);
   }
   if(not forkableApplication &&     bThereAreWorkerProcesses) {
     workerProcessesPerEnv = std::max(workerProcessesPerEnv, (Uint) 1);
     if(nWorkers not_eq nEnvironments * workerProcessesPerEnv)
-      printf("%lu workers run one environment process each.", nWorkers);
+      printf("%u workers run one environment process each.",(unsigned)nWorkers);
     if(nWorkers % workerProcessesPerEnv not_eq 0)
       die("Mismatch between worker processes and number of ranks requested to run env application.");
     nEnvironments = nWorkers / workerProcessesPerEnv;
@@ -378,7 +378,7 @@ void ExecutionInfo::initialze()
   if(randSeed<=0) {
     std::random_device rdev; randSeed = rdev();
     MPI_Bcast(&randSeed, 1, MPI_UNSIGNED_LONG, 0, world_comm);
-    if(world_rank==0) printf("Using seed %lu\n", randSeed);
+    if(world_rank==0) printf("Using seed %lu\n", (long unsigned) randSeed);
   }
   randSeed += world_rank;
 

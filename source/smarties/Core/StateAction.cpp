@@ -45,9 +45,10 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
   dimStateObserved = 0;
   for(Uint i=0; i<dimState; ++i) if(bStateVarObserved[i]) dimStateObserved++;
   if(world_rank == 0) {
-   printf("SETUP: State vector has %lu components, %lu of which are observed. "
-   "Action vector has %lu %s-valued components.\n", dimState,
-   dimStateObserved, dimAction, bDiscreteActions? "discrete" : "continuous");
+   printf("SETUP: State vector has %u components, %u of which are observed. "
+          "Action vector has %u %s-valued components.\n", (unsigned) dimState,
+          (unsigned) dimStateObserved, (unsigned) dimAction,
+          bDiscreteActions? "discrete" : "continuous");
   }
 
   // by default state vector scaling is assumed to be with mean 0 and std 1
@@ -104,7 +105,7 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
     if(world_rank==0) {
       printf("Action vector components :");
       for (Uint i=0; i<dimAction; ++i) {
-        printf(" [ %lu : %s to (%.1f:%.1f) ]", i,
+        printf(" [ %u : %s to (%.1f:%.1f) ]", (unsigned) i,
           bActionSpaceBounded[i] ? "bound" : "scaled",
           lowerActionValue[i], upperActionValue[i]);
         // tidy-up formatting for very high-dim action spaces:
@@ -132,7 +133,7 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
       die("Application error in setup of discreteActionValues: "
           "found less than 2 options to choose from.");
     if(world_rank==0)
-      printf(" [ %lu : %lu options ]", i, discreteActionValues[i]);
+      printf(" [ %u : %u options ]", (unsigned) i, (unsigned) discreteActionValues[i]);
   }
   if(world_rank==0) printf("\n");
 

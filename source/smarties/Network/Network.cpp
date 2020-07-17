@@ -85,8 +85,9 @@ void Network::checkGrads()
   long double sum1 = 0, sumsq1 = 0, sum2 = 0, sumsq2 = 0, sum3 = 0, sumsq3 = 0;
   for (Uint w=0; w<weights->nParams; ++w) {
     if(errGrad->params[w]>tol)
-      printf("%lu err:%f, grad:%f, diff:%f, param:%f\n", w, errGrad->params[w],
-        backGrad->params[w], diffGrad->params[w], weights->params[w]);
+      printf("%u err:%f, grad:%f, diff:%f, param:%f\n",
+              (unsigned) w, errGrad->params[w], backGrad->params[w],
+              diffGrad->params[w], weights->params[w]);
 
     sum1 += std::fabs(backGrad->params[w]);
     sum2 += std::fabs(diffGrad->params[w]);
@@ -103,7 +104,6 @@ void Network::checkGrads()
   const auto std3 = std::sqrt((sumsq3-sum3*avg3)/NW);
   printf("<|grad|>:%Le (std:%Le) <|diff|>:%Le (std:%Le) <|err|>::%Le (std:%Le)\n",
     avg1, std1, avg2, std2, avg3, std3);
-  //die("done");
 }
 
 

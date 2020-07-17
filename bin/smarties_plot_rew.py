@@ -16,7 +16,7 @@ colors = ['#1f78b4', '#33a02c', '#e31a1c', '#ff7f00', '#6a3d9a', '#b15928', \
 def getWorkerRankToPlot(parsed, agentid, PATH):
     if(parsed.workerRank < 0):
         for rank in range(2): # defaults to either 0 or 1
-            FILE = "%s/agent_%02d_rank%02d_cumulative_rewards.dat" \
+            FILE = "%s/agent_%02d_rank_%03d_cumulative_rewards.dat" \
                    % (PATH, agentid, rank)
             if os.path.isfile(FILE): return rank
         return -1 # nothing found
@@ -27,7 +27,7 @@ def plotReward(args, ax, ensambleList, agentid, rank, colorid):
     allDataX, allDataY = None, None
 
     for PATH in ensambleList:
-        FILE = "%s/agent_%02d_rank%02d_cumulative_rewards.dat" % (PATH,agentid,rank)
+        FILE = "%s/agent_%02d_rank_%03d_cumulative_rewards.dat" % (PATH,agentid,rank)
         assert os.path.isfile(FILE)
         if args.bAsk and input("Display file %s? (y/n) " % (FILE)) == 'n' :
            continue

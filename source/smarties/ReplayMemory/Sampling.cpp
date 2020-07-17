@@ -322,7 +322,7 @@ void TSample_impRank::prepare(std::atomic<bool>& needs_pass)
   float minP = 1e9;
   std::vector<float> probs = std::vector<float>(nData, 1);
   #pragma omp parallel for reduction(min:minP) schedule(static)
-  for(long i=0; i<nData; ++i) {
+  for(unsigned i=0; i<nData; ++i) {
     // if samples never seen by optimizer the samples have high priority
     //const float P = std::get<0>(errors[i])>0 ? approxRsqrt(i+1) : 1;
     const float P = std::get<0>(errors[i])>0 ? 1.0/std::cbrt(i+1) : 1;

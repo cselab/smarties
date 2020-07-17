@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.2)
 
 project(smarties)
 
+if (ENABLE_SANITIZER)
+  set(san_opt "-fsanitize=undefined")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${san_opt} -g")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${san_opt}")
+endif()
+
 # Choose Release mode as default.
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -74,12 +80,12 @@ set(cxx_private_flags
      $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
           -Wall -Wno-pass-failed >
      $<$<CXX_COMPILER_ID:GNU>:
-          -Wall -Wextra -pedantic -Wno-unused-parameter -Wno-maybe-uninitialized -fmax-errors=3  >)
+          -Wall -Wextra -pedantic -Wno-unused-parameter -Wno-maybe-uninitialized -fmax-errors=3 -Wno-psabi >)
 target_compile_options(${smarties_core} PRIVATE ${cxx_private_flags})
 
-target_compile_options(${smarties_core} PRIVATE
-  $<$<CONFIG:Debug>:-O0 -g>
-  $<$<CONFIG:Release>:-DNDEBUG -O3 -ffast-math>
+target_compile_options(${smarties_core} PUBLIC
+  $<$<CONFIG:Debug>:-O0;-g>
+  $<$<CONFIG:Release>:-DNDEBUG;-O3;-ffast-math>
   )
 
 # include flags

@@ -156,7 +156,7 @@ void Learner::logStats(const bool bForcePrint)
 
 void Learner::processStats(const bool bPrintHeader)
 {
-  const Uint currStep = nGradSteps()+1;
+  const unsigned currStep = nGradSteps()+1, tStamp = currStep/freqPrint;
 
   std::ostringstream buf;
   data->getMetrics(buf);
@@ -182,13 +182,14 @@ void Learner::processStats(const bool bPrintHeader)
     if(currStep==freqPrint) fprintf(fout, "ID #/T   %s\n", head.str().c_str());
   }
 
-  const Uint learnID = data->learnID, tStamp = currStep/freqPrint;
+  const unsigned learnID = data->learnID;
   #ifdef PRINT_ALL_RANKS
-    printf("%01lu-%01lu %05lu%s\n",learn_rank,learnID,tStamp,buf.str().c_str());
+    const unsigned rank = learn_rank;
+    printf("%01u-%01u %05u%s\n", rank, learnID, tStamp,buf.str().c_str());
   #else
-    printf("%02lu %05lu%s\n",                 learnID,tStamp,buf.str().c_str());
+    printf(     "%02u %05u%s\n",       learnID, tStamp,buf.str().c_str());
   #endif
-  fprintf(fout,"%02lu %05lu%s\n",             learnID,tStamp,buf.str().c_str());
+  fprintf(fout, "%02u %05u%s\n",       learnID, tStamp,buf.str().c_str());
   fclose(fout); fflush(0);
 }
 

@@ -98,13 +98,13 @@ void Worker::runTraining()
       nEnvSeqs = std::min(nEnvSeqs, L->nSeqsEval() / factor);
     const Real perc = 100.0 * nEnvSeqs / (Real) distrib.nEvalEpisodes;
     if(nEnvSeqs >= (long) distrib.nEvalEpisodes) {
-      printf("\rFinished collecting %ld environment episodes " \
-        "(option --nEvalEpisodes) to evaluate restarted policies.\n", nEnvSeqs);
+      printf("\rFinished collecting %d environment episodes (option " \
+        "--nEvalEpisodes) to evaluate restarted policies.\n", (int) nEnvSeqs);
       return true;
     } else if(perc >= percentageReady+5) {
       percentageReady = perc;
-      printf("\rCollected %ld environment episodes out of %lu " \
-        " to evaluate restarted policies.", nEnvSeqs, distrib.nEvalEpisodes);
+      printf("\rCollected %d environment episodes out of %u to evaluate " \
+        " restarted policies.", (int)nEnvSeqs, (unsigned)distrib.nEvalEpisodes);
       fflush(0);
     }
     return false;
