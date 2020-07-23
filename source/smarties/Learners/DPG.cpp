@@ -25,7 +25,7 @@ void DPG::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   if(thrID==0) profiler->start("FWD");
   const Rvec pvec = actor->forward(bID, t); // network compute
   if(thrID==0) profiler->stop_start("CMP");
-  const Continuous_policy POL({0, aInfo.dim()}, aInfo, pvec);
+  const Continuous_policy POL(aInfo, pvec);
   const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
   const Real DKL = POL.KLDivergence(MB.mu(bID,t));
   const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
@@ -86,7 +86,7 @@ void DPG::selectAction(const MiniBatch& MB, Agent& agent)
 {
   for (const auto & net : networks ) net->load(MB, agent, 0);
   //Compute policy and value on most recent element of the sequence.
-  const Continuous_policy POL({0, aInfo.dim()}, aInfo, actor->forward(agent));
+  const Continuous_policy POL(aInfo, actor->forward(agent));
 
   // if explNoise is 0, we just act according to policy
   // since explNoise is initial value of diagonal std vectors

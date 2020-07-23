@@ -45,8 +45,6 @@ struct Zero_advantage
   {
     return 0;
   }
-
-  void test(const Rvec& act, std::mt19937*const gen) const { }
 };
 
 } // end namespace smarties

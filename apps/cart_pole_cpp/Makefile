@@ -11,7 +11,7 @@ CPPFLAGS+= -Wextra -Wfloat-equal -Wundef -Wcast-align -Wno-unused-parameter
 CPPFLAGS+= -Wwrite-strings -Wlogical-op -Wmissing-declarations -Wredundant-decls
 CPPFLAGS+= -Wshadow -Woverloaded-virtual -Wuninitialized -Wno-div-by-zero
 
-.DEFAULT_GOAL := cart-pole
+.DEFAULT_GOAL := exec
 
 exec: cart-pole.o
 	$(CXX) $(extra) -o $@ $^ ${LIBS}
@@ -23,4 +23,4 @@ exec: cart-pole.o
 	$(CXX) $(extra) $(CPPFLAGS) -MD -c $<
 
 clean:
-	rm -f *.o *.s *.d cart-pole
+	rm -f *.o *.s *.d exec

@@ -15,7 +15,6 @@
 #define DQN_USE_POLICY
 
 #ifdef DQN_USE_POLICY
-// use discrete policy but override positive definite mapping
 #include "../Math/Discrete_policy.h"
 #endif
 
@@ -50,7 +49,7 @@ void DQN::selectAction(const MiniBatch& MB, Agent& agent)
   auto outVec = networks[0]->forward(agent);
 
   #ifdef DQN_USE_POLICY
-    Discrete_policy POL({0}, aInfo, outVec);
+    Discrete_policy_t<Exp> POL({0}, aInfo, outVec);
     Uint act = POL.selectAction(agent, settings.explNoise>0);
     agent.setAction(act, POL.getVector());
   #else // from paper : annealed epsilon-greedy
@@ -131,7 +130,7 @@ static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
   assert( aI.dimDiscrete() == Qhats.size() );
   assert( aI.dimDiscrete() == Qhats.size() );
   #ifdef DQN_USE_POLICY
-    Discrete_policy pol({0}, aI, Qhats);
+    Discrete_policy_t<Exp> pol({0}, aI, Qhats);
     Real ret = 0;
     for(Uint i=0; i<aI.dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
     return ret;
@@ -166,7 +165,7 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   gradient[actt] = ERR;
 
   #ifdef DQN_USE_POLICY
-    Discrete_policy POL({0}, aInfo, Qs);
+    Discrete_policy_t<Exp> POL({0}, aInfo, Qs);
     const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
     const Real DKL = POL.KLDivergence(MB.mu(bID,t));
     const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);

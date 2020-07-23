@@ -202,7 +202,7 @@ RACER(MDPdescriptor& MDP_, HyperParameters& S, ExecutionInfo& D):
       vec2string(adv_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
-  testGaussianAdvantage(pol_start, adv_start, net_outputs, distrib.generators[0], aInfo);
+  //testGaussianAdvantage(pol_start, adv_start, net_outputs, distrib.generators[0], aInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,7 +255,7 @@ RACER(MDPdescriptor& MDP_, HyperParameters& S, ExecutionInfo& D):
       vec2string(pol_start).c_str(), vec2string(net_outputs).c_str());
   }
   setupNet();
-  testContinuousPolicy(distrib.generators[0], aInfo);
+  //testContinuousPolicy(distrib.generators[0], aInfo);
 }
 
 

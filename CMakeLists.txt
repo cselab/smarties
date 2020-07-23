@@ -46,7 +46,6 @@ set(smarties_sources
     ${source_dir}/smarties/ReplayMemory/DataCoordinator.cpp
     ${source_dir}/smarties/ReplayMemory/MemoryProcessing.cpp
 
-    ${source_dir}/smarties/Math/Math_tests.cpp
     ${source_dir}/smarties/Utils/Warnings.cpp
     ${source_dir}/smarties/Utils/Profiler.cpp
     ${source_dir}/smarties/Utils/StatsTracker.cpp

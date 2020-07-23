@@ -105,7 +105,7 @@ struct Agent
    */
   void setAction(const Uint label, const Rvec& policyVec) {
     action = aInfo.label2actionMessage<double>(label);
-    assert(policyVec.size() == MDP.dimAction);
+    assert(policyVec.size() == MDP.policyVecDim);
     policyVector = policyVec;
   }
   Uint getDiscreteAction() const {
@@ -124,7 +124,7 @@ struct Agent
   }
   template<typename T = double>
   std::vector<T> getAction() const {
-    if(MDP.bDiscreteActions)
+    if(MDP.bDiscreteActions())
       return std::vector<double>(action.begin(), action.end());
     else return aInfo.learnerAction2envAction(action);
   }

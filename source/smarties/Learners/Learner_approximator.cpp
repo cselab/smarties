@@ -21,10 +21,7 @@ Learner_approximator::Learner_approximator(MDPdescriptor& MDP_,
                                            HyperParameters& S_,
                                            ExecutionInfo& D_) :
                                            Learner(MDP_, S_, D_)
-{
-  if(!settings.bSampleEpisodes && nObsB4StartTraining<(long)settings.batchSize)
-    die("Parameter minTotObsNum is too low for given problem");
-}
+{}
 
 Learner_approximator::~Learner_approximator()
 {
@@ -39,6 +36,8 @@ Learner_approximator::~Learner_approximator()
 void Learner_approximator::spawnTrainTasks()
 {
   if(settings.bSampleEpisodes && data->nStoredEps() < (long) settings.batchSize)
+    die("Parameter minTotObsNum is too low for given problem");
+  if(!settings.bSampleEpisodes && nObsB4StartTraining<(long)settings.batchSize)
     die("Parameter minTotObsNum is too low for given problem");
 
   profiler->start("SAMP");

@@ -48,8 +48,9 @@ void Communicator::setActionScales(const std::vector<double> upper,
      lower.size() not_eq ENV.descriptors[agentID]->dimAction or
      bound.size() not_eq ENV.descriptors[agentID]->dimAction )
     die("size mismatch");
+  if(ENV.descriptors[agentID]->bDiscreteActions())
+    die("either continuous or discrete actions");
 
-  ENV.descriptors[agentID]->bDiscreteActions = false;
   ENV.descriptors[agentID]->upperActionValue =
                 Rvec(upper.begin(), upper.end());
   ENV.descriptors[agentID]->lowerActionValue =
@@ -75,7 +76,6 @@ void Communicator::setActionOptions(const std::vector<int> options,
   if(options.size() not_eq ENV.descriptors[agentID]->dimAction)
     die("size mismatch");
 
-  ENV.descriptors[agentID]->bDiscreteActions = true;
   ENV.descriptors[agentID]->discreteActionValues =
     std::vector<Uint>(options.begin(), options.end());
 }

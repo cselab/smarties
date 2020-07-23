@@ -80,7 +80,6 @@ struct MDPdescriptor
   // these values are used for scaling or, in case of bounded spaces, as bounds:
   Rvec upperActionValue, lowerActionValue;
 
-  bool bDiscreteActions = false;
   // DISCRETE ACTION stuff:
   //each component of action vector has a vector of possible values:
   std::vector<Uint> discreteActionValues;
@@ -112,6 +111,7 @@ struct MDPdescriptor
   Uint dimAct()         const { return dimAction;      }
   Uint dimPol()         const { return policyVecDim;   }
   Uint dimDiscreteAct() const { return maxActionLabel; }
+  bool bDiscreteActions() const { return discreteActionValues.size() > 0; }
 
   Real getActScale(const Uint i) const {
     assert(getActMaxVal(i)-getActMinVal(i) > std::numeric_limits<Real>::epsilon());
@@ -213,6 +213,7 @@ struct ActionInfo
   Real getActMaxVal(const Uint i) const { return MDP.getActMaxVal(i); }
   Real getActMinVal(const Uint i) const { return MDP.getActMinVal(i); }
   bool isBounded(const Uint i)    const { return MDP.isActBounded(i); }
+  bool isDiscrete()    const { return MDP.bDiscreteActions(); }
   Uint dim()         const { return MDP.dimAct();         }
   Uint dimPol()      const { return MDP.dimPol();         }
   Uint dimDiscrete() const { return MDP.dimDiscreteAct(); }
@@ -234,7 +235,7 @@ struct ActionInfo
   template<typename T> static std::vector<T>
   envAction2learnerAction(const std::vector<T>& envAct, const MDPdescriptor& MDP)
   {
-    assert(not MDP.bDiscreteActions);
+    assert(not MDP.bDiscreteActions());
     std::vector<T> learnerAct(MDP.dimAct());
     assert( envAct.size() == learnerAct.size() );
     for (Uint i=0; i<MDP.dimAct(); ++i) {
@@ -253,7 +254,7 @@ struct ActionInfo
   template<typename T = Real> static std::vector<T>
   learnerPolicy2envPolicy(const Rvec& policy, const MDPdescriptor& MDP)
   {
-    if(MDP.bDiscreteActions)
+    if(MDP.bDiscreteActions())
       return std::vector<T>(policy.begin(), policy.end());
     assert(policy.size() == 2*MDP.dimAct() && "Supports only gaussian/beta distrib");
     std::vector<T> envPol(2*MDP.dimAct());
@@ -274,7 +275,7 @@ struct ActionInfo
   template<typename T = Real> static std::vector<T>
   learnerAction2envAction(const Rvec& learnerAct, const MDPdescriptor& MDP)
   {
-    if(MDP.bDiscreteActions)
+    if(MDP.bDiscreteActions())
         return std::vector<T>(learnerAct.begin(), learnerAct.end());
     std::vector<T> envAct(MDP.dimAct());
     assert( learnerAct.size() == envAct.size() );
@@ -297,7 +298,7 @@ struct ActionInfo
   actionMessage2label(const std::vector<T>& action, const MDPdescriptor& MDP)
   {
     //map from discretized action (entry per component of values vectors) to int
-    assert(MDP.bDiscreteActions);
+    assert(MDP.bDiscreteActions());
     assert(action.size() == MDP.dimAction);
     assert(MDP.discreteActionShifts.size() == MDP.dimAction);
     Uint label = 0;
@@ -319,25 +320,17 @@ struct ActionInfo
   template<typename T = Real> static std::vector<T>
   label2actionMessage(Uint label, const MDPdescriptor& MDP)
   {
-    assert(MDP.bDiscreteActions);
+    assert(MDP.bDiscreteActions());
     assert(label < MDP.maxActionLabel);
     //map an int to the corresponding entries in the values vec
     std::vector<T> action( MDP.dimAction );
     for (Uint i = MDP.dimAction; i>0; --i) {
       const Uint index_i = label / MDP.discreteActionShifts[i-1];
-      assert(index_i < MDP.discreteActionValues[i]);
+      assert(index_i < MDP.discreteActionValues[i-1]);
       action[i-1] = index_i + (T)0.1; // convert to real to move around
       label = label % MDP.discreteActionShifts[i-1];
     }
     return action;
-  }
-
-  void testDiscrete()
-  {
-    //for(Uint i=0; i<MDP.maxActionLabel; ++i)
-    //  if(i != action2label(label2action(i)))
-    //    _die("label %u does not match for action [%s]. returned %u",
-    //      i, print(label2action(i)).c_str(), action2label(label2action(i)) );
   }
   //////////////////////////// DISCRETE ACTIONS END ////////////////////////////
 };

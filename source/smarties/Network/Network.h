@@ -225,8 +225,6 @@ public:
       layers[i]->backward(prevStep, currStep, nextStep, _gradient, W);
   }
 
-  void checkGrads();
-
   void save(const Parameters * const W,
             const std::string fname,
             const bool isBackup = false) const;

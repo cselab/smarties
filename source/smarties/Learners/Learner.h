@@ -25,7 +25,7 @@ class Collector;
 class Learner
 {
 protected:
-  const Uint freqPrint = 1000;
+  Uint freqPrint = 1000;
   ExecutionInfo & distrib;
   HyperParameters settings;
   MDPdescriptor & MDP;

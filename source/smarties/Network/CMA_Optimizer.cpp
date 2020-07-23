@@ -11,6 +11,7 @@
 #include "../../extern/saruprng.h"
 #include <algorithm>
 #include <unistd.h>
+#include <iostream>
 
 namespace smarties
 {
@@ -182,13 +183,24 @@ void CMA_Optimizer::apply_update()
         startAllGather(i);
       }
     #else // Parellized over pCount. Benefit: less compulsory cache misses.
-      for(Uint i=1; i<populationSize; ++i)
+      for(Uint i=1; i<populationSize; i+=2)
       {
         nnReal* const Y = popNoiseVectors[i]->params;
         nnReal* const X = sampled_weights[i]->params;
         #pragma omp for schedule(static) nowait
         for(Uint w=pStart; w<pStart+pCount; ++w) {
           Y[w] = gen.f_mean0_var1() * S[w];
+          X[w] = M[w] + _eta * Y[w];
+        }
+      }
+      for(Uint i=2; i<populationSize; i+=2)
+      {
+        nnReal* const Y = popNoiseVectors[i]->params;
+        nnReal* const Yref = popNoiseVectors[i-1]->params;
+        nnReal* const X = sampled_weights[i]->params;
+        #pragma omp for simd schedule(static) aligned(Y,X,M,Yref : VEC_WIDTH) nowait
+        for(Uint w=pStart; w<pStart+pCount; ++w) {
+          Y[w] = - Yref[w];
           X[w] = M[w] + _eta * Y[w];
         }
       }

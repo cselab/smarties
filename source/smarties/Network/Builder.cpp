@@ -13,9 +13,10 @@
 #include "Network.h"
 #include "../Utils/SstreamUtilities.h"
 #include "Layers/Layer_Base.h"
-#include "Layers/Layer_Conv2D.h"
 #include "Layers/Layer_LSTM.h"
 #include "Layers/Layer_GRU.h"
+
+#include "Conv2Dfactory.h"
 
 namespace smarties
 {
@@ -121,7 +122,8 @@ void Builder::build(const bool isInputNet)
   bBuilt = true;
 
   nLayers = layers.size();
-  unsigned long lsize = MPICommSize(distrib.learners_train_comm);
+  unsigned long lsize = distrib.learners_train_comm == MPI_COMM_NULL? 1 :
+                        MPICommSize(distrib.learners_train_comm);
   const MPI_Comm & tmpComm = distrib.learnersOnWorkers ? distrib.world_comm :
                              distrib.learners_train_comm;
   MPI_Bcast( &lsize, 1, MPI_UNSIGNED_LONG, 0, tmpComm);
@@ -167,37 +169,6 @@ void Builder::build(const bool isInputNet)
     opt = std::make_shared<AdamOptimizer>(settings,distrib,weights,threadGrads);
 }
 
-template
-< int InX, int InY, int InC, //input image: x:width, y:height, c:color channels
-  int KnX, int KnY, int KnC, //filter:      x:width, y:height, c:color channels
-  int Sx, int Sy, int Px, int Py, // stride and padding x/y
-  int OpX, int OpY //output img: x:width, y:height, same color channels as KnC
->
-inline bool ifMatchAddConv2D(const bool bOutput, const Uint iLink,
-      const Conv2D_Descriptor & DESCR,
-      std::vector<std::unique_ptr<Layer>> & layers)
-{
-  bool sameInp = DESCR.inpFeatures==InC && DESCR.inpY==InX && DESCR.inpX==InY;
-  bool sameOut = DESCR.outFeatures==KnC && DESCR.outY==OpY && DESCR.outX==OpX;
-  bool sameFilter  = DESCR.filterx==KnX && DESCR.filtery==KnY;
-  bool sameStride  = DESCR.stridex== Sx && DESCR.stridey== Sy;
-  bool samePadding = DESCR.paddinx== Px && DESCR.paddiny== Py;
-  if( KnC*OpX*OpY == 0 ) die("Requested empty layer.");
-  if(sameInp && sameOut && sameFilter && sameStride && samePadding)
-  {
-    #ifndef USE_OMPSIMD_BLAS
-      layers.emplace_back(std::make_unique<
-        Mat2ImLayer<InX,InY,InC, KnX,KnY,KnC, Sx,Sy, Px,Py, OpX,OpY> >
-          (layers.size(), false, iLink) );
-    #endif
-    layers.emplace_back(std::make_unique<
-      Conv2DLayer<SoftSign, InX,InY,InC, KnX,KnY,KnC, Sx,Sy, Px,Py, OpX,OpY> >
-        (layers.size(), bOutput, 1) );
-    return true;
-  }
-  return false;
-}
-
 void Builder::addConv2d(const Conv2D_Descriptor& descr, bool bOut, Uint iLink)
 {
   if(bBuilt) die("Cannot build the network multiple times");
@@ -216,20 +187,20 @@ void Builder::addConv2d(const Conv2D_Descriptor& descr, bool bOut, Uint iLink)
   // is: outSize should be : (InSize - FilterSize + 2*Padding)/Stride + 1
   bool foundStaticDefinition = false;
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D<84,84, 4, 8,8,32, 4,4,0,0, 20,20>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D<84,84, 4, 8,8,32, 4,4,0,0, 20,20>(descr,layers,bOut,iLink);
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D<20,20,32, 4,4,64, 2,2,0,0,  9, 9>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D<20,20,32, 4,4,64, 2,2,0,0,  9, 9>(descr,layers,bOut,iLink);
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D< 9, 9,64, 3,3,64, 1,1,0,0,  7, 7>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D< 9, 9,64, 3,3,64, 1,1,0,0,  7, 7>(descr,layers,bOut,iLink);
 
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D<84,84, 4, 8,8, 8, 4,4,0,0, 20,20>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D<84,84, 4, 8,8, 8, 4,4,0,0, 20,20>(descr,layers,bOut,iLink);
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D<20,20, 8, 6,6,16, 2,2,0,0,  8, 8>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D<20,20, 8, 6,6,16, 2,2,0,0,  8, 8>(descr,layers,bOut,iLink);
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D< 8, 8,16, 4,4,32, 1,1,0,0,  5, 5>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D< 8, 8,16, 4,4,32, 1,1,0,0,  5, 5>(descr,layers,bOut,iLink);
   foundStaticDefinition = foundStaticDefinition or
-    ifMatchAddConv2D< 5, 5,32, 3,3,64, 1,1,0,0,  3, 3>(bOut,iLink,descr,layers);
+    ifMatchAddConv2D< 5, 5,32, 3,3,64, 1,1,0,0,  3, 3>(descr,layers,bOut,iLink);
 
   if(not foundStaticDefinition)
     die("Detected undeclared conv2d description. This will be frustrating... "

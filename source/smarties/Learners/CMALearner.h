@@ -17,29 +17,31 @@ namespace smarties
 template<typename Action_t>
 class CMALearner: public Learner_approximator
 {
-
-protected:
   const Uint ESpopSize = settings.ESpopSize;
   const Uint nOwnEnvs = distrib.nOwnedEnvironments;
   const Uint nOwnAgents = distrib.nOwnedAgentsPerAlgo;
   const Uint nOwnAgentsPerEnv = nOwnAgents / nOwnEnvs;
-  const Uint batchSize_local = settings.batchSize_local;
-  const long nSeqPerStep = nOwnAgents * batchSize_local * ESpopSize;
 
-  // counter per each env of how many sims have ended on this generation:
-  std::vector<Uint>  indexEndedPerEnv = std::vector<Uint>(nOwnEnvs, 0);
   // counter per each env of how many agents have currently terminated on this
   //   simulation. no agent can restart unless they all have terminated a sim
   std::vector<Uint> curNumEndedPerEnv = std::vector<Uint>(nOwnEnvs, 0);
+  std::vector<Uint> curNumStartedPerEnv = std::vector<Uint>(nOwnEnvs, 0);
+
+  std::mutex workload_mutex;
+  Uint lastWorkLoadStarted = 0;
+
+  std::vector<Uint> weightIDs = std::vector<Uint>(nOwnEnvs, 0);
 
   std::vector<Rvec> R = std::vector<Rvec>(nOwnEnvs, Rvec(ESpopSize, 0) );
+  std::vector<std::vector<Uint>> Ns = std::vector<std::vector<Uint>>(nOwnEnvs,
+                                            std::vector<Uint>(ESpopSize, 0) );
 
   static std::vector<Uint> count_pol_outputs(const ActionInfo*const aI);
   static std::vector<Uint> count_pol_starts(const ActionInfo*const aI);
 
   void prepareCMALoss() override;
 
-  Uint weightID(const Agent& agent) const;
+  void assignWeightID(const Agent& agent);
   void computeAction(Agent& agent, const Rvec netOutput) const;
   void Train(const MiniBatch&MB,const Uint wID,const Uint bID) const override;
 

@@ -396,6 +396,7 @@ struct BetaPolicy : public Base1Dpolicy
 
 struct Continuous_policy
 {
+  typedef Rvec Action_t;
   static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
   const ActionInfo & aInfo;
   const Uint startMean, startStdev, nA;
@@ -460,6 +461,10 @@ struct Continuous_policy
   Continuous_policy(Continuous_policy && p) = default;
   Continuous_policy& operator=(Continuous_policy && p) = delete;
 
+  Continuous_policy(const ActionInfo& aI, const Rvec& nnOut) :
+    aInfo(aI), startMean(0), startStdev(aI.dim()),
+    nA(aI.dim()), netOutputs(nnOut), policiesVector(make_policies()) { }
+
   Continuous_policy(
     const std::vector<Uint>& inds, const ActionInfo& aI, const Rvec& nnOut) :
     aInfo(aI), startMean(inds[0]), startStdev(inds.size()>1? inds[1] : 0),
@@ -497,10 +502,11 @@ struct Continuous_policy
     return prob;
   }
 
-  template<typename T>
-  Real KLDivergence(const T*const tgt_pol) const {
-    const Rvec vecTarget = tgt_pol->getVector();
-    return KLDivergence(vecTarget);
+  Real KLDivergence(const Continuous_policy*const tgt) const {
+    return KLDivergence(tgt->getVector());
+  }
+  Real KLDivergence(const Continuous_policy& tgt) const {
+    return KLDivergence(tgt.getVector());
   }
   Real KLDivergence(const Rvec& beta) const {
     Real kldiv = 0;
@@ -508,7 +514,7 @@ struct Continuous_policy
     return kldiv;
   }
 
-  Rvec policyGradient(const Rvec& act, const Real coef) const {
+  Rvec policyGradient(const Rvec& act, const Real coef = 1) const {
     Rvec ret(2*nA);
     for (Uint i=0; i<nA; ++i) {
       const auto PGi = policiesVector[i]->gradLogP(act, coef, netOutputs);
@@ -517,10 +523,11 @@ struct Continuous_policy
     return ret;
   }
 
-  template<typename T>
-  Rvec KLDivGradient(const T*const tgt_pol, const Real coef = 1) const {
-    const Rvec vecTarget = tgt_pol->getVector();
-    return KLDivGradient(vecTarget, coef);
+  Rvec KLDivGradient(const Continuous_policy*const tgt, const Real C=1) const {
+    return KLDivGradient(tgt->getVector(), C);
+  }
+  Rvec KLDivGradient(const Continuous_policy& tgt, const Real C=1) const {
+    return KLDivGradient(tgt.getVector(), C);
   }
   Rvec KLDivGradient(const Rvec& beta, const Real coef = 1) const {
     Rvec ret(2*nA);
@@ -625,11 +632,7 @@ struct Continuous_policy
     for (Uint i=0; i<nA; ++i) action[i] = policiesVector[i]->sample(gen);
     return action;
   }
-
-  void test(const Rvec& act, const Rvec& beta) const;
 };
-
-void testContinuousPolicy(std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Continuous_policy_h

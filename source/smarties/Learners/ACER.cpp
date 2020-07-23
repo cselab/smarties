@@ -43,8 +43,8 @@ void ACER::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   {
     const Rvec polVec = actor->forward(bID, step);
     const Rvec polTgtVec = actor->forward_tgt(bID, step);
-    policies[i] = new Continuous_policy( {0,nA}, aInfo, polVec);
-    policies_tgt[i] = new Continuous_policy( {0,nA}, aInfo, polTgtVec);
+    policies[i] = new Continuous_policy(aInfo, polVec);
+    policies_tgt[i] = new Continuous_policy(aInfo, polTgtVec);
 
     Vstates[i] = value->forward(bID, step) [0];
 
@@ -121,7 +121,7 @@ void ACER::selectAction(const MiniBatch& MB, Agent& agent)
   if (encoder) encoder->load(MB, agent);
   actor->load(MB, agent);
   //Compute policy and value on most recent element of the sequence.
-  Continuous_policy POL({0,nA}, aInfo, actor->forward(agent));
+  Continuous_policy POL(aInfo, actor->forward(agent));
 
   // if explNoise is 0, we just act according to policy
   // since explNoise is initial value of diagonal std vectors

@@ -169,9 +169,6 @@ void Approximator::initializeNetwork()
     }
   }
 
-  #ifdef SMARTIES_CHECK_DIFF //check gradients with finite differences
-    net->checkGrads();
-  #endif
   gradStats = new StatsTracker(net->getnOutputs(), distrib);
 }
 

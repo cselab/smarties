@@ -10,13 +10,15 @@
 #define smarties_Discrete_policy_h
 
 #include "../Network/Layers/Functions.h"
+#include "../Core/Agent.h"
 
 namespace smarties
 {
 
-struct Discrete_policy
+template<typename PosDefFunction>
+struct Discrete_policy_t
 {
-  using PosDefFunction = Exp;
+  typedef Uint Action_t;
   const ActionInfo& aInfo;
   const Uint startProbs, nO;
   const Rvec netOutputs;
@@ -44,15 +46,19 @@ struct Discrete_policy
     for(Uint e=0; e<aI.dimDiscrete(); e++) initBias.push_back(0);
   }
 
-  Discrete_policy(const std::vector<Uint>& start, const ActionInfo& aI,
+  Discrete_policy_t(const ActionInfo& aI, const Rvec& out) : aInfo(aI),
+    startProbs(0), nO(aI.dimDiscrete()), netOutputs(out),
+    unnorm(extract_unnorm()), normalization(compute_norm()),
+    probs(extract_probabilities())
+  {
+  }
+
+  Discrete_policy_t(const std::vector<Uint>& start, const ActionInfo& aI,
     const Rvec& out) : aInfo(aI), startProbs(start[0]), nO(aI.dimDiscrete()),
     netOutputs(out), unnorm(extract_unnorm()), normalization(compute_norm()),
     probs(extract_probabilities())
-    {
-      //printf("Discrete_policy: %u %u %u %lu %lu %lu %lu\n",
-      //start_prob,start_vals,nA,netOutputs.size(),
-      //unnorm.size(),vals.size(),probs.size());
-    }
+  {
+  }
 
   Rvec extract_unnorm() const {
     assert(netOutputs.size() >= startProbs + nO);
@@ -106,9 +112,13 @@ struct Discrete_policy
     return std::log(evalProbability(action));
   }
 
-  Real KLDivergence(const Discrete_policy*const tgt_pol) const {
-    const Rvec vecTarget = tgt_pol->getVector();
-    return KLDivergence(vecTarget);
+  template<typename T>
+  Real KLDivergence(const T*const tgt_pol) const {
+    return KLDivergence(tgt_pol->getVector());
+  }
+  template<typename T>
+  Real KLDivergence(const T& tgt_pol) const {
+    return KLDivergence(tgt_pol.getVector());
   }
   Real KLDivergence(const Rvec& beta) const {
     Real ret = 0;
@@ -116,11 +126,11 @@ struct Discrete_policy
     return ret;
   }
 
-  Rvec policyGradient(const Rvec& action, const Real factor) const {
+  Rvec policyGradient(const Rvec& action, const Real factor = 1) const {
     const Uint option = aInfo.actionMessage2label(action);
     return policyGradient(option, factor);
   }
-  Rvec policyGradient(const Uint option, const Real factor) const {
+  Rvec policyGradient(const Uint option, const Real factor = 1) const {
     Rvec ret(nO, 0);
     ret[option] = factor/unnorm[option];
     for (Uint i=0; i<nO; ++i) {
@@ -130,17 +140,22 @@ struct Discrete_policy
     return ret;
   }
 
-  Rvec KLDivGradient(const Discrete_policy*const tgt_pol, const Real fac = 1) const {
-    const Rvec vecTarget = tgt_pol->getVector();
-    return KLDivGradient(vecTarget, fac);
+  template<typename T>
+  Rvec KLDivGradient(const T*const tgt, const Real C = 1) const {
+    return KLDivGradient(tgt->getVector(), C);
+  }
+  template<typename T>
+  Rvec KLDivGradient(const T& tgt, const Real C = 1) const {
+    return KLDivGradient(tgt.getVector(), C);
   }
   Rvec KLDivGradient(const Rvec& beta, const Real fac = 1) const {
     Rvec ret(nO, 0);
     for (Uint j=0; j<nO; ++j){
       const Real tmp = fac * (1 + std::log(probs[j]/beta[j])) / normalization;
       for (Uint i=0; i<nO; ++i) ret[i] += tmp * ((i==j) - probs[j]);
-      ret[j] *= PosDefFunction::_evalDiff(netOutputs[startProbs + j]);
     }
+    for (Uint j=0; j<nO; ++j)
+      ret[j] *= PosDefFunction::_evalDiff(netOutputs[startProbs + j]);
     return ret;
   }
 
@@ -185,7 +200,9 @@ struct Discrete_policy
   void test(const Uint act, const Rvec& beta) const;
 };
 
-void testDiscretePolicy(std::mt19937& gen, const ActionInfo & aI);
+struct Discrete_policy : Discrete_policy_t<SoftPlus> {
+    using Discrete_policy_t<SoftPlus>::Discrete_policy_t;
+};
 
 } // end namespace smarties
 #endif // smarties_Discrete_policy_h

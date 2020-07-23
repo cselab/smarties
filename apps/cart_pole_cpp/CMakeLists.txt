@@ -25,27 +25,6 @@ set(cxx_debug_flags -O0 -g)
 find_package(MPI REQUIRED)
 find_package(OpenMP REQUIRED)
 
-if(NOT TARGET MPI::MPI_CXX)
-  add_library(MPI::MPI_CXX IMPORTED INTERFACE)
-  
-  set_property(TARGET MPI::MPI_CXX
-    PROPERTY INTERFACE_COMPILE_OPTIONS ${MPI_CXX_COMPILE_FLAGS})
-  set_property(TARGET MPI::MPI_CXX
-    PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_PATH}")
-  set_property(TARGET MPI::MPI_CXX
-    PROPERTY INTERFACE_LINK_LIBRARIES ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES})
-endif()
-
-if(NOT TARGET OpenMP::OpenMP_CXX)
-  find_package(Threads REQUIRED)
-  add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
-  set_property(TARGET OpenMP::OpenMP_CXX
-    PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
-  # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
-  set_property(TARGET OpenMP::OpenMP_CXX
-    PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
-endif()
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../)
 add_executable(exec cart-pole.cpp)
 target_include_directories(exec PUBLIC "$ENV{SMARTIES_ROOT}/include/")

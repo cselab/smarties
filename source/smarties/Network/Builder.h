@@ -17,6 +17,8 @@ namespace smarties
 
 class Builder
 {
+  bool bBuilt = false;
+
 public:
   void addInput(const Uint size);
 
@@ -58,9 +60,6 @@ public:
   // Once this is called number of layers or weights CANNOT be modified.
   void build(const bool isInputNet = false);
 
-private:
-  bool bBuilt = false;
-public:
   const ExecutionInfo & distrib;
   const HyperParameters & settings;
   Uint nInputs=0, nOutputs=0, nLayers=0;

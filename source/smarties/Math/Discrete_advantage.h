@@ -95,12 +95,10 @@ public:
      ret += policy->probs[j] * (advantages[j]-base)*(advantages[j]-base);
    return ret;
   }
-
-  void test(const Uint& act, std::mt19937& gen) const {}
 };
 
-void testDiscreteAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
-  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
+//void testDiscreteAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
+//  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Discrete_advantage_h

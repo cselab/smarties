@@ -27,12 +27,18 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
   if(dimAction == 0)
     die("Application did not set up dimensionality of action vector.");
 
-  sendRecvFunc(&bDiscreteActions, 1 * sizeof(bool) );
-  sendRecvFunc(&bAgentsShareNoise, 1 * sizeof(bool) );
+  {
+    Uint sizeOfDiscreteActionsOptionsVec = discreteActionValues.size();
+    sendRecvFunc(&sizeOfDiscreteActionsOptionsVec, 1 * sizeof(Uint) );
+    discreteActionValues.resize(sizeOfDiscreteActionsOptionsVec);
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // STATE SPACE
+  //////////////////////////////////////////////////////////////////////////////
 
   sendRecvFunc(&nAppendedObs,            1 * sizeof(Uint) );
   sendRecvFunc(&isPartiallyObservable,   1 * sizeof(bool) );
-
   sendRecvVectorFunc(sendRecvFunc, conv2dDescriptors);
 
   // by default agent can observe all components of state vector
@@ -48,7 +54,7 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
    printf("SETUP: State vector has %u components, %u of which are observed. "
           "Action vector has %u %s-valued components.\n", (unsigned) dimState,
           (unsigned) dimStateObserved, (unsigned) dimAction,
-          bDiscreteActions? "discrete" : "continuous");
+          bDiscreteActions()? "discrete" : "continuous");
   }
 
   // by default state vector scaling is assumed to be with mean 0 and std 1
@@ -74,34 +80,41 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
     stateScale[i] = 1/stateStdDev[i];
   }
 
-  // by default agent's action space is unbounded
-  if(bActionSpaceBounded.size() == 0)
-    bActionSpaceBounded = std::vector<bool> (dimAction, 0);
-  sendRecvVectorFunc(sendRecvFunc, bActionSpaceBounded);
-  if( bActionSpaceBounded.size() not_eq (size_t) dimAction)
-    die("Application error in setup of bActionSpaceBounded.");
+  //////////////////////////////////////////////////////////////////////////////
+  // ACTION SPACE
+  //////////////////////////////////////////////////////////////////////////////
 
-  // by default agent's action space not scaled (ie up/low vals are -1 and 1)
-  if(upperActionValue.size() == 0)
-    upperActionValue = std::vector<Real> (dimAction,  1);
-  sendRecvVectorFunc(sendRecvFunc, upperActionValue);
-  if( upperActionValue.size() not_eq (size_t) dimAction)
-    die("Application error in setup of upperActionValue.");
+  sendRecvFunc(&bAgentsShareNoise, 1 * sizeof(bool) );
 
-  // by default agent's action space not scaled (ie up/low vals are -1 and 1)
-  if(lowerActionValue.size() == 0)
-    lowerActionValue = std::vector<Real> (dimAction, -1);
-  sendRecvVectorFunc(sendRecvFunc, lowerActionValue);
-  if( lowerActionValue.size() not_eq (size_t) dimAction)
-    die("Application error in setup of lowerActionValue.");
-
-  if(bDiscreteActions == false)
+  if(bDiscreteActions() == false)
   {
+    // by default agent's action space is unbounded
+    if(bActionSpaceBounded.size() == 0)
+      bActionSpaceBounded = std::vector<bool> (dimAction, 0);
+    sendRecvVectorFunc(sendRecvFunc, bActionSpaceBounded);
+    if( bActionSpaceBounded.size() not_eq (size_t) dimAction)
+      die("Application error in setup of bActionSpaceBounded.");
+
+    // by default agent's action space not scaled (ie up/low vals are -1 and 1)
+    if(upperActionValue.size() == 0)
+      upperActionValue = std::vector<Real> (dimAction,  1);
+    sendRecvVectorFunc(sendRecvFunc, upperActionValue);
+    if( upperActionValue.size() not_eq (size_t) dimAction)
+      die("Application error in setup of upperActionValue.");
+
+    // by default agent's action space not scaled (ie up/low vals are -1 and 1)
+    if(lowerActionValue.size() == 0)
+      lowerActionValue = std::vector<Real> (dimAction, -1);
+    sendRecvVectorFunc(sendRecvFunc, lowerActionValue);
+    if( lowerActionValue.size() not_eq (size_t) dimAction)
+      die("Application error in setup of lowerActionValue.");
+
     for (Uint i=0; i<dimAction; ++i) {
       const auto L = lowerActionValue[i], U = upperActionValue[i];
       lowerActionValue[i] = std::min(L, U);
       upperActionValue[i] = std::max(L, U);
     }
+
     if(world_rank==0) {
       printf("Action vector components :");
       for (Uint i=0; i<dimAction; ++i) {
@@ -114,37 +127,33 @@ void MDPdescriptor::synchronize(const std::function<void(void*, size_t)>& sendRe
       }
       printf("\n");
     }
-    return; // skip setup of discrete-action stuff
   }
+  else
+  {
+    // Now some logic. The discreteActionValues vector now has size dimAction
+    // iff action space is discrete, otherwise size zero and this is skipped.
+    if(discreteActionValues.size() not_eq (size_t) dimAction) die("Logic error");
+    sendRecvVectorFunc(sendRecvFunc, discreteActionValues);
 
-  // Now some logic. The discreteActionValues vector should have size dimAction
-  // If action space is continuous, these values are not used. If action space
-  // is discrete at the end of synchronization we make sure that each component
-  // has size greater than one. Otherwise agent has no options to choose from.
-  if(discreteActionValues.size() == 0)
-    discreteActionValues = std::vector<Uint> (dimAction, 0);
-  sendRecvVectorFunc(sendRecvFunc, discreteActionValues);
-  if( discreteActionValues.size() not_eq (size_t) dimAction)
-    die("Application error in setup of discreteActionValues.");
+    if(world_rank==0) printf("Discrete-action vector options :");
+    for(size_t i=0; i<dimAction; ++i) {
+      if( discreteActionValues[i] < 2 )
+        die("Application error in setup of discreteActionValues: "
+            "found less than 2 options to choose from.");
+      if(world_rank==0)
+        printf(" [ %u : %u options ]", (unsigned) i, (unsigned) discreteActionValues[i]);
+    }
+    if(world_rank==0) printf("\n");
 
-  if(world_rank==0) printf("Discrete-action vector options :");
-  for(size_t i=0; i<dimAction; ++i) {
-    if( discreteActionValues[i] < 2 )
-      die("Application error in setup of discreteActionValues: "
-          "found less than 2 options to choose from.");
-    if(world_rank==0)
-      printf(" [ %u : %u options ]", (unsigned) i, (unsigned) discreteActionValues[i]);
+    discreteActionShifts = std::vector<Uint>(dimAction);
+    discreteActionShifts[0] = 1;
+    for (Uint i=1; i < dimAction; ++i)
+      discreteActionShifts[i] = discreteActionShifts[i-1] *
+                                discreteActionValues[i-1];
+
+    maxActionLabel = discreteActionShifts[dimAction-1] *
+                     discreteActionValues[dimAction-1];
   }
-  if(world_rank==0) printf("\n");
-
-  discreteActionShifts = std::vector<Uint>(dimAction);
-  discreteActionShifts[0] = 1;
-  for (Uint i=1; i < dimAction; ++i)
-    discreteActionShifts[i] = discreteActionShifts[i-1] *
-                              discreteActionValues[i-1];
-
-  maxActionLabel = discreteActionShifts[dimAction-1] *
-                   discreteActionValues[dimAction-1];
 }
 
 } // end namespace smarties

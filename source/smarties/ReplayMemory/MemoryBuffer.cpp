@@ -526,24 +526,27 @@ void MemoryBuffer::getMetrics(std::ostringstream& buff)
   Utilities::real2SS(buff, MDP.rewardsStdDev, 6, 1);
   Utilities::real2SS(buff, stats.avgKLdivergence, 5, 1);
 
-  static constexpr Real EPS = std::numeric_limits<float>::epsilon();
-  stats.avgSquaredErr = std::max(EPS,stats.avgSquaredErr);
-  Utilities::real2SS(buff, std::sqrt(stats.avgSquaredErr), 6, 1);
-  //Utilities::real2SS(buff, stats.avgAbsError, 6, 1);
-  if(stats.countReturnsEstimateUpdates > 0) {
-    const Sint nRet = std::max((Sint) 1, stats.countReturnsEstimateUpdates);
-    const Real eRet = std::max(EPS, stats.sumReturnsEstimateErrors);
-    Utilities::real2SS(buff, std::sqrt(eRet/nRet), 6, 1);
-    stats.countReturnsEstimateUpdates = 0;
-    stats.sumReturnsEstimateErrors = 0;
-  } else {
-    stats.countReturnsEstimateUpdates = -1;
-    stats.sumReturnsEstimateErrors = 0;
+  if( stats.minQ < stats.maxQ ) // else Q stats not collected
+  {
+    static constexpr Real EPS = std::numeric_limits<float>::epsilon();
+    stats.avgSquaredErr = std::max(EPS,stats.avgSquaredErr);
+    Utilities::real2SS(buff, std::sqrt(stats.avgSquaredErr), 6, 1);
+    //Utilities::real2SS(buff, stats.avgAbsError, 6, 1);
+    if(stats.countReturnsEstimateUpdates > 0) {
+      const Sint nRet = std::max((Sint) 1, stats.countReturnsEstimateUpdates);
+      const Real eRet = std::max(EPS, stats.sumReturnsEstimateErrors);
+      Utilities::real2SS(buff, std::sqrt(eRet/nRet), 6, 1);
+      stats.countReturnsEstimateUpdates = 0;
+      stats.sumReturnsEstimateErrors = 0;
+    } else {
+      stats.countReturnsEstimateUpdates = -1;
+      stats.sumReturnsEstimateErrors = 0;
+    }
+    Utilities::real2SS(buff, stats.stdevQ, 6, 1);
+    Utilities::real2SS(buff, stats.avgQ, 6, 0);
+    Utilities::real2SS(buff, stats.minQ, 6, 0);
+    Utilities::real2SS(buff, stats.maxQ, 6, 0);
   }
-  Utilities::real2SS(buff, stats.stdevQ, 6, 1);
-  Utilities::real2SS(buff, stats.avgQ, 6, 0);
-  Utilities::real2SS(buff, stats.minQ, 6, 0);
-  Utilities::real2SS(buff, stats.maxQ, 6, 0);
 
   buff<<" "<<std::setw(5)<<nStoredEps();
   buff<<" "<<std::setw(7)<<nStoredSteps();
@@ -562,9 +565,11 @@ void MemoryBuffer::getMetrics(std::ostringstream& buff)
 void MemoryBuffer::getHeaders(std::ostringstream& buff)
 {
   buff << "|  avgR  | avgr | stdr | DKL ";
-  if(stats.countReturnsEstimateUpdates>=0)
+  if( stats.minQ < stats.maxQ ) { // else Q stats not collected
+    if(stats.countReturnsEstimateUpdates>=0)
         buff << "| RMSE | dRet | stdQ | avgQ | minQ | maxQ ";
-  else         buff << "| RMSE | stdQ | avgQ | minQ | maxQ ";
+    else         buff << "| RMSE | stdQ | avgQ | minQ | maxQ ";
+  }
   //buff << "| nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
   buff << "| nEp |  nObs | totEp | totObs | oldEp |nFarP ";
   if(CmaxRet>1) buff << "| beta ";

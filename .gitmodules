@@ -1,3 +1,6 @@
 [submodule "source/extern/pybind11"]
 	path = source/extern/pybind11
 	url = https://github.com/pybind/pybind11.git
+[submodule "units/extern/googletest"]
+	path = units/extern/googletest
+	url = https://github.com/google/googletest

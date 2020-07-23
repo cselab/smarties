@@ -113,8 +113,6 @@ public:
     grad_matrix(G, Qer);
   }
 
-  void test(const Rvec& act, std::mt19937& gen) const;
-
   Real diagInvMul(const Rvec& act,
     const Rvec& mat, const Rvec& mean) const
   {
@@ -127,9 +125,6 @@ public:
     return ret;
   }
 };
-
-void testGaussianAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
-  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Gaussian_advantage_h

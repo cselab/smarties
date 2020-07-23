@@ -28,6 +28,7 @@ template
 >
 struct Conv2DLayer: public Layer
 {
+  static constexpr int out_size = KnC*OpY*OpX;
 
   void requiredParameters(std::vector<Uint>& nWeight,
                           std::vector<Uint>& nBiases ) const override {
@@ -83,7 +84,6 @@ struct Conv2DLayer: public Layer
   using Kernel = ALIGNSPEC nnReal[KnC][InC][KnY][KnX];
   using Output = ALIGNSPEC nnReal[KnC][OpY][OpX];
   static constexpr int inp_size = InC * InX * InY;
-  static constexpr int out_size = KnC * OpY * OpX;
 
   void forward(const Activation*const prev,
                const Activation*const curr,
@@ -108,8 +108,6 @@ struct Conv2DLayer: public Layer
     }
 
     func::_eval(curr->X(ID), curr->Y(ID), out_size);
-    // memset 0 because padding and forward assumes overwrite
-    memset(curr->Y(ID), 0, out_size * sizeof(nnReal) );
   }
 
   void backward(const Activation*const prev,
@@ -143,7 +141,6 @@ struct Conv2DLayer: public Layer
   #else // USE_OMPSIMD_BLAS
 
   static constexpr int inp_size = InC*KnY*KnX*OpY*OpX;
-  static constexpr int out_size = KnC*OpY*OpX;
 
   void forward(const Activation*const prev,
                const Activation*const curr,

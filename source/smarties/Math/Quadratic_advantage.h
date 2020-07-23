@@ -114,12 +114,7 @@ struct Quadratic_advantage: public Quadratic_term
       ret += PvarP[nA*i+i] * std::pow(policy->getStdev(i), 2) / 2;
     return ret;
   }
-
-  void test(const Rvec& act, std::mt19937& gen) const;
 };
-
-void testQuadraticAdvantage(std::vector<Uint> polInds, std::vector<Uint> advInds,
-  std::vector<Uint> netOuts, std::mt19937& gen, const ActionInfo & aI);
 
 } // end namespace smarties
 #endif // smarties_Quadratic_advantage_h
