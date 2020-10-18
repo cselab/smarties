@@ -5,6 +5,13 @@ bDoRK23 = False
 bDoRK23 = True
 bDoUpWind = False
 bDoUpWind = True
+BPD=32
+base = "HITDNS03"
+NNODES=32
+RUNSIDS = range(1)
+ALLRES=[60, 65, 70, 76, 82, 88, 95, 103, 111, 120, 130, 140, 151, 163, 176, 190, 205]
+ALLRES=[60, 65, 70, 76, 82, 88, 95, 103, 111, 120, 130, 140, 151, 163, 176, 190]
+#ALLRES=[205]
 
 def epsNuFromRe(Re, uEta = 1.0):
     C = 3.0 # np.sqrt(20.0/3)
@@ -14,33 +21,32 @@ def epsNuFromRe(Re, uEta = 1.0):
     return eps, nu
 
 def runspec(nu, eps, re, run, cs):
-    base = "HITDNS7_"
     if bDoRK23 : tstep = "RK_"
     else : tstep = "FE_"
     if bDoUpWind : discr = "UW_"
     else : discr = "CD_"
-    size = "BPD16_EXT2pi_"
-    return base + tstep + discr + "CFL010_" + size + "RE%04d_RUN%d" % (re, run)
+    size = "CFL010_BPD%d_EXT2pi_" % (BPD)
+    return base + tstep + discr + size + "RE%04d_RUN%d" % (re, run)
 
 def getSettings(nu, eps, cs, run):
-    options = '-bpdx 32 -bpdy 32 -bpdz 32 -CFL 0.1 '
-    if bDoRK23: options = options + '-RungeKutta23 '
-    if bDoUpWind: options = options + '-Advection3rdOrder '
+    options = '-bpdx %d -bpdy %d -bpdz %d -CFL 0.1 ' % (BPD, BPD, BPD)
+    if bDoRK23: options = options + '-RungeKutta23 1 '
+    if bDoUpWind: options = options + '-Advection3rdOrder 1 '
     tAnalysis = np.sqrt(nu / eps)
-    tDump = 0 # (run == 0) * tAnalysis
+    tDump = 10 * tAnalysis
     tEnd = 10000 * tAnalysis # abort in code
+    options = options + '-nprocsx %d -nprocsy 1 -nprocsz 1 ' % NNODES
     return options + '-extentx 6.2831853072 -dump2D 0 -dump3D 1 ' \
        '-tdump %f -BC_x periodic -BC_y periodic -BC_z periodic ' \
-       '-spectralIC fromFit -initCond HITurbulence -tAnalysis %f ' \
-       '-compute-dissipation 1 -nprocsx 1 -nprocsy 1 -nprocsz 1 ' \
-       '-spectralForcing 1 -tend %f  -keepMomentumConstant 1 ' \
-       '-analysis HIT -nu %f -energyInjectionRate %f ' \
+       '-spectralIC fromFit -initCond HITurbulence -spectralForcing 1 ' \
+       '-compute-dissipation 1 -tAnalysis %f -keepMomentumConstant 1 ' \
+       '-tend %f -analysis HIT -nu %f -energyInjectionRate %f ' \
        % (tDump, tAnalysis, tEnd, nu, eps)
 
 def launchEuler(nu, eps, re, cs, run):
     runname  = runspec(nu, eps, re, run, cs)
     print(runname)
-    cmd = "export LD_LIBRARY_PATH=/cluster/home/novatig/hdf5-1.10.1/gcc_6.3.0_openmpi_2.1/lib/:$LD_LIBRARY_PATH\n" \
+    cmd = "export LD_LIBRARY_PATH=/cluster/home/novatig/hdf5-1.10.1/gnu630_ompi30/lib/:$LD_LIBRARY_PATH\n" \
       "FOLDER=/cluster/scratch/novatig/CubismUP_3D/%s\n " \
       "mkdir -p ${FOLDER}\n" \
       "cp ~/CubismUP_3D/bin/simulation ${FOLDER}/\n" \
@@ -57,35 +63,32 @@ def launchDaint(nCases, les):
 
     f = open('HIT_sbatch','w')
     f.write('#!/bin/bash -l \n')
-    if les:
-      f.write('#SBATCH --job-name=LES_HIT \n')
-      f.write('#SBATCH --time=01:00:00 \n')
-    else:
-      f.write('#SBATCH --job-name=DNS_HIT \n')
-      f.write('#SBATCH --time=24:00:00 \n')
+    f.write('#SBATCH --job-name=DNS_HIT \n')
+    f.write('#SBATCH --time=24:00:00 \n')
     f.write('#SBATCH --output=out.%j.%a.txt \n')
     f.write('#SBATCH --error=err.%j.%a.txt \n')
     f.write('#SBATCH --constraint=gpu \n')
     f.write('#SBATCH --account=s929 \n')
+    f.write('#SBATCH --nodes=%d \n' % NNODES)
     f.write('#SBATCH --array=0-%d \n' % (nCases-1))
     #f.write('#SBATCH --partition=normal \n')
     #f.write('#SBATCH --ntasks-per-node=1 \n')
     
     f.write('ind=$SLURM_ARRAY_TASK_ID \n')
-    if les:
-      f.write('RUNDIRN=`./launchLESHIT.py --LES --case ${ind} --printName` \n')
-      f.write('OPTIONS=`./launchLESHIT.py --LES --case ${ind} --printOptions` \n')
-    else:
-      f.write('RUNDIRN=`./launchLESHIT.py --case ${ind} --printName` \n')
-      f.write('OPTIONS=`./launchLESHIT.py --case ${ind} --printOptions` \n')
+    #f.write('RUNDIRN=`./launchLESHIT.py --LES --case ${ind} --printName` \n')
+    #f.write('OPTIONS=`./launchLESHIT.py --LES --case ${ind} --printOptions` \n')
+    f.write('RUNDIRN=`./launchLESHIT.py --case ${ind} --printName` \n')
+    f.write('OPTIONS=`./launchLESHIT.py --case ${ind} --printOptions` \n')
 
     f.write('mkdir -p %s/CubismUP3D/${RUNDIRN} \n' % SCRATCH)
     f.write('cd %s/CubismUP3D/${RUNDIRN} \n' % SCRATCH)
     f.write('cp %s/CubismUP_3D/bin/simulation ./exec \n' % HOME)
 
+    f.write('export MPICH_MAX_THREAD_SAFETY=multiple \n')
     f.write('export OMP_NUM_THREADS=12 \n')
     f.write('export CRAY_CUDA_MPS=1 \n')
-    f.write('srun --ntasks 1 --ntasks-per-node=1 ./exec ${OPTIONS} \n')
+    #f.write('srun --ntasks 1 --ntasks-per-node=1 ./exec ${OPTIONS}\n')
+    f.write('srun --nodes %d --ntasks-per-node=1 ./exec ${OPTIONS}\n' % NNODES)
     f.close()
     os.system('sbatch HIT_sbatch')
 
@@ -122,10 +125,9 @@ if __name__ == '__main__':
 
     NUS, EPS, RES, RUN, CSS = [], [], [], [], []
 
-    #for re in np.linspace(60, 240, 19) :
-    for i in [5, 6, 7, 8, 9] :
+    for i in RUNSIDS :
       for les in rangeles :
-        for re in [60, 65, 70, 76, 82, 88, 95, 103, 111, 120, 130, 140, 151, 163, 176, 190, 205] :
+        for re in ALLRES:
         #for re in [60, 70, 82, 95, 111, 130, 151, 176, 205] :
         #for re in [100] :
           RES, RUN = RES + [re], RUN + [i]

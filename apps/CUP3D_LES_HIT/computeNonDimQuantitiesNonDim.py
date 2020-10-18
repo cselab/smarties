@@ -36,18 +36,18 @@ def main_integral(path):
       for i in range(vecParams.shape[1]):
         eps, nu, re = vecParams[0, i], vecParams[1, i], vecParams[2, i]
         if np.abs(REs[k]-re) > 0 : continue
-        eta   = np.power(nu*nu*nu/eps, 0.25)
+        eta    = np.power(nu*nu*nu/eps, 0.25)
         uprime = np.sqrt(2.0/3.0 * vecMean[1,i]);
-        lambd = np.sqrt(15 * nu / eps) * uprime
-        Kscal = np.power(eps, 2.0/3.0)
-        nNonDimTkeMean[k]  = vecMean[1, i]/Kscal
-        nNonDimTkeStd[k]   = vecStd [1, i]/Kscal
+        lambd  = np.sqrt(15 * nu / eps) * uprime
+        Kscal  = np.power(eps, 2.0/3.0)
+        nNonDimTkeMean[k]  = vecMean[1, i] / Kscal
+        nNonDimTkeStd[k]   = vecStd [1, i] / Kscal
         nNonDimLintMean[k] = vecMean[4, i] / eta
-        nNonDimLintStd[k]  = vecStd[4, i] / eta
+        nNonDimLintStd[k]  = vecStd [4, i] / eta
         nNonDimViscMean[k] = vecMean[6, i] / eps
-        nNonDimViscStd[k]  = vecStd[6, i] / eps
+        nNonDimViscStd[k]  = vecStd [6, i] / eps
         nNonDimTotMean[k]  = vecMean[7, i] / eps
-        nNonDimTotStd[k]   = vecStd[7, i] / eps
+        nNonDimTotStd[k]   = vecStd [7, i] / eps
 
     dataM = [nNonDimTkeMean, nNonDimLintMean, nNonDimViscMean, nNonDimTotMean]
     dataS = [nNonDimTkeStd,  nNonDimLintStd,  nNonDimViscStd,  nNonDimTotStd]

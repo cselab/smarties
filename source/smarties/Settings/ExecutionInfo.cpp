@@ -218,23 +218,24 @@ void ExecutionInfo::figureOutWorkersPattern()
     die("There are no processes and application needs dedicated processes. "
         "Run with more mpi processes.");
   }
+  if(not forkableApplication &&     bThereAreWorkerProcesses) {
+    // then each worker rank runs its own environment
+    workerProcessesPerEnv = std::max(workerProcessesPerEnv, (Uint) 1);
+    if(nWorkers % workerProcessesPerEnv not_eq 0)
+      die("Mismatch between worker processes and number of ranks requested to run env application.");
+    nEnvironments = nWorkers;
+  }
   if(    forkableApplication && not bThereAreWorkerProcesses) {
+    // then master forks all requested environments
     if(world_rank == 0)
       printf("Master processes to communicate via sockets.");
   }
   if(    forkableApplication &&     bThereAreWorkerProcesses) {
+    // then workers split amongs them forking environment processes
     nEnvironments = std::ceil(nEnvironments / (Real) nWorkers) * nWorkers;
     if(world_rank == 0)
       printf("%u worker ranks will split %u simulation processes.",
             (unsigned) nWorkers, (unsigned) nEnvironments);
-  }
-  if(not forkableApplication &&     bThereAreWorkerProcesses) {
-    workerProcessesPerEnv = std::max(workerProcessesPerEnv, (Uint) 1);
-    if(nWorkers not_eq nEnvironments * workerProcessesPerEnv)
-      printf("%u workers run one environment process each.",(unsigned)nWorkers);
-    if(nWorkers % workerProcessesPerEnv not_eq 0)
-      die("Mismatch between worker processes and number of ranks requested to run env application.");
-    nEnvironments = nWorkers / workerProcessesPerEnv;
   }
 
   // the rest of this method will define (or leave untouched) these entities:
@@ -306,7 +307,9 @@ void ExecutionInfo::figureOutWorkersPattern()
                                                  totalWorkRank);
         const Uint innerWorkRank = MPICommRank(master_workers_comm);
         const Uint innerWorkSize = MPICommSize(master_workers_comm);
-        assert(nOwnedEnvironments==1 && innerWorkRank>0 && innerWorkSize>1);
+        assert(nOwnedEnvironments==1);
+        assert(innerWorkRank>0);
+        assert(innerWorkSize>1);
 
         if(workerProcessesPerEnv > 0)
         {

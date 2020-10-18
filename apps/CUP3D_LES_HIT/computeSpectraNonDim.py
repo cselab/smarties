@@ -174,7 +174,7 @@ def main_integral(path):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(
     description = "Compute a target file for RL agent from DNS data.")
-  parser.add_argument('--targets',
+  parser.add_argument('--targets', default='./',
     help="Simulation directory containing the 'Analysis' folder")
   args = parser.parse_args()
 

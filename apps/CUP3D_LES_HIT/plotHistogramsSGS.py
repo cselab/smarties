@@ -52,9 +52,8 @@ def plot(ax, dirname, i):
   integral = sum(meanH * (x[1]-x[0]))
   # max/min here are out of y axis, eliminate bug with log plot at -inf
   meanH = np.maximum(meanH/integral, 1e-1)
-  Yb = np.maximum(Yb/integral, 1e-1)
-  Yt = np.maximum(Yt/integral, 1e-1)
-  print( sum(meanH * (x[1]-x[0]) ) ) # should be 1 + floaterr
+  Yb, Yt = np.maximum(Yb/integral, 1e-1), np.maximum(Yt/integral, 1e-1)
+  #print( sum(meanH * (x[1]-x[0]) ) ) # should be 1 + floaterr
 
   ax.fill_between(x[:-1], Yb[:-1], Yt[:-1], facecolor=colors[i], alpha=.5)
   line = ax.plot(x[:-1], meanH[:-1], color=colors[i], label=dirname[-5:])
@@ -63,7 +62,8 @@ def plot(ax, dirname, i):
 def main(runspath, REs, tokens, labels):
     nRes = len(REs)
     axes, lines = [], []
-    fig, axes = plt.subplots(1,nRes, sharey=True, figsize=[12, 3], frameon=False, squeeze=True)
+    #sharey=True, 
+    fig, axes = plt.subplots(1,nRes, figsize=[11.4, 2.2], frameon=False, squeeze=True)
 
     for j in range(nRes):
         RE = REs[j]
@@ -79,12 +79,12 @@ def main(runspath, REs, tokens, labels):
     #axes[1][0].invert_yaxis()
     #for j in range(1, nRes): axes[j].set_yticklabels([])
     for j in range(nRes):
-      axes[j].set_title(r'$Re_\lambda$ = %d' % REs[j])
+      #axes[j].set_title(r'$Re_\lambda$ = %d' % REs[j])
       axes[j].set_yscale("log")
       axes[j].set_xlim([-1e-3, 0.09])
       axes[j].set_xticks([0.01, 0.04, 0.07])
       #axes[j].set_ylim([0.2, 225])
-      axes[j].set_ylim([0.2, 240])
+      axes[j].set_ylim([0.25, 150])
       axes[j].grid()
       axes[j].set_xlabel(r'$C_s^2$')
     #axes[0].legend(lines, labels, bbox_to_anchor=(-0.1, 2.5), borderaxespad=0)
@@ -101,9 +101,10 @@ def main(runspath, REs, tokens, labels):
 
 if __name__ == '__main__':
   p = argparse.ArgumentParser(description = "CSS plotter.")
+  p.add_argument('tokens', nargs='+', help="Text token distinguishing each series of runs")
   p.add_argument('--path', default='./', help="Simulation dira patb.")
-  p.add_argument('--tokens', nargs='+', help="Text token distinguishing each series of runs")
-  p.add_argument('--res', nargs='+', type=int, help="Reynolds numbers")
+  p.add_argument('--res', nargs='+', type=int, help="Reynolds numbers",
+    default = [60, 82, 111, 151, 190, 205])
   p.add_argument('--labels', nargs='+', help="Plot labels to assiciate to tokens")
   args = p.parse_args()
   if args.labels is None: args.labels = args.tokens

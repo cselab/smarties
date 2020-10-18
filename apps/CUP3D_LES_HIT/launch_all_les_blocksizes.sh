@@ -1,8 +1,8 @@
 export SKIPMAKE=true
 
 # how many cases to consider
-#for nblocks in 2 4 8; do
-for nblocks in 4; do
+for nblocks in 2 4 8; do
+#for nblocks in 4; do
 
 if [ ${nblocks} == 8 ] ; then
 blocksize=4
@@ -16,15 +16,15 @@ exit 1
 fi
 
 make -C ~/CubismUP_3D/makefiles/ clean
-#make -C ~/CubismUP_3D/makefiles/ hdf=false bs=${blocksize} accfft=false -j rlHIT
-make -C ~/CubismUP_3D/makefiles/  bs=${blocksize} -j rlHIT
+make -C ~/CubismUP_3D/makefiles/ hdf=false bs=${blocksize} accfft=false -j rlHIT
+#make -C ~/CubismUP_3D/makefiles/  bs=${blocksize} -j rlHIT
 
-for run in 16 17; do
+for run in 02 03; do
 
 export LES_RL_NBLOCK=$nblocks
 export LES_RL_N_TSIM=20
 POSTNAME=sim${LES_RL_N_TSIM}_RUN${run}
-SPEC=NAI
+SPEC=NEW
 
 # several options for actuation freq (relative to kolmogorov time)
 # bcz it affects run time we allocate different number of resources:
@@ -70,11 +70,11 @@ RUNDIR=${BASENAME}_act`printf %02d $LES_RL_FREQ_A`_${POSTNAME}
 
 export LES_RL_FREQ_A=2
 RUNDIR=${BASENAME}_act`printf %02d $LES_RL_FREQ_A`_${POSTNAME}
-#smarties.py CUP3D_LES_HIT -n 12 -r ${RUNDIR}
+smarties.py CUP3D_LES_HIT -n 12 -r ${RUNDIR}
 
 export LES_RL_FREQ_A=4
 RUNDIR=${BASENAME}_act`printf %02d $LES_RL_FREQ_A`_${POSTNAME}
-#smarties.py CUP3D_LES_HIT -n 7 -r ${RUNDIR}
+smarties.py CUP3D_LES_HIT -n 7 -r ${RUNDIR}
 
 export LES_RL_FREQ_A=8
 RUNDIR=${BASENAME}_act`printf %02d $LES_RL_FREQ_A`_${POSTNAME}

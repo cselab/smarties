@@ -6,7 +6,7 @@ from extractTargetFilesNonDim import getAllData
 from computeSpectraNonDim     import readAllSpectra
 
 colors = ['#1f78b4', '#33a02c', '#e31a1c', '#ff7f00', '#6a3d9a', '#b15928', '#a6cee3', '#b2df8a', '#fb9a99', '#fdbf6f', '#cab2d6', '#ffff99']
-colors = ['#377eb8', '#e41a1c', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999']
+colors = ['#377eb8', '#4daf4a', '#984ea3', '#e41a1c',  '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999']
 #colors = ['#377eb8', '#ff7f00', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999']
 #colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928']
 #colors = ['#abd9e9', '#74add1', '#4575b4', '#313695', '#006837', '#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027', '#a50026', '#8e0152', '#c51b7d', '#de77ae', '#f1b6da']
@@ -57,6 +57,7 @@ def findBestHyperParams(path, re, token):
   bestDir, bestLL, bestStats = None, -1e9, None
   filen1 = '/simulation_000_00000/run_00000000/spectrumProbability.text'
   filen2 = '/spectrumProbability.text'
+  # allow token to be actually a path
   if token[0] == '/': alldirs = glob.glob(token + '*' + ('RE%03d' % re) + '*')
   else:               alldirs = glob.glob(path + '/*' + ('RE%03d' % re) + '*')
   for dirn in alldirs:
@@ -85,21 +86,19 @@ def findDirectory(runspath, re, token):
         return dirn
     assert False, 're-token combo not found'
 
-def main_integral(runspath, target, REs, tokens, labels, nBins):
+def main_integral(runspaths, target, REs, tokens, labels, nBins):
     minNbins = min(nBins)
     #plt.figure()
     #REs = findAllParams(path)
     nRes = len(REs)
     axes, lines = [], []
-    fig, axes = plt.subplots(2, nRes, sharey=True, figsize=[12, 4.8], frameon=False, squeeze=True)
+    fig, axes = plt.subplots(2, nRes, sharey='row', figsize=[12, 4.8], frameon=False, squeeze=True)
     #for j in range(nRes):
     #    axes += [ plt.subplot(1, nRes, j+1) ]
 
-    for j in range(nRes):
-        RE = REs[j]
+    for j, RE in enumerate(REs):
         eps, nu = epsNuFromRe(RE)
         Ekscal = np.power(nu**5 * eps, 0.25)
-
         # read target file
         logSpectra, logEnStdev, _, _ = readAllSpectra(target, [RE])
         logSpectra = logSpectra.reshape([logSpectra.size])
@@ -111,13 +110,16 @@ def main_integral(runspath, target, REs, tokens, labels, nBins):
         LLBot = np.exp(logSpectra - logEnStdev)/Ekscal
         axes[0][j].plot(np.exp(logSpectra)/Ekscal, modes, color='k')
         axes[0][j].fill_betweenx(modes, LLBot, LLTop, facecolor='k', alpha=.5)
+        #axes[0][j].plot(modes, np.exp(logSpectra)/Ekscal, color='k')
+        #axes[0][j].fill_between(modes, LLBot, LLTop, facecolor='k', alpha=.5)
 
-        for i in range(len(tokens)):
+        for i, token in enumerate(tokens):
+            runspath = runspaths[i]
             dirn = findBestHyperParams(runspath, RE, tokens[i])
-            print(nBins[i])
+            #print(nBins[i])
             runData = getAllData(dirn, eps, nu, nBins[i], fSkip=1)
             logE = np.log(runData['spectra'])
-            print(logE.shape[0])
+            #print(logE.shape[0])
             avgLogSpec, stdLogSpec = np.mean(logE, axis=0), np.std(logE, axis=0)
             assert(avgLogSpec.size == nBins[i])
             avgLogSpec = avgLogSpec[:minNbins]
@@ -130,9 +132,11 @@ def main_integral(runspath, target, REs, tokens, labels, nBins):
             axes[1][j].fill_betweenx(modes, LLBot, LLTop, facecolor=colors[i], alpha=.5)
 
             Ek = np.exp(avgLogSpec) / Ekscal
-            axes[0][j].plot(Ek, modes, label=labels[i], color=colors[i]) # , label=labels[i]
             LLTop = np.exp(avgLogSpec+stdLogSpec) / Ekscal
             LLBot = np.exp(avgLogSpec-stdLogSpec) / Ekscal
+            #axes[0][j].fill_between(modes, LLBot, LLTop, facecolor=colors[i], alpha=.5)
+            #axes[0][j].plot(modes, Ek, label=labels[i], color=colors[i]) # , label=labels[i]
+            axes[0][j].plot(Ek, modes, label=labels[i], color=colors[i]) # , label=labels[i]
             axes[0][j].fill_betweenx(modes, LLBot, LLTop, facecolor=colors[i], alpha=.5)
             '''
               LLt = (0.5 * (logE - logSpectra) / logEnStdev ) ** 2
@@ -142,21 +146,30 @@ def main_integral(runspath, target, REs, tokens, labels, nBins):
               p = axes[j].plot(np.arange(nSamples), sumLLt, label=labels[i], color=colors[i])
             '''
             if j == 0: lines += [p]
-    axes[0][0].set_ylabel(r'$k \cdot L / 2 \pi$')
-    axes[1][0].set_ylabel(r'$k \cdot L / 2 \pi$')
 
+    axes[1][0].set_ylim([1, 15])
+    axes[1][0].set_ylabel(r'$k \cdot L / 2 \pi$')
+    axes[1][0].invert_yaxis()
     for j in range(nRes):
-        axes[0][j].set_title(r'$Re_\lambda$ = %d' % REs[j])
-        axes[0][j].set_xscale("log")
-        axes[0][j].set_ylim([1, 15])
-        axes[1][j].set_ylim([1, 15])
-        axes[0][j].grid()
         axes[1][j].grid()
+        axes[0][j].grid()
+        axes[0][j].set_title(r'$Re_\lambda$ = %d' % REs[j])
         #axes[1][j].set_xlabel(r'$\frac{\log E^{LES}(k) - \mu[\log E^{DNS}(k)]}{\sigma[\log E^{DNS}(k)]}$')
         axes[1][j].set_xlabel(r'$\frac{\log E_{LES} - \mu(\log E_{DNS})}{\sigma(\log E_{DNS})}$')
-        axes[0][j].set_xlabel(r'$E_{LES} \,/\, \eta u^2_\eta$')
-    
+    '''
+    axes[0][0].set_ylabel(r'$E_{LES} \,/\, \eta u^2_\eta$')
+    axes[0][0].set_yscale("log")
+    for j in range(nRes):
+        axes[0][j].set_xlim([1, 15])
+        axes[0][j].set_xlabel(r'$k \cdot L / 2 \pi$')
+    '''
+    axes[0][0].set_ylim([1, 15])
+    axes[0][0].set_ylabel(r'$k \cdot L / 2 \pi$')
     axes[0][0].invert_yaxis()
+    for j in range(nRes):
+        axes[0][j].set_xlabel(r'$E_{LES} \,/\, \eta u^2_\eta$')
+        axes[0][j].set_xscale("log")
+
     #axes[1][0].invert_yaxis()
     #for j in range(1,nRes): axes[j].set_yticklabels([])
     #axes[0].legend(lines, labels, bbox_to_anchor=(-0.1, 2.5), borderaxespad=0)
@@ -178,18 +191,21 @@ if __name__ == '__main__':
   ADD = parser.add_argument
   ADD('tokens', nargs='+',
     help="Directory naming tokens shared by all runs across Re")
-  ADD('--target', default='target_RKBPD32_2blocks/',
-    help="Path to target DNS files directory")
-  ADD('--res', nargs='+', type=int, default = [65, 76, 88, 103, 120, 140, 163],
-    help="Reynolds numbers to visualize")
+  ADD('-t', '--target', help="Path to target DNS files directory",
+      default='/users/novatig/smarties/apps/CUP3D_LES_HIT/target_RKBPD32_2blocks/')
+  ADD('--res', nargs='+', type=int, default = [60, 70, 111, 151, 176, 190, 205],
+      help="Reynolds numbers to visualize")
+  #default = [65, 76, 88, 103, 120, 140, 163],
+    
   ADD('--labels', nargs='+', help="Plot labels to assiciate to tokens")
-  ADD('--runspath', default='../../runs/',
+  ADD('-r', '--runspath', default=['./'], nargs='+',
     help="Relative path to evaluation runs")
   ADD('--gridSize', nargs='+', type=int, default=[32],
     help="1D grid size used by the evaluation runs")
 
   args = parser.parse_args()
   if args.labels is None: args.labels = args.tokens
+  if len(args.runspath) == 1: args.runspath = args.runspath * len(args.tokens)
   if len(args.gridSize) < len(args.labels):
       assert(len(args.gridSize) == 1)
       args.gridSize = args.gridSize * len(args.labels)

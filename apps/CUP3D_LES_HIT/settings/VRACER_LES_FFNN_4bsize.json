@@ -10,7 +10,8 @@
   "maxTotObsNum": 1000000,
   "nnLayerSizes": [64, 64],
   "obsPerStep": 512,
-  "ERoldSeqFilter": "oldest",
+  "epsAnneal": 2e-7,
   "nnFunc": "Tanh",
+  "ERoldSeqFilter": "oldest",
   "outWeightsPrefac": 0.00001
 }

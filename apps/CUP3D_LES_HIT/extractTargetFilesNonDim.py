@@ -36,24 +36,29 @@ def computeIntTimeScale(tau_integral):
         else: tau_int += 1e16/N
     return tau_int
 
-def getAllData(dirn, eps, nu, nBins, fSkip=1):
-    fname = dirn + '/spectralAnalysis.raw'
-    rl_fname = dirn + '/simulation_000_00000/run_00000000/spectralAnalysis.raw'
-    if   path.exists(fname)    : f = np.fromfile(fname, dtype=np.float64)
-    elif path.exists(rl_fname) : f = np.fromfile(rl_fname, dtype=np.float64)
+def readAnalysisFile(dirn, analysis, size):
+    fname    = dirn + '/' + analysis
+    rl_fname = dirn + '/simulation_000_00000/run_00000000/' + analysis
+    if   path.exists(   fname): f = np.fromfile(   fname, dtype=np.float64)
+    elif path.exists(rl_fname): f = np.fromfile(rl_fname, dtype=np.float64)
     else :
-      f = np.zeros([nBins + 13])
+      f = np.zeros([size])
       print('File %s does not exist. Simulation did not start?' % fname)
-    nFullRows = f.size // (nBins + 13)
-    nFull = nFullRows * (nBins + 13)
-    print(nFullRows, nFull, f.size)
-    f = f[:nFull].reshape([nFullRows, nBins + 13])
-    #f = f.reshape([nFullRows, nBins + 13])
+    nFullRows = f.size // size
+    nFull = nFullRows * size
+    assert(nFull == f.size)
+    #return f.reshape([nFullRows, size])
+    return f[:nFull].reshape([nFullRows, size])
+
+def getAllData(dirn, eps, nu, nBins, fSkip=1, readFlux=False):
+    f = readAnalysisFile(dirn, 'spectralAnalysis.raw', nBins + 13)
     nSamples = f.shape[0]
     tIntegral = computeIntTimeScale(f[:,8])
     tAnalysis = np.sqrt(nu / eps) # time space between data files
     ind0 = int(10 * tIntegral / tAnalysis) # skip initial integral times
+    #ind0 = int(5 * tIntegral / tAnalysis) # skip initial integral times
     if ind0 == 0 or ind0 > nSamples: ind0 = nSamples
+    #print(ind0)
     data = {
         'dt'           : f[ind0:, 1], 'tke'          : f[ind0:, 3],
         'tke_filtered' : f[ind0:, 4], 'dissip_visc'  : f[ind0:, 5],
@@ -61,15 +66,18 @@ def getAllData(dirn, eps, nu, nBins, fSkip=1):
         't_integral'   : f[ind0:, 8], 'grad_mean'    : f[ind0:,11],
         'grad_std'     : f[ind0:,12], 'spectra'      : f[ind0:,13:]
     }
-    print('n spectra = %d %f %f' % (nFullRows, tIntegral, tAnalysis))
+    #print('n spectra = %d %f %f' % (nFullRows, tIntegral, tAnalysis))
+    if not readFlux: return data
+    f = readAnalysisFile(dirn, 'fluxAnalysis.raw', nBins)
+    data['flux'] =  f[ind0:, :]
     return data
 
 def gatherAllData(path, re, eps, nu, nBins, fSkip):
   data = None
-  #for run in [0, 1, 2, 3, 4]:
-  #for run in [5, 6, 7, 8, 9]:
+  #for run in [0, 1, 2, 3, 4]: #for run in [5, 6, 7, 8, 9]:
   #for run in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]:
-  for run in range(40):
+  #for run in range(40):
+  for run in range(1):
     dirn = '%sRE%04d_RUN%d' % (path, re, run)
     runData = getAllData(dirn, eps, nu, nBins, fSkip)
     if data is None: data = runData

@@ -16,8 +16,10 @@ fi
 # compile executable:
 COMPILEDIR=${SMARTIES_ROOT}/../CubismUP_3D/makefiles
 #SKIPMAKE=true
-if [[ "${SKIPMAKE}" != "true" ]] ; then
-if [ ${LES_RL_NBLOCK} == 8 ] ; then
+if [ ! -z "$LES_RL_BLOCKSIZE" ] ; then
+blocksize=$LES_RL_BLOCKSIZE
+echo "using blocksize" $blocksize
+elif [ ${LES_RL_NBLOCK} == 8 ] ; then
 blocksize=4
 elif [ ${LES_RL_NBLOCK} == 4 ] ; then
 blocksize=8
@@ -27,17 +29,23 @@ else
 echo "ERROR "
 exit 1
 fi
+echo "using blocksize" $blocksize
+if [[ "${SKIPMAKE}" != "true" ]] ; then
 make -C ${COMPILEDIR} clean
-make -C ${COMPILEDIR} bs=${blocksize} -j rlHIT
+make -C ${COMPILEDIR} bs=${blocksize} accfft=false -j rlHIT
 fi
 
 # copy executable:
 cp ${COMPILEDIR}/rlHIT ${RUNDIR}/exec
 
 # write simulation settings files:
+# NOTE: -nu and -energyInjectionRate (=eps) make no difference
+# our main file samples a random Re and computes the appropriate nu and eps
+# -cs, not used by RL, but nonzero to avoid warnings
+# -tend, not used by RL, but chosen to be >> than timeout given by RL
 cat <<EOF >${RUNDIR}/runArguments00.sh
 ./simulation -bpdx $LES_RL_NBLOCK -bpdy $LES_RL_NBLOCK -bpdz $LES_RL_NBLOCK \
--extentx 6.2831853072 -tend 500 -dump2D 1 -dump3D 1 -tdump 0 -CFL 0.1 \
+-extentx 6.2831853072 -tend 50000 -dump2D 1 -dump3D 1 -tdump 0 -CFL 0.1 \
 -BC_x periodic -BC_y periodic -BC_z periodic -initCond HITurbulence \
 -spectralIC fromFit -sgs RLSM -cs 0.5 -spectralForcing 1 \
 -RungeKutta23 1 -Advection3rdOder 0 -keepMomentumConstant 1 \
@@ -51,15 +59,17 @@ EOF
 THISDIR=${SMARTIES_ROOT}/apps/CUP3D_LES_HIT
 #cp ${THISDIR}/target_RK_${LES_RL_NBLOCK}blocks/*  ${RUNDIR}/
 cp ${THISDIR}/target_RKBPD32_2blocks/*  ${RUNDIR}/
+#cp ${THISDIR}/target_RK_2blocks/*  ${RUNDIR}/
+#cp ${THISDIR}/target_RKBPD64_LESBPD2/*  ${RUNDIR}/
 
 #copy settings file
 # 1) either FFNN or RNN
 # 2) number of actions per grad steps affected by number of agents per sim
 if [ ${LES_RL_GRIDACTSETTINGS} == 0 ] ; then
-SETTINGSF=VRACER_LES_${LES_RL_NETTYPE}_${LES_RL_NBLOCK}blocks.json
+SETTINGSF=VRACER_LES_${LES_RL_NETTYPE}_${blocksize}bsize.json
 cp ${THISDIR}/settings/${SETTINGSF} ${RUNDIR}/settings.json
 else
-SETTINGSF=VRACER_LES_${LES_RL_NETTYPE}GRID_${LES_RL_NBLOCK}blocks.json
+SETTINGSF=VRACER_LES_${LES_RL_NETTYPE}GRID_${blocksize}bsize.json
 cp ${THISDIR}/settings/${SETTINGSF} ${RUNDIR}/settings.json
 fi
 
