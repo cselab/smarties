@@ -587,7 +587,9 @@ void MemoryBuffer::setupDataCollectionTasks(TaskQueue& tasks)
 }
 
 MemoryBuffer::~MemoryBuffer()
-{}
+{
+  delete sharing;
+}
 
 void MemoryBuffer::checkNData()
 {
