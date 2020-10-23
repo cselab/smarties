@@ -54,6 +54,7 @@ test.dSYM
 out.*.*.[oe]
 policies/*
 runs/
+/apps/MARL_LES
 /apps/glider/glider
 /apps/test_cpp_fit/test-fit
 engine_cmaes
