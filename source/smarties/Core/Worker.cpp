@@ -148,7 +148,10 @@ void Worker::answerStateAction(Agent& agent) const
   Learner& algo = * learners[getLearnerID(agent.localID)].get();
   //pick next action and ...do a bunch of other stuff with the data:
   algo.select(agent);
-
+  #ifndef NDEBUG
+    if (agent.stateIsInvalid())
+      die("Learning algorithm picked a nan or inf action.");
+  #endif
   //static constexpr auto vec2str = Utilities::vec2string<double>;
   //const int agentStatus = status2int(agent.agentStatus);
   //_warn("Agent %d %d:[%s]>[%s] r:%f a:[%s]", agent.ID, agentStatus,

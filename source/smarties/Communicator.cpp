@@ -264,6 +264,10 @@ void Communicator::_sendState(const int agentID, const episodeStatus status,
   assert(agents[agentID]->localID == (unsigned) agentID);
   assert(agents[agentID]->ID == (unsigned) agentID);
   agents[agentID]->update(status, state, reward);
+  #ifndef NDEBUG
+    if (agents[agentID]->stateIsInvalid())
+      die("Environment gave a nan or inf state or reward.");
+  #endif
 
   if(SOCK.server == -1)
   {

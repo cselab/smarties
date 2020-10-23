@@ -298,15 +298,17 @@ struct Agent
     assert(buffCnter == ind);
   }
 
-  void checkNanInf() const
+  bool stateIsInvalid() const
   {
     #ifndef NDEBUG
-      const auto assertValid = [] (const double val) {
-        assert( not std::isnan(val) and not std::isinf(val) );
+      const auto isInvalid = [] (const double val) {
+        return std::isnan(val) or std::isinf(val);
       };
-      for (Uint j=0; j<action.size(); ++j) assertValid(action[j]);
-      for (Uint j=0; j<state.size(); ++j) assertValid(state[j]);
-      assertValid(reward);
+      for(Uint j=0; j<action.size(); ++j) if(isInvalid(action[j])) return true;
+      for(Uint j=0; j< state.size(); ++j) if(isInvalid( state[j])) return true;
+      return isInvalid(reward);
+    #else
+      return false;
     #endif
   }
 
