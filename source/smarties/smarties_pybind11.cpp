@@ -121,7 +121,12 @@ PYBIND11_MODULE(smarties, m)
     .def("recvAction",
          & smarties::Communicator::recvAction,
          py::arg("agentID") = 0,
-         "Get an action for agent # 'agentID' given previously sent state.")
+         "Get an action for agent # 'agentID' given previously sent state. Returns a vector.")
+
+    .def("recvDiscreteAction",
+         & smarties::Communicator::recvDiscreteAction,
+         py::arg("agentID") = 0,
+         "Get an action for agent # 'agentID' given previously sent state. Returns an integer.")
 
     .def("setNumAgents",
          & smarties::Communicator::setNumAgents,
