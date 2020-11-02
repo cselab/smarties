@@ -192,7 +192,7 @@ void selectEpisodeToDelete(MemoryBuffer& RM, const FORGET ALGO)
   // collection ratio prescirbed by obsPerStep
   const Real C = RM.settings.clipImpWeight, D = RM.settings.penalTol;
 
-  RM.CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, settings.epsAnneal);
+  RM.CmaxRet = 1+Utilities::annealRate(C, nGradSteps, RM.settings.epsAnneal);
   //RM.CmaxRet = 1 + C;
 
   RM.CinvRet = 1 / RM.CmaxRet;
