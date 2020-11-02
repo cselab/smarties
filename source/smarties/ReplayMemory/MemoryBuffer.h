@@ -28,7 +28,7 @@ namespace smarties
 class DataCoordinator;
 
 // algorithm to filter past episodes:
-enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV, BATCHRL};
+enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV};
 
 struct MemoryBuffer
 {

@@ -198,23 +198,11 @@ FORGET MemoryProcessing::readERfilterAlgo(const HyperParameters & S)
     printf("Experience Replay storage: remove highest average DKL episode.\n");
     return MAXKLDIV;
   }
-  if(setting == "batchrl") {
-    if(world_rank == 0)
-    printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
-    return BATCHRL;
-  }
   //if(setting == "minerror")   return MINERROR; miriad ways this can go wrong
   if(setting == "default") {
-    if(bReFER) {
-      if(world_rank == 0)
-      printf("Experience Replay storage: remove most 'off policy' episode if and only if policy is better.\n");
-      return BATCHRL;
-    }
-    else {
-      if(world_rank == 0)
-      printf("Experience Replay storage: First In First Out.\n");
-      return OLDEST;
-    }
+    if(world_rank == 0)
+    printf("Experience Replay storage: First In First Out.\n");
+    return OLDEST;
   }
   die("ERoldSeqFilter not recognized");
   return OLDEST; // to silence warning

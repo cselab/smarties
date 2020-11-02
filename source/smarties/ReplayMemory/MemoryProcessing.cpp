@@ -192,17 +192,9 @@ void selectEpisodeToDelete(MemoryBuffer& RM, const FORGET ALGO)
   // collection ratio prescirbed by obsPerStep
   const Real C = RM.settings.clipImpWeight, D = RM.settings.penalTol;
 
-  if(ALGO == BATCHRL) {
-    const Real maxObsNum = RM.settings.maxTotObsNum_local;
-    const Real E = RM.settings.epsAnneal;
-    const Real factorUp = std::max((Real) 1, RM.nStoredSteps() / maxObsNum);
-    //const Real factorDw = std::min((Real)1, maxObsNum / obsNum);
-    //D *= factorUp; //CmaxRet = 1 + C * factorDw
-    RM.CmaxRet = 1 + Utilities::annealRate(C, nGradSteps, E) * factorUp;
-  } else {
-    //CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, settings.epsAnneal);
-    RM.CmaxRet = 1 + C;
-  }
+  RM.CmaxRet = 1 + Utilities::annealRate(C, nGradSteps +1, settings.epsAnneal);
+  //RM.CmaxRet = 1 + C;
+
   RM.CinvRet = 1 / RM.CmaxRet;
   if(RM.CmaxRet <= 1 and C > 0) die("Unallowed ReF-ER annealing values.");
 
@@ -287,7 +279,6 @@ void selectEpisodeToDelete(MemoryBuffer& RM, const FORGET ALGO)
     case OLDEST:      stats.indexOfEpisodeToDelete = totFirstIn(); break;
     case FARPOLFRAC: stats.indexOfEpisodeToDelete = totMostFar(); break;
     case MAXKLDIV:  stats.indexOfEpisodeToDelete = totHighDkl(); break;
-    case BATCHRL:  stats.indexOfEpisodeToDelete = totMostOff(); break;
   }
 
   if (stats.indexOfEpisodeToDelete >= 0) {
