@@ -22,12 +22,10 @@ class DataCoordinator
   MemoryBuffer* const replay;
   ParameterBlob & params;
   const ExecutionInfo & distrib = replay->distrib;
-
   const MDPdescriptor & MDP = replay->MDP;
   const Uint MDPID = replay->MDP.localID;
-  //const StateInfo& sI = replay->sI;
-  //const ActionInfo& aI = replay->aI;
-  std::vector<Episode> episodes;
+
+  std::vector<std::unique_ptr<Episode>> episodes;
 
   // allows masters to share episodes between each others
   // each master sends the size (in floats) of the episode
@@ -54,7 +52,7 @@ public:
 
   void mastersRecvEpisodes();
 
-  void addComplete(Episode& EP, const bool bUpdateParams);
+  void addComplete(std::unique_ptr<Episode> e, const bool bUpdateParams);
 
   bool bRunParameterServer = false;
   bool bLearnersEpsSharing = false;

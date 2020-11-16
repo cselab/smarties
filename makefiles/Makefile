@@ -57,7 +57,7 @@ ifeq "$(testdiff)" "true"
 CPPFLAGS+= -DSMARTIES_CHECK_DIFF
 endif
 
-precision ?= double
+precision ?= single
 ifeq "$(precision)" "single"
 CPPFLAGS+= -DSINGLE_PREC
 endif

@@ -17,19 +17,17 @@ namespace smarties
 
 struct ReplayStats
 {
-  Uint oldestStoredTimeStamp = 0;
   Uint nFarPolicySteps = 0;
   Real avgKLdivergence = 0;
   Sint countReturnsEstimateUpdates = 0;
   Real sumReturnsEstimateErrors = 0;
   Real avgSquaredErr = 0;
-  Real avgAbsError = 0;
+  Real maxAbsError = 0;
   Real avgReturn = 0;
   Real stdevQ = 0;
   Real avgQ = 0;
   Real maxQ = 0;
   Real minQ = 0;
-  Sint indexOfEpisodeToDelete = -1;
   Sint nPrunedEps = 0;
 };
 

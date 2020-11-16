@@ -8,7 +8,6 @@
 
 #include "MemoryProcessing.h"
 #include "../Utils/SstreamUtilities.h"
-#include "ExperienceRemovalAlgorithms.h"
 #include "Sampling.h"
 #include <algorithm>
 
@@ -184,80 +183,65 @@ void updateRewardsStats(MemoryBuffer& RM, const bool bInit, const Real rRateFac)
   }
 }
 
-void selectEpisodeToDelete(MemoryBuffer& RM, const FORGET ALGO)
+void updateTrainingStatistics(MemoryBuffer& RM)
 {
   const Uint nGradSteps = RM.nGradSteps() + 1;
   const bool bRecomputeProperties = ( nGradSteps % 1000) == 0;
   //shift data / gradient counters to maintain grad stepping to sample
   // collection ratio prescirbed by obsPerStep
-  const Real C = RM.settings.clipImpWeight, D = RM.settings.penalTol;
-
-  RM.CmaxRet = 1+Utilities::annealRate(C, nGradSteps, RM.settings.epsAnneal);
+  const Real C = RM.settings.clipImpWeight, E = RM.settings.epsAnneal;
+  RM.CmaxRet = 1 + Utilities::annealRate(C, nGradSteps, E);
   //RM.CmaxRet = 1 + C;
-
   RM.CinvRet = 1 / RM.CmaxRet;
   if(RM.CmaxRet <= 1 and C > 0) die("Unallowed ReF-ER annealing values.");
 
   const bool bNeedsReturnEst = RM.settings.returnsEstimator not_eq "none";
   const returnsEstimator_f returnsCompute = createReturnEstimator(RM);
 
-  MostOffPolicyEp totMostOff(D); OldestDatasetEp totFirstIn;
-  MostFarPolicyEp totMostFar;    HighestAvgDklEp totHighDkl;
-
   Uint nOffPol = 0, nRetUpdates = 0;
-  Real sumR=0, sumDKL=0, sumE2=0, sumAbsE=0, sumQ2=0, sumQ1=0, sumERet=0;
-  Fval maxQ = -1e9, minQ =  1e9;
+  Fval maxAbsE = -1e9, maxQ = -1e9, minQ =  1e9;
+  Real sumDKL=0, sumE2=0, sumQ2=0, sumQ1=0, sumR=0, sumERet=0;
   const Uint setSize = RM.nStoredEps();
-  #pragma omp parallel reduction(max: maxQ) reduction(min: minQ) reduction(+: \
-      nOffPol, nRetUpdates, sumDKL, sumE2, sumAbsE, sumQ2, sumQ1, sumR, sumERet)
+  #pragma omp parallel for schedule(static, 1)  \
+    reduction(max : maxAbsE, maxQ) reduction(min : minQ) \
+    reduction(+ : nOffPol, nRetUpdates, sumDKL, sumE2, sumQ2, sumQ1, sumR, sumERet)
+  for (Uint i = 0; i < setSize; ++i)
   {
-    OldestDatasetEp locFirstIn; MostOffPolicyEp locMostOff(D);
-    MostFarPolicyEp locMostFar; HighestAvgDklEp locHighDkl;
-
-    #pragma omp for schedule(static, 1) nowait
-    for (Uint i = 0; i < setSize; ++i)
-    {
-      Episode & EP = RM.get(i);
-      if (bRecomputeProperties) {
-        EP.updateCumulative(RM.CmaxRet, RM.CinvRet);
-        if (bNeedsReturnEst) {
-          sumERet += updateReturnEstimator(EP, EP.nsteps()-2, returnsCompute);
-          nRetUpdates += EP.nsteps()-1;
-        }
-      } else if (bNeedsReturnEst and EP.just_sampled > 0) {
-        sumERet += updateReturnEstimator(EP, EP.just_sampled-1, returnsCompute);
-        nRetUpdates += EP.just_sampled;
+    Episode & EP = RM.get(i);
+    if (bRecomputeProperties) {
+      EP.updateCumulative(RM.CmaxRet, RM.CinvRet);
+      if (bNeedsReturnEst) {
+        sumERet += updateReturnEstimator(EP, EP.nsteps()-2, returnsCompute);
+        nRetUpdates += EP.nsteps()-1;
       }
-
-      nOffPol += EP.nFarPolicySteps();    sumDKL  += EP.sumKLDivergence;
-      sumE2   += EP.sumSquaredErr;        sumAbsE += EP.sumAbsError;
-      sumQ2   += EP.sumSquaredQ;          sumQ1   += EP.sumQ; sumR += EP.totR;
-      maxQ     = std::max(EP.maxQ, maxQ); minQ     = std::min(EP.minQ, minQ);
-      locFirstIn.compare(EP, i); locMostOff.compare(EP, i);
-      locMostFar.compare(EP, i); locHighDkl.compare(EP, i);
-      EP.just_sampled = -1;
+    } else if (bNeedsReturnEst and EP.just_sampled > 0) {
+      sumERet += updateReturnEstimator(EP, EP.just_sampled-1, returnsCompute);
+      nRetUpdates += EP.just_sampled;
     }
-    #pragma omp critical
-    {
-      totFirstIn.compare(locFirstIn); totMostOff.compare(locMostOff);
-      totMostFar.compare(locMostFar); totHighDkl.compare(locHighDkl);
-    }
+    const Fval Nsteps = EP.nsteps();
+    maxAbsE  = std::max(EP.maxAbsError, maxAbsE);
+    maxQ     = std::max(EP.maxQ, maxQ);
+    minQ     = std::min(EP.minQ, minQ);
+    sumDKL  += Nsteps * EP.avgKLDivergence;
+    nOffPol += Nsteps * EP.fracFarPolSteps;
+    sumE2   += Nsteps * EP.avgSquaredErr;
+    sumQ2   += EP.sumSquaredQ;
+    sumQ1   += EP.sumQ;
+    sumR    += EP.totR;
+    EP.just_sampled = -1;
   }
 
   ReplayStats & stats = RM.stats;
   if (RM.CmaxRet<=1) nOffPol = 0; //then this counter and its effects are skipped
   const Uint nData = RM.nStoredSteps();
-  stats.oldestStoredTimeStamp = totFirstIn.timestamp;
   stats.nFarPolicySteps = nOffPol;
-
+  stats.maxAbsError     = maxAbsE;
   stats.avgKLdivergence = sumDKL / nData;
-  stats.avgSquaredErr = sumE2 / nData;
-  stats.avgAbsError = sumAbsE / nData;
-
-  stats.avgReturn = sumR / setSize;
-  stats.avgQ = sumQ1 / nData;
-  stats.maxQ = maxQ;
-  stats.minQ = minQ;
+  stats.avgSquaredErr   = sumE2 / nData;
+  stats.avgReturn       = sumR / setSize;
+  stats.avgQ            = sumQ1 / nData;
+  stats.maxQ            = maxQ;
+  stats.minQ            = minQ;
   stats.stdevQ = sumQ2 / nData  - stats.avgQ * stats.avgQ; // variance
   stats.stdevQ = std::sqrt(std::max(stats.stdevQ, 1e-16)); // anti-nan
   if (bNeedsReturnEst) {
@@ -269,53 +253,98 @@ void selectEpisodeToDelete(MemoryBuffer& RM, const FORGET ALGO)
     stats.countReturnsEstimateUpdates = -1;
     stats.sumReturnsEstimateErrors = 0;
   }
-  assert(totMostFar.ind >= 0 && totMostFar.ind < (int) setSize);
-  assert(totHighDkl.ind >= 0 && totHighDkl.ind < (int) setSize);
-  assert(totFirstIn.ind >= 0 && totFirstIn.ind < (int) setSize);
-
-  //if (recompute) printf("min imp w:%e\n", totMostOff.avgClipImpW);
-  stats.indexOfEpisodeToDelete = -1;
-  switch (ALGO) {
-    case OLDEST:      stats.indexOfEpisodeToDelete = totFirstIn(); break;
-    case FARPOLFRAC: stats.indexOfEpisodeToDelete = totMostFar(); break;
-    case MAXKLDIV:  stats.indexOfEpisodeToDelete = totHighDkl(); break;
-  }
-
-  if (stats.indexOfEpisodeToDelete >= 0) {
-    // prevent any race condition from causing deletion of newest data:
-    const Episode & EP2delete = RM.get(stats.indexOfEpisodeToDelete);
-    const Episode & EPoldest = RM.get(totFirstIn.ind);
-    if (EPoldest.ID + (Sint) setSize < EP2delete.ID)
-        stats.indexOfEpisodeToDelete = totFirstIn.ind;
-  }
 }
 
-void prepareNextBatchAndDeleteStaleEp(MemoryBuffer & RM)
+std::function<bool(const std::unique_ptr<smarties::Episode> &,
+                   const std::unique_ptr<smarties::Episode> &)>
+  getERfilterAlgo(const HyperParameters & S)
 {
-  ReplayStats & stats = RM.stats;
-  // Here we:
-  // 1) Remove episodes from the RM if needed.
-  // 2) Update minibatch sampling distributions, must be done right after
-  //    removal of data from RM. This is reason why we bundle these 3 steps.
+  const std::string setting = S.ERoldSeqFilter;
+  // always put at the BACK of the vector the ones to delete:
+  if (setting == "oldest")
+    return [] (const std::unique_ptr<smarties::Episode> &a,
+               const std::unique_ptr<smarties::Episode> &b) {
+      // if the timestamp of a is greater than that of b, it should be before
+      return a->ID > b->ID;
+    };
+  else
+  if (setting == "farpolfrac")
+    return [] (const std::unique_ptr<smarties::Episode> &a,
+               const std::unique_ptr<smarties::Episode> &b) {
+      // eps with more far policy steps are in the back
+      return a->fracFarPolSteps < b->fracFarPolSteps;
+    };
+  else
+  if (setting == "maxkldiv")
+    return [] (const std::unique_ptr<smarties::Episode> &a,
+               const std::unique_ptr<smarties::Episode> &b) {
+      return a->avgKLDivergence < b->avgKLDivergence;
+    };
+  else
+  if (setting == "minerror")
+    // eps with small TD error are in the back:
+    return [] (const std::unique_ptr<smarties::Episode> &a,
+               const std::unique_ptr<smarties::Episode> &b) {
+      return a->avgSquaredErr > b->avgSquaredErr;
+    };
+  else
+    return [] (const std::unique_ptr<smarties::Episode> &a,
+               const std::unique_ptr<smarties::Episode> &b) {
+      return a->ID > b->ID;
+    };
+}
 
-  // Safety measure: we don't use as delete condition "if Nobs > maxTotObsNum",
-  // We use "if Nobs - toDeleteEpisode.ndata() > maxTotObsNum".
-  // This avoids bugs if any single sequence is longer than maxTotObsNum.
-  // Has negligible effect if hyperparam maxTotObsNum is chosen appropriately.
-  if(stats.indexOfEpisodeToDelete >= 0)
+void readERfilterAlgo(const HyperParameters & S)
+{
+  const std::string setting = S.ERoldSeqFilter;
+  const int world_rank = MPICommRank(MPI_COMM_WORLD);
+  if(setting == "oldest") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: First In First Out.\n");
+  }
+  else if(setting == "farpolfrac") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove episode with most 'far policy' steps.\n");
+  }
+  else if(setting == "maxkldiv") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove episode with highest average DKL.\n");
+  }
+  else if(setting == "minerror") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: remove episode with minimum average TD-error.\n");
+  }
+  else if(setting == "default") {
+    if(world_rank == 0)
+    printf("Experience Replay storage: First In First Out.\n");
+  }
+  else die("ERoldSeqFilter not recognized");
+}
+
+void applyEpisodesRemovalAlgo(MemoryBuffer & RM)
+{
+  // Here we:
+  // 1) Sort episodes such that ones to delete are at the back.
+  // 2) Remove episodes from the RM if needed.
+  // 3) Update minibatch sampling distributions, must be done right after
+  //    removal of data from RM. This is reason why we bundle these 3 steps.
   {
+    const auto sortingFunction = getERfilterAlgo(RM.settings);
+    // lock dataset, no more insertions:
+    std::lock_guard<std::mutex> lock(RM.dataset_mutex);
+    std::sort(RM.episodes.begin(), RM.episodes.end(), sortingFunction);
+    // Safety measure: we don't use as delete condition "if Nobs>maxTotObsNum",
+    // We use "if Nobs - toDeleteEpisode.ndata() > maxTotObsNum".
+    // This avoids bugs if any single sequence is longer than maxTotObsNum.
+    // Has negligible effect if hyperparam maxTotObsNum is chosen appropriately.
     const long maxTotObs = RM.settings.maxTotObsNum_local; // for MPI-learners
-    const long nDataToDelete = RM.get(stats.indexOfEpisodeToDelete).ndata();
-    if(RM.nStoredSteps() - nDataToDelete > maxTotObs)
+    while (RM.nStoredSteps() - (long) RM.episodes.back()->nsteps() > maxTotObs)
     {
-      //warn("Deleting episode");
-      RM.removeEpisode(stats.indexOfEpisodeToDelete);
+      RM.removeBackEpisode();
       RM.stats.nPrunedEps ++;
     }
-    RM.stats.indexOfEpisodeToDelete = -1;
   }
-
-  RM.sampler->prepare(RM.needs_pass); // update sampling algorithm
+  RM.updateSampler(); // update sampling algorithm
 }
 
 void histogramImportanceWeights(const MemoryBuffer & RM)
@@ -398,7 +427,7 @@ returnsEstimator_f createReturnEstimator(const MemoryBuffer & RM)
     const Fval coef = (1-gamma);
     //const Fval baseline = RM.stats.avgAbsError;
     static constexpr Real EPS = std::numeric_limits<float>::epsilon();
-    const Fval baseline = std::sqrt(std::max(EPS, RM.stats.avgSquaredErr));
+    const Fval baseline = std::sqrt(std::max(EPS, RM.stats.maxAbsError));
     ret = [=](const Episode& EP, const Uint t) {
       return computeRetraceExplBonus(EP, t, baseline, coef, gamma, lambda);
     };

@@ -48,7 +48,6 @@ public:
 
   // some algorithm hyper-parameters:
   const Real gamma = settings.gamma;
-  const FORGET ERFILTER;
 
 protected:
   int algoSubStepID = -1;

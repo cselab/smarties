@@ -19,6 +19,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 # List of options
 
 option(COMPILE_PY_SO "Compile Python bindings" ON)
+option(SINGLE_PRECISION "Use float32 for neural networks operations" ON)
 
 # Smarties library
 
@@ -86,6 +87,10 @@ target_compile_options(${smarties_core} PUBLIC
   $<$<CONFIG:Debug>:-O0;-g>
   $<$<CONFIG:Release>:-DNDEBUG;-O3;-ffast-math>
   )
+
+if (COMPILE_PY_SO)
+target_compile_options(${smarties_core} PUBLIC -DSINGLE_PREC)
+endif()
 
 # include flags
 # here interface since no internal source include the following directory

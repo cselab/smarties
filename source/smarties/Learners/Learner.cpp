@@ -19,8 +19,9 @@ namespace smarties
 
 Learner::Learner(MDPdescriptor& MD, HyperParameters& S, ExecutionInfo& D):
   distrib(D), settings(S), MDP(MD),
-  ERFILTER(MemoryProcessing::readERfilterAlgo(S)),
-  data(std::make_unique<MemoryBuffer>(MDP, settings, distrib)) {}
+  data(std::make_unique<MemoryBuffer>(MDP, settings, distrib)) {
+    MemoryProcessing::readERfilterAlgo(S); // just a printout
+  }
 
 Learner::~Learner()
 {
@@ -60,7 +61,7 @@ void Learner::initializeLearner()
   data->counters.nGatheredB4Startup = data->nLocalSeenSteps();
   _nObsB4StartTraining = nObsB4StartTraining;
 
-  data->updateSampler(true);
+  data->updateSampler();
   // Rewards second moment is computed right before actual training begins
   // therefore we need to recompute (rescaled) Retrace/GAE values for all
   // experiences collected before this point.
@@ -76,7 +77,7 @@ void Learner::processMemoryBuffer()
   const Uint currStep = nGradSteps()+1; //base class will advance this
   profiler->start("FILTER");
   //if (bRecomputeProperties) printf("Using C : %f\n", C);
-  MemoryProcessing::selectEpisodeToDelete(* data.get(), ERFILTER);
+  MemoryProcessing::updateTrainingStatistics(* data.get());
   if(currStep%1000==0) {
     profiler->stop_start("PRE");
     // update state mean/std with net's learning rate
@@ -84,7 +85,7 @@ void Learner::processMemoryBuffer()
     //MemoryProcessing::updateRewardsStats(* data.get());
   }
   profiler->stop_start("FIND");
-  MemoryProcessing::prepareNextBatchAndDeleteStaleEp(* data.get());
+  MemoryProcessing::applyEpisodesRemovalAlgo(* data.get());
 
   if (/* DISABLES CODE */ 0) {
     // This would act like a PID controller to keep Q mean 0 stdev 1

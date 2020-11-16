@@ -93,14 +93,15 @@ void DataCoordinator::distributePendingEpisodes()
   std::lock_guard<std::mutex> lockQueue(complete_mutex);
   while ( episodes.size() )
   {
-    Episode & EP = episodes.back();
-    if (sharingDest == sharingRank) replay->pushBackEpisode(EP);
-    else {
+    if (sharingDest == sharingRank)
+      replay->pushBackEpisode(std::move(episodes.back()));
+    else
+    {
       assert(bLearnersEpsSharing);
       const int dest = sharingDest, tag = 737283+MDPID;
       if( sharingReq[dest] not_eq MPI_REQUEST_NULL)
         MPI(Wait, & sharingReq[dest], MPI_STATUS_IGNORE);
-      sharingSeq[dest] = EP.packEpisode();
+      sharingSeq[dest] = episodes.back()->packEpisode();
       MPI(Isend, sharingSeq[dest].data(), sharingSeq[dest].size(),
           SMARTIES_MPI_Fval, dest, tag, sharingComm, & sharingReq[dest]);
     }
@@ -132,18 +133,9 @@ void DataCoordinator::mastersRecvEpisodes()
   if(sharingComm not_eq MPI_COMM_NULL)
   {
     const Fvec sharedEP = recvEp(sharingComm, status);
-    if(sharedEP.size()) {
-      Episode tmp(sharedEP, MDP);
-      replay->pushBackEpisode(tmp);
-    }
+    if(sharedEP.size())
+      replay->pushBackEpisode(std::make_unique<Episode>(sharedEP, MDP));
   }
-  /*{ // IS THIS NEEDED???
-    if( sharingReq[source] not_eq MPI_REQUEST_NULL) {
-      int complete = 0;
-      MPI(Test, &  sharingReq[source], &complete, MPI_STATUS_IGNORE);
-      if(complete) assert(sharingReq[source] == MPI_REQUEST_NULL);
-    }
-  } */
 
   assert(allTasksPtr not_eq nullptr);
   // if all learners are locking data acquisition we do not recv eps from worker
@@ -162,10 +154,10 @@ void DataCoordinator::mastersRecvEpisodes()
 
     // data sharing among masters:
     if (sharingDest == sharingRank) { // keep the episode
-      Episode tmp(workersEP, MDP);
-      assert(nStep == tmp.ndata() + 1);
+      auto EP = std::make_unique<Episode>(workersEP, MDP);
+      assert(nStep == EP->ndata() + 1);
       //printf("%lu storing new sequence of size %lu\n", MDPID, tmp.ndata());
-      replay->pushBackEpisode(tmp);
+      replay->pushBackEpisode(std::move(EP));
     } else {                          // send the episode to an other master
       const int dest = sharingDest, tag = 737283+MDPID;
       if( sharingReq[dest] not_eq MPI_REQUEST_NULL)
@@ -188,25 +180,25 @@ void DataCoordinator::mastersRecvEpisodes()
 }
 
 // called externally
-void DataCoordinator::addComplete(Episode& EP, const bool bUpdateParams)
+void DataCoordinator::addComplete(std::unique_ptr<Episode> EP,
+                                  const bool bUpdateParams)
 {
   if(bLearnersEpsSharing)
   {
     assert(distrib.bIsMaster);
     std::lock_guard<std::mutex> lock(complete_mutex);
-    episodes.emplace_back(std::move(EP));
+    episodes.push_back(std::move(EP));
   }
   else if(bRunParameterServer)
   {
     // if we created data structures for worker to send eps to master
     // this better be a worker!
     assert(workerRank>0 && workerSize>1 && not distrib.bIsMaster);
-    const Fvec MSG = EP.packEpisode();
+    const Fvec MSG = EP->packEpisode();
     #ifndef NDEBUG
-      Episode tmp(MSG, MDP);
-      assert(EP.isEqual(tmp));
+      const auto tmp = std::make_unique<Episode>(MSG, MDP);
+      assert(EP->isEqual(* tmp.get()));
     #endif
-    EP.clear();
     //printf("storing new sequence of size %lu\n", tmp.ndata());
     //in theory this lock is unnecessary because all ops here are locking and
     //master processes one after the other (i.e. other threads will wait)
@@ -225,7 +217,7 @@ void DataCoordinator::addComplete(Episode& EP, const bool bUpdateParams)
   else // data stays here
   {
     //_warn("%lu stored episode of size %lu", MDPID,EP->ndata() );
-    replay->pushBackEpisode(EP);
+    replay->pushBackEpisode(std::move(EP));
   }
 }
 

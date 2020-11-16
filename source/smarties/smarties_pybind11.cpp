@@ -3,10 +3,6 @@
 #include "Communicator.h"
 #include "Engine.h"
 
-#define PYBIND11_HAS_OPTIONAL 0
-#define PYBIND11_HAS_EXP_OPTIONAL 0
-#define PYBIND11_HAS_VARIANT 0
-
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>

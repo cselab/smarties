@@ -78,14 +78,14 @@ std::vector<Fval> Episode::packEpisode()
   memcpy(charPos, &bReachedTermState, sizeof(bool)); charPos += sizeof(bool);
   memcpy(charPos, &          ID, sizeof(Sint)); charPos += sizeof(Sint);
   memcpy(charPos, &just_sampled, sizeof(Sint)); charPos += sizeof(Sint);
-  memcpy(charPos, &      prefix, sizeof(Uint)); charPos += sizeof(Uint);
   memcpy(charPos, &     agentID, sizeof(Sint)); charPos += sizeof(Sint);
 
   // assert(buf - ret.data() == (ptrdiff_t) totalSize);
   return ret;
 }
 
-void Episode::save(FILE * f) {
+void Episode::save(FILE * f)
+{
   const Uint seq_len = states.size();
   fwrite(& seq_len, sizeof(Uint), 1, f);
   Fvec buffer = packEpisode();
@@ -111,9 +111,9 @@ void Episode::unpackEpisode(const std::vector<Fval>& data)
   /////////////////////////////////////////////////////////////////////////////
   returnEstimator = std::vector<nnReal>(buf, buf + N); buf += N;
   actionAdvantage = std::vector<nnReal>(buf, buf + N); buf += N;
-  stateValue = std::vector<nnReal>(buf, buf + N); buf += N;
+  stateValue      = std::vector<nnReal>(buf, buf + N); buf += N;
   /////////////////////////////////////////////////////////////////////////////
-  deltaValue = std::vector<Fval>(buf, buf + N); buf += N;
+  deltaValue   = std::vector<Fval>(buf, buf + N); buf += N;
   offPolicImpW = std::vector<Fval>(buf, buf + N); buf += N;
   KullbLeibDiv = std::vector<Fval>(buf, buf + N); buf += N;
   /////////////////////////////////////////////////////////////////////////////
@@ -126,7 +126,6 @@ void Episode::unpackEpisode(const std::vector<Fval>& data)
   memcpy(&bReachedTermState, charPos, sizeof(bool)); charPos += sizeof(bool);
   memcpy(&          ID, charPos, sizeof(Sint)); charPos += sizeof(Sint);
   memcpy(&just_sampled, charPos, sizeof(Sint)); charPos += sizeof(Sint);
-  memcpy(&      prefix, charPos, sizeof(Uint)); charPos += sizeof(Uint);
   memcpy(&     agentID, charPos, sizeof(Sint)); charPos += sizeof(Sint);
 }
 
@@ -179,7 +178,6 @@ bool Episode::isEqual(const Episode & S) const
   if(S.bReachedTermState not_eq bReachedTermState) assert(false && "ended");
   if(S.ID           not_eq ID          ) assert(false && "ID");
   if(S.just_sampled not_eq just_sampled) assert(false && "just_sampled");
-  if(S.prefix       not_eq prefix      ) assert(false && "prefix");
   if(S.agentID      not_eq agentID     ) assert(false && "agentID");
   return true;
 }
@@ -215,28 +213,32 @@ std::vector<float> Episode::logToFile(const Uint iterStep) const
 void Episode::updateCumulative(const Fval C, const Fval invC)
 {
   const Uint N = ndata();
-  Uint nOverFarPol = 0, nUndrFarPol = 0;
-  Fval _sumE2=0, _sumAE=0, _maxQ = -1e9, _sumQ2=0, _minQ = 1e9, _sumQ1=0;
+  const Fval invN = 1 / (Fval) N;
+  Uint nFarPol = 0;
+  Fval _sumE2=0, _maxAE = -1e9, _maxQ = -1e9, _sumQ2=0, _minQ = 1e9, _sumQ1=0;
   for (Uint t = 0; t < N; ++t) {
     // float precision may cause DKL to be slightly negative:
     assert(KullbLeibDiv[t] >= - FVAL_EPS && offPolicImpW[t] >= 0);
     // sequence is off policy if offPol W is out of 1/C : C
-    if (offPolicImpW[t] >    C) nOverFarPol++;
-    if (offPolicImpW[t] < invC) nUndrFarPol++;
+    if (offPolicImpW[t] > C or offPolicImpW[t] < invC) ++nFarPol;
     _sumE2 += deltaValue[t] * deltaValue[t];
-    _sumAE += std::fabs(deltaValue[t]);
+    _maxAE  = std::max(_maxAE, std::fabs(deltaValue[t]));
     const Fval Q = actionAdvantage[t] + stateValue[t];
-    _maxQ = std::max(maxQ, Q); _sumQ2 += Q*Q;
-    _minQ = std::min(minQ, Q); _sumQ1 += Q;
+    _maxQ   = std::max(_maxQ,  Q);
+    _minQ   = std::min(_minQ,  Q);
+    _sumQ2 += Q*Q;
+    _sumQ1 += Q;
   }
-  nFarOverPolSteps = nOverFarPol; nFarUndrPolSteps = nUndrFarPol;
-  sumSquaredErr = _sumE2; sumAbsError = _sumAE;
-  sumSquaredQ   = _sumQ2; sumQ = _sumQ1;
-  maxQ = _maxQ; minQ = _minQ;
-
+  fracFarPolSteps = invN * nFarPol;
+  avgSquaredErr   = invN * _sumE2;
+  maxAbsError     = _maxAE;
+  sumSquaredQ     = _sumQ2;
+  sumQ            = _sumQ1;
+  maxQ            = _maxQ;
+  minQ            = _minQ;
   assert(std::fabs(rewards[0])<1e-16);
   totR = Utilities::sum(rewards);
-  sumKLDivergence = Utilities::sum(KullbLeibDiv);
+  avgKLDivergence = invN * Utilities::sum(KullbLeibDiv);
 }
 
 void Episode::finalize(const Uint index)
@@ -250,7 +252,8 @@ void Episode::finalize(const Uint index)
   deltaValue.resize(N, 0);
   KullbLeibDiv.resize(N, 0);
   // off pol and priority importance weights are initialized to 1
-  offPolicImpW.resize(N, 1); offPolicImpW.back() = 0;
+  offPolicImpW.resize(N, 1);
+  offPolicImpW.back() = 0;
   priorityImpW.resize(N, 1);
   returnEstimator.resize(N, 0);
 
@@ -261,4 +264,12 @@ void Episode::finalize(const Uint index)
     assert(std::fabs(totR-dbg_sumR)/dbg_norm < 100*FVAL_EPS);
   #endif
 }
+
+void Episode::initPreTrainErrorPlaceholder(const Fval maxError)
+{
+  deltaValue = Fvec(nsteps(), maxError);
+  avgSquaredErr = maxError * maxError;
+  maxAbsError = maxError;
+}
+
 }

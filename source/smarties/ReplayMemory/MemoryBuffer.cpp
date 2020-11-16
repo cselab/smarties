@@ -28,11 +28,12 @@ MemoryBuffer::MemoryBuffer(MDPdescriptor& M, HyperParameters& S, ExecutionInfo& 
 {
   episodes.reserve(settings.maxTotObsNum);
   inProgress.reserve(distrib.nAgents);
-  for (Uint i=0; i<distrib.nAgents; ++i) inProgress.push_back(MDP);
+  for (Uint i=0; i<distrib.nAgents; ++i)
+    inProgress.push_back(std::make_unique<Episode>(MDP));
 
   LDvec initGuessStateRewStats(MDP.dimStateObserved * 2 + 3, 0);
   for(Uint i=0; i<MDP.dimStateObserved; ++i)
-    initGuessStateRewStats[i + MDP.dimStateObserved] = 0;
+    initGuessStateRewStats[i + MDP.dimStateObserved] = 1;
   initGuessStateRewStats[MDP.dimStateObserved*2] = 1;
   initGuessStateRewStats[MDP.dimStateObserved*2 + 2] = 1;
   StateRewRdx.update(initGuessStateRewStats);
@@ -50,7 +51,7 @@ void MemoryBuffer::storeState(Agent&a)
 {
   assert(a.ID < inProgress.size());
   //assert(replay->MDP.localID == a.localID);
-  Episode & S = inProgress[a.ID];
+  Episode & S = this->getInProgress(a.ID);
   const Fvec storedState = a.getObservedState<Fval>();
 
   if(a.trackEpisodes == false) {
@@ -75,10 +76,10 @@ void MemoryBuffer::storeState(Agent&a)
       bool same = true;
       const Fvec vecSold = a.getObservedOldState<Fval>();
       const Fvec memSold = S.states.back();
-      static constexpr Fval fEPS = std::numeric_limits<Fval>::epsilon();
+      static constexpr Fval EPS = std::numeric_limits<Fval>::epsilon();
       for (Uint i=0; i<vecSold.size() && same; ++i) {
-        auto D = std::max({std::fabs(memSold[i]), std::fabs(vecSold[i]), fEPS});
-        same = same && std::fabs(memSold[i]-vecSold[i])/D < 100*fEPS;
+        auto D = std::max({std::fabs(memSold[i]), std::fabs(vecSold[i]), EPS});
+        same = same && std::fabs(memSold[i]-vecSold[i])/D < 100*EPS;
       }
       //debugS("Agent %s and %s",print(vecSold).c_str(),print(memSold).c_str());
       if (!same) _die("Unexpected termination of EP a %u step %u seqT %lu\n",
@@ -100,30 +101,32 @@ void MemoryBuffer::storeState(Agent&a)
 void MemoryBuffer::storeAction(const Agent& a)
 {
   assert(a.agentStatus < LAST);
+  Episode & S = this->getInProgress(a.ID);
   if(a.trackEpisodes == false) {
     // do not store more stuff in sequence but also do not track data counter
-    inProgress[a.ID].actions = std::vector<Rvec>{ a.action };
-    inProgress[a.ID].policies = std::vector<Rvec>{ a.policyVector };
+    S.actions  = std::vector<Rvec>{ a.action };
+    S.policies = std::vector<Rvec>{ a.policyVector };
     return;
   }
 
   if(a.agentStatus not_eq INIT) increaseLocalSeenSteps();
-  inProgress[a.ID].actions.push_back( a.action );
-  inProgress[a.ID].policies.push_back( a.policyVector );
+  S.actions.push_back( a.action );
+  S.policies.push_back(a.policyVector);
 }
 
 // If the state is terminal, instead of calling `add_action`, call this:
 void MemoryBuffer::terminateCurrentEpisode(Agent&a)
 {
+  Episode & S = this->getInProgress(a.ID);
   //either do not store episode, or algorithm already did this (e.g. CMA):
-  if(a.trackEpisodes == false or inProgress[a.ID].nsteps() == 0) return;
+  if(a.trackEpisodes == false or S.nsteps() == 0) return;
   assert(a.agentStatus >= LAST);
   // fill empty action and empty policy: last step of episode never has actions
   const Rvec dummyAct = Rvec(aI.dim(), 0), dummyPol = Rvec(aI.dimPol(), 0);
   a.resetActionNoise();
   a.setAction(dummyAct, dummyPol);
-  inProgress[a.ID].actions.push_back( dummyAct );
-  inProgress[a.ID].policies.push_back( dummyPol );
+  S.actions.push_back( dummyAct );
+  S.policies.push_back( dummyPol );
 
   addEpisodeToTrainingSet(a);
 }
@@ -132,40 +135,35 @@ void MemoryBuffer::terminateCurrentEpisode(Agent&a)
 void MemoryBuffer::addEpisodeToTrainingSet(const Agent& a)
 {
   assert(a.ID < inProgress.size());
-  if(inProgress[a.ID].nsteps() < 2) die("Seq must at least have s0 and sT");
+  Episode & S = this->getInProgress(a.ID);
+  if(S.nsteps() < 2) die("Episode must at least have s0 and sT");
 
   const long tStamp = std::max(nLocTimeStepsTrain(), (long)0);
-  inProgress[a.ID].finalize(tStamp);
-  MemoryProcessing::computeReturnEstimator(* this, inProgress[a.ID]);
+  S.finalize(tStamp);
+  MemoryProcessing::computeReturnEstimator(* this, S);
+
+  std::unique_ptr<Episode> EP = std::make_unique<Episode>(MDP);
+  bool fullEnvReset = true;
 
   if(sharing->bRunParameterServer)
   {
     // Check whether this agent is last agent of environment to call terminate.
     // This is only relevant in the case of learners on workers who receive
-    // params from master, therefore bool can be incorrect in all other cases.
-    // It only matters if multiple agents in env belong to same learner.
-    // To ensure thread safety, we must use mutex and check that this agent is
-    // last to reset the sequence.
+    // params from master. It only matters if multiple agents in env belong to
+    // same learner. To ensure thread safety, we must use mutex and check that
+    // this agent is last to reset the sequence.
     assert(distrib.bIsMaster == false);
-    bool fullEnvReset = true;
-    std::unique_lock<std::mutex> lock(envTerminationCheck);
-    for(Uint i=0; i<inProgress.size(); ++i){
-      //printf("%lu ", inProgress[i].nsteps());
-      if (i == a.ID or inProgress[i].agentID < 0) continue;
-      fullEnvReset = fullEnvReset && inProgress[i].nsteps() == 0;
+    std::lock_guard<std::mutex> lock(envTerminationCheck);
+    for (Uint i=0; i<inProgress.size(); ++i) {
+      if (i == a.ID or inProgress[i]->agentID < 0) continue;
+      fullEnvReset = fullEnvReset && inProgress[i]->nsteps() == 0;
     }
-    //printf("\n");
-    Episode EP = std::move(inProgress[a.ID]);
-    assert(inProgress[a.ID].nsteps() == 0);
-    //Unlock with empy inProgress, such that next agent can check if it is last.
-    lock.unlock();
-    sharing->addComplete(EP, fullEnvReset);
-  }
-  else
-  {
-    sharing->addComplete(inProgress[a.ID], true);
-    assert(inProgress[a.ID].nsteps() == 0);
-  }
+    //Unlock with empy inProgress, such that next agent can check if it is last:
+    std::swap(EP, inProgress[a.ID]);
+  } else std::swap(EP, inProgress[a.ID]);
+
+  assert(inProgress[a.ID]->nsteps() == 0);
+  sharing->addComplete(std::move(EP), fullEnvReset);
 
   increaseLocalSeenSteps();
   increaseLocalSeenEps();
@@ -241,30 +239,31 @@ void MemoryBuffer::restart(const std::string base)
     long nInitialData = 0, doneGradSteps = 0;
     Uint pass = 1;
     pass = pass && 1==fscanf(fstat, "nStoredEps: %lu\n", &nStoredEpisodes);
+    counters.nEpisodes = nStoredEpisodes;
     pass = pass && 1==fscanf(fstat, "nStoredObs: %lu\n", &nStoredObservations);
+    counters.nTransitions = nStoredObservations;
     pass = pass && 1==fscanf(fstat, "nLocalSeenEps: %lu\n", &nLocalSeenEps);
+    counters.nSeenEpisodes_loc = nLocalSeenEps;
     pass = pass && 1==fscanf(fstat, "nLocalSeenObs: %lu\n", &nLocalSeenObs);
+    counters.nSeenTransitions_loc = nLocalSeenObs;
     pass = pass && 1==fscanf(fstat, "nInitialData: %ld\n", &nInitialData);
+    counters.nGatheredB4Startup = nInitialData;
     pass = pass && 1==fscanf(fstat, "nGradSteps: %ld\n", &doneGradSteps);
+    counters.nGradSteps = doneGradSteps;
     pass = pass && 1==fscanf(fstat, "CmaxReFER: %le\n", &CmaxRet);
+    CinvRet = 1 / CmaxRet;
     pass = pass && 1==fscanf(fstat, "beta: %le\n", &beta);
     assert(doneGradSteps >= 0 && pass == 1);
     fclose(fstat);
-    counters.nSeenTransitions_loc = nLocalSeenObs;
-    counters.nSeenEpisodes_loc = nLocalSeenEps;
-    counters.nTransitions = nStoredObservations;
-    counters.nEpisodes = nStoredEpisodes;
-    counters.nGradSteps = doneGradSteps;
-    counters.nGatheredB4Startup = nInitialData;
   }
 
   {
     episodes.reserve(counters.nEpisodes);
     for(long i = 0; i < counters.nEpisodes; ++i) {
-      episodes.push_back(MDP);
-      if( episodes[i].restart(fdata) )
+      episodes.push_back(std::make_unique<Episode>(MDP));
+      if( episodes.back()->restart(fdata) )
         _die("Unable to find sequence %u\n", i);
-      episodes[i].updateCumulative(CmaxRet, CinvRet);
+      episodes.back()->updateCumulative(CmaxRet, CinvRet);
     }
     fclose(fdata);
   }
@@ -317,7 +316,7 @@ void MemoryBuffer::save(const std::string base)
 
   FILE * const fdata = fopen((fName + "data_backup.raw").c_str(), "wb");
   assert(fdata != NULL);
-  for(Uint i = 0; i <nStoredEpisodes; ++i) episodes[i].save(fdata);
+  for(Uint i = 0; i <nStoredEpisodes; ++i) episodes[i]->save(fdata);
   fflush(fdata); fclose(fdata);
 
   Utilities::copyFile(fName + "status_backup.raw", fName + "status.raw");
@@ -331,21 +330,21 @@ void MemoryBuffer::clearAll()
   episodes.clear(); //clear trajectories used for learning
   counters.nTransitions = 0;
   counters.nEpisodes = 0;
-  needs_pass = true;
 }
 
 Uint MemoryBuffer::clearOffPol(const Real C, const Real tol)
 {
   std::lock_guard<std::mutex> lock(dataset_mutex);
   Uint i = 0;
-  while(1) {
-    if(i >= episodes.size()) break;
+  while (i < episodes.size())
+  {
     Uint _nOffPol = 0;
-    const auto& EP = episodes[i];
+    const auto & EP = this->get(i);
     const Uint N = EP.ndata();
     for(Uint j=0; j<N; ++j)
       _nOffPol += EP.offPolicImpW[j] > 1+C || EP.offPolicImpW[j] < 1-C;
-    if(_nOffPol > tol*N) {
+    if(_nOffPol > tol*N)
+    {
       std::swap(episodes[i], episodes.back());
       counters.nEpisodes --;
       counters.nTransitions -= N;
@@ -354,7 +353,6 @@ Uint MemoryBuffer::clearOffPol(const Real C, const Real tol)
     }
     else ++i;
   }
-  needs_pass = true;
   return nStoredSteps();
 }
 
@@ -369,7 +367,9 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
     // remember which episodes were just sampled:
     lastSampledEps = sampleEID;
     std::sort(lastSampledEps.begin(), lastSampledEps.end());
-    lastSampledEps.erase( std::unique(lastSampledEps.begin(), lastSampledEps.end()), lastSampledEps.end() );
+    lastSampledEps.erase(std::unique(lastSampledEps.begin(),
+                                     lastSampledEps.end()),
+                         lastSampledEps.end());
   }
 
   MiniBatch ret(batchSize);
@@ -377,7 +377,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
   #pragma omp parallel for schedule(static)
   for(Uint b=0; b<batchSize; ++b)
   {
-    ret.episodes[b] = & episodes[ sampleEID[b] ];
+    ret.episodes[b] = episodes[ sampleEID[b] ].get();
     ret.episodes[b]->setSampled(sampleT[b]);
     const Uint nEpSteps = ret.episodes[b]->nsteps();
     if (settings.bSampleEpisodes)
@@ -405,7 +405,7 @@ MiniBatch MemoryBuffer::sampleMinibatch(const Uint batchSize,
     const Uint nSteps = ret.endTimeStep[b] - ret.begTimeStep[b];
     ret.resizeStep(b, nSteps);
   }
-  const std::vector<Episode*>& sampleE = ret.episodes;
+  const std::vector<Episode*> & sampleE = ret.episodes;
   const nnReal impSampAnneal = std::min( (Real)1, stepID*settings.epsAnneal);
   const nnReal annealExp = 0.5 + 0.5 * impSampAnneal; //a.k.a. beta in PER paper
   const bool bReqImpSamp = bRequireImportanceSampling();
@@ -440,13 +440,13 @@ bool MemoryBuffer::bRequireImportanceSampling() const
 MiniBatch MemoryBuffer::agentToMinibatch(const Uint ID)
 {
   MiniBatch ret(1);
-  ret.episodes[0] = & inProgress[ID];
+  ret.episodes[0] = inProgress[ID].get();
   if (settings.bSampleEpisodes) {
     // we may have to update estimators from S_{0} to S_{T_1}
     ret.begTimeStep[0] = 0;        // prepare to compute for steps from init
-    ret.endTimeStep[0] = inProgress[ID].nsteps(); // to current step
+    ret.endTimeStep[0] = inProgress[ID]->nsteps(); // to current step
   } else {
-    const Uint currStep = inProgress[ID].nsteps() - 1;
+    const Uint currStep = inProgress[ID]->nsteps() - 1;
     // if t=0 always zero recurrent steps, t=1 one, and so on, up to nMaxBPTT
     const bool bRecurr = settings.bRecurrent || MDP.isPartiallyObservable;
     const Uint nRecurr = bRecurr? std::min(settings.nnBPTTseq, currStep) : 0;
@@ -454,68 +454,68 @@ MiniBatch MemoryBuffer::agentToMinibatch(const Uint ID)
     ret.begTimeStep[0] = currStep - nRecurr;
     ret.endTimeStep[0] = currStep + 1;
   }
-  ret.sampledTimeStep[0] = inProgress[ID].nsteps() - 1;
+  ret.sampledTimeStep[0] = inProgress[ID]->nsteps() - 1;
   // number of states to process ( also, see why we used sampleT[b]+2 )
   const Uint nSteps = ret.endTimeStep[0] - ret.begTimeStep[0];
   ret.resizeStep(0, nSteps);
   for(Sint t=ret.begTimeStep[0]; t<ret.endTimeStep[0]; ++t)
   {
-    ret.state(0, t) = inProgress[ID].standardizedState<nnReal>(t);
-    ret.reward(0, t) = inProgress[ID].scaledReward(t);
+    ret.state(0, t) = inProgress[ID]->standardizedState<nnReal>(t);
+    ret.reward(0, t) = inProgress[ID]->scaledReward(t);
   }
   return ret;
 }
 
-void MemoryBuffer::removeEpisode(const Uint ind)
+void MemoryBuffer::removeBackEpisode()
 {
   assert(counters.nEpisodes > 0);
-  std::lock_guard<std::mutex> lock(dataset_mutex);
-  assert(counters.nTransitions >= (long) episodes[ind].ndata());
+  assert(counters.nTransitions >= (long) episodes.back()->ndata());
   counters.nEpisodes --;
-  needs_pass = true;
-  counters.nTransitions -= episodes[ind].ndata();
-  std::swap(episodes[ind], episodes.back());
+  counters.nTransitions -= episodes.back()->ndata();
   episodes.pop_back();
   assert(counters.nEpisodes == (long) episodes.size());
 }
 
-void MemoryBuffer::pushBackEpisode(Episode & seq)
+void MemoryBuffer::pushBackEpisode(std::unique_ptr<Episode> e)
 {
   const bool logSample =  distrib.logAllSamples==1 ||
-                         (distrib.logAllSamples==2 && seq.agentID==0);
+                         (distrib.logAllSamples==2 && e->agentID==0);
   char pathRew[2048], pathObs[2048], rewArg[1024];
   const long nGrads = nGradSteps();
   const long tStamp = std::max(nLocTimeStepsTrain(), (long)0);
+  static constexpr Real EPS = std::numeric_limits<float>::epsilon();
+  e->initPreTrainErrorPlaceholder(std::sqrt(std::max(EPS,stats.avgSquaredErr)));
+  //e->initPreTrainErrorPlaceholder(std::max(EPS,stats.maxAbsError));
+  const unsigned nsteps = e->nsteps(), ndata = e->ndata();
+
   if(logSample) {
     const int wrank = MPICommRank(distrib.world_comm);
     snprintf(rewArg, 1024, "%ld %ld %d %u %f", nGrads, tStamp,
-              (int) seq.agentID, (unsigned) seq.nsteps(), seq.totR);
+              (int) e->agentID, (unsigned) nsteps, e->totR);
     snprintf(pathRew, 2048, "%s/agent_%02u_rank_%03d_cumulative_rewards.dat",
               distrib.initial_runDir, (unsigned) learnID, wrank);
     snprintf(pathObs, 2048, "%s/agent_%02u_rank_%03d_obs.raw",
               distrib.initial_runDir, (unsigned) learnID, wrank);
   }
 
-  const auto log = logSample? seq.logToFile(tStamp) : std::vector<float>(0);
+  const auto log = logSample? e->logToFile(tStamp) : std::vector<float>(0);
 
   std::lock_guard<std::mutex> lock(dataset_mutex);
   assert(counters.nEpisodes == (long) episodes.size());
 
   if(logSample) {
     FILE * pFile = fopen (pathRew, "a");
-    fprintf (pFile, "%s\n", rewArg); fflush (pFile); fclose (pFile);
+    fprintf (pFile, "%s\n", rewArg);
+    fflush (pFile); fclose (pFile);
     pFile = fopen (pathObs, "ab");
     fwrite (log.data(), sizeof(float), log.size(), pFile);
-    fflush(pFile); fclose(pFile);
+    fflush (pFile); fclose (pFile);
   }
 
-  const size_t ind = episodes.size(), len = seq.ndata();
-  seq.ID = tStamp;
-  seq.prefix = ind>0? episodes[ind-1].prefix + episodes[ind-1].ndata() : 0;
-  episodes.emplace_back(std::move(seq));
+  e->ID = tStamp;
+  episodes.push_back(std::move(e));
   counters.nEpisodes ++;
-  counters.nTransitions += len;
-  needs_pass = true;
+  counters.nTransitions += ndata;
   assert(counters.nEpisodes == (long) episodes.size());
 }
 
@@ -529,9 +529,9 @@ void MemoryBuffer::getMetrics(std::ostringstream& buff)
   if( stats.minQ < stats.maxQ ) // else Q stats not collected
   {
     static constexpr Real EPS = std::numeric_limits<float>::epsilon();
-    stats.avgSquaredErr = std::max(EPS,stats.avgSquaredErr);
+    stats.avgSquaredErr = std::max(EPS, stats.avgSquaredErr);
     Utilities::real2SS(buff, std::sqrt(stats.avgSquaredErr), 6, 1);
-    //Utilities::real2SS(buff, stats.avgAbsError, 6, 1);
+    Utilities::real2SS(buff, stats.maxAbsError, 6, 1);
     if(stats.countReturnsEstimateUpdates > 0) {
       const Sint nRet = std::max((Sint) 1, stats.countReturnsEstimateUpdates);
       const Real eRet = std::max(EPS, stats.sumReturnsEstimateErrors);
@@ -552,9 +552,8 @@ void MemoryBuffer::getMetrics(std::ostringstream& buff)
   buff<<" "<<std::setw(7)<<nStoredSteps();
   buff<<" "<<std::setw(7)<<nSeenEps();
   buff<<" "<<std::setw(8)<<nSeenSteps();
-  buff<<" "<<std::setw(7)<<stats.oldestStoredTimeStamp;
   //buff<<" "<<std::setw(4)<<stats.nPrunedEps;
-  buff<<" "<<std::setw(6)<<stats.nFarPolicySteps;
+  buff<<" "<<std::setw(7)<<stats.nFarPolicySteps;
   if(CmaxRet>1) {
     //Utilities::real2SS(buf, alpha, 6, 1);
     Utilities::real2SS(buff, beta, 6, 1);
@@ -567,23 +566,22 @@ void MemoryBuffer::getHeaders(std::ostringstream& buff)
   buff << "|  avgR  | avgr | stdr | DKL ";
   if( stats.minQ < stats.maxQ ) { // else Q stats not collected
     if(stats.countReturnsEstimateUpdates>=0)
-        buff << "| RMSE | dRet | stdQ | avgQ | minQ | maxQ ";
-    else         buff << "| RMSE | stdQ | avgQ | minQ | maxQ ";
+         buff << "| RMSE |maxErr| dRet | stdQ | avgQ | minQ | maxQ ";
+    else buff << "| RMSE |maxErr| stdQ | avgQ | minQ | maxQ ";
   }
   //buff << "| nEp |  nObs | totEp | totObs | oldEp |nDel|nFarP ";
-  buff << "| nEp |  nObs | totEp | totObs | oldEp |nFarP ";
+  buff << "| nEp |  nObs | totEp | totObs | nFarP ";
   if(CmaxRet>1) buff << "| beta ";
-}
-
-void MemoryBuffer::updateSampler(const bool bForce)
-{
-  if(bForce) needs_pass = true;
-  sampler->prepare(needs_pass);
 }
 
 void MemoryBuffer::setupDataCollectionTasks(TaskQueue& tasks)
 {
   sharing->setupTasks(tasks);
+}
+
+void MemoryBuffer::updateSampler()
+{
+  sampler->prepare();
 }
 
 MemoryBuffer::~MemoryBuffer()
@@ -596,7 +594,7 @@ void MemoryBuffer::checkNData()
   #ifndef NDEBUG
     long cntSamp = 0;
     for(Uint i=0; i<episodes.size(); ++i) {
-      cntSamp += episodes[i].ndata();
+      cntSamp += episodes[i]->ndata();
     }
     assert(counters.nTransitions == cntSamp);
     assert(counters.nEpisodes == (long) episodes.size());

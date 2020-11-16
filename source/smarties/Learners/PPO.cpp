@@ -102,7 +102,7 @@ void PPO<Policy_t, Action_t>::setupTasks(TaskQueue& tasks)
     profiler->stop();
     spawnTrainTasks();
     updatePenalizationCoef();
-    MemoryProcessing::selectEpisodeToDelete(* data.get(), ERFILTER);
+    MemoryProcessing::updateTrainingStatistics(* data.get());
     algoSubStepID = 1;
     profiler->start("MPI");
   };

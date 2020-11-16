@@ -24,57 +24,67 @@ std::string HyperParameters::printArgComments()
   using json = nlohmann::json;
   json j;
   j["learner"] =
-    "Chosen learning algorithm. One of: "
-    "'RACER', 'VRACER', 'PPO', 'DPG', 'ACER', 'NAF', 'DQN', 'CMA', 'PYTORCH'.";
-  //
-  j["explNoise"] =
-    "Noise added to policy. For discrete policies it may be the probability of "
-    "picking a random action (detail depend on learning algo), for continuous "
-    "policies it is the (initial) standard deviation.";
-  //
-  j["gamma"] = "Discount factor.";
-  //
-  j["lambda"] = "Lambda for off-policy return-based estimators.";
-  //
-  j["obsPerStep"] =
-    "Ratio of observed *transitions* to gradient steps. E.g. 0.1 "
-    "means that for every observation learner does 10 gradient steps.";
-  //
-  j["clipImpWeight"] =
-    "Clipping range for off-policy importance weights. Corresponds to: C in "
-    "ReF-ER's Rule 1, epsilon in PPO's pol objective, c in ACER's truncation.";
-  //
-  j["penalTol"] =
-    "Tolerance used for adaptive off-policy penalization methods. "
-    "Currently corresponds only to D in ReF-ER's Rule 2.";
-  //
-  j["klDivConstraint"] =
-    "Constraint on max KL div. Corresponds to: d_targ in PPO's penalization, "
-    "delta in ACER's truncation and bias correction.";
-  //
-  j["targetDelay"] =
-    "Copy delay for Target Nets (TNs). If 0, TNs are disabled. If 'val'>1: "
-    "every 'val' grad steps network's W copied onto TN (like DQN). If 'val'<1: "
-    "every grad step TN updated by exp. averaging with rate 'val' (like DPG).";
-  //
-  j["epsAnneal"] =
-    "Annealing rate for various learning-algorithm-dependent behaviors.";
+    "Chosen learning algorithm. One of: 'RACER', 'VRACER', 'PPO', 'DPG', "
+    "'ACER', 'NAF', 'DQN', 'CMA', 'PYTORCH'. Defaults to VRACER.";
   //
   j["ERoldSeqFilter"] =
     "Filter algorithm to remove old episodes from memory buffer. Accepts: "
     "'oldest', 'farpolfrac', 'maxkldiv', 'minerror', or 'default'. Default "
-    "means 'oldest' for ER and 'farpolfrac' for ReFER.";
+    "means 'oldest' for ER and 'farpolfrac' for ReFER. Defaults to oldest.";
   //
-  j["dataSamplingAlgo"] = "Algorithm for sampling the Replay Buffer.";
+  j["dataSamplingAlgo"] = "Algorithm for sampling the Replay Buffer. One of: "
+  "'uniform', 'PERrank' (rank-based prioritized experience replay, PER), "
+  "'PERerr' (value-based PER), or 'PERseq' (value based PER, but with the "
+  "importance weights computed per-episode). Defaults to uniform.";
+  //
+  j["returnsEstimator"] = "Algorithm to estimate the on-policy returns. "
+  "Accepts: 'retrace', 'retraceExplore', 'GAE' or 'none'. Defaults to retrace.";
+  //
+  j["explNoise"] =
+    "Noise added to policy. For discrete policies it may be the probability of "
+    "picking a random action (detail depend on learning algo), for continuous "
+    "policies it is the (initial) standard deviation. Defaults to sqrt(0.2).";
+  //
+  j["gamma"] = "Discount factor. Defaults to 0.995.";
+  //
+  j["lambda"] = "Lambda for off-policy return-based estimators. Defaults to 1.";
+  //
+  j["obsPerStep"] =
+    "Ratio of observed *transitions* to gradient steps. E.g. 0.1 means that "
+    "for every observation learner does 10 gradient steps. Defaults to 1.";
+  //
+  j["clipImpWeight"] =
+    "Clipping range for off-policy importance weights. Corresponds to: C in "
+    "ReF-ER's Rule 1, epsilon in PPO's pol objective, c in ACER's truncation. "
+    "Defaults to sqrt(dimA / 2.0).";
+  //
+  j["penalTol"] =
+    "Tolerance used for adaptive off-policy penalization methods. "
+    "Currently corresponds only to D in ReF-ER's Rule 2. Defaults to 0.1.";
+  //
+  j["klDivConstraint"] =
+    "Constraint on max KL div. Corresponds to: d_targ in PPO's penalization, "
+    "delta in ACER's truncation and bias correction. Defaults to 0.01.";
+  //
+  j["targetDelay"] =
+    "Copy delay for Target Nets (TNs). If 0, TNs are disabled. If 'val'>1: "
+    "every 'val' grad steps network's W copied onto TN (like DQN). If 'val'<1: "
+    "every grad step TN updated by exp. averaging with rate 'val' (like DPG). "
+    "Defaults to 0.";
+  //
+  j["epsAnneal"] =
+    "Annealing rate for various learning-algorithm-dependent behaviors. "
+    "Defaults to 5e-7.";
   //
   j["minTotObsNum"] =
     "Min number of transitions in training buffer before training starts. "
     "If minTotObsNum=0, is set equal to maxTotObsNum i.e. fill RM before "
-    "training starts.";
+    "training starts. Defaults to 0.";
   //
-  j["maxTotObsNum"] = "Max number of transitions in training buffer.";
+  j["maxTotObsNum"] = "Max number of transitions in training buffer. "
+  "Defaults to 2^14 * sqrt(dimA + dimS).";
   //
-  j["saveFreq"] = "Frequency of checkpoints for learner state.";
+  j["saveFreq"] = "Frequency of checkpoints for learner state. Defaults to 200000.";
   //
   j["encoderLayerSizes"] =
     "Sizes of non-convolutional encoder layers (LSTM/RNN/FFNN). E.g. '64 64'.";

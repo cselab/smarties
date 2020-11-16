@@ -27,9 +27,6 @@ namespace smarties
 
 class DataCoordinator;
 
-// algorithm to filter past episodes:
-enum FORGET {OLDEST, FARPOLFRAC, MAXKLDIV};
-
 struct MemoryBuffer
 {
  public:
@@ -63,16 +60,15 @@ struct MemoryBuffer
   friend class Collector;
   friend class DataCoordinator;
 
-  std::vector<Episode> episodes;
-  std::vector<Episode> inProgress;
+  std::vector<std::unique_ptr<Episode>> episodes;
+  std::vector<std::unique_ptr<Episode>> inProgress;
   std::vector<Uint> lastSampledEps;
 
   const std::unique_ptr<Sampling> sampler;
-  std::atomic<bool> needs_pass {false};
   nnReal minPriorityImpW = 1;
   nnReal maxPriorityImpW = 1;
 
-  void updateSampler(const bool bForce);
+  void updateSampler();
   void setupDataCollectionTasks(TaskQueue& tasks);
 
   void checkNData();
@@ -119,22 +115,22 @@ struct MemoryBuffer
     return nLocalSeenSteps() - counters.nGatheredB4Startup;
   }
 
-  void storeState(Agent&a);
+  void storeState(Agent& a);
   void storeAction(const Agent& a);
   void terminateCurrentEpisode(Agent& a);
   void addEpisodeToTrainingSet(const Agent& a);
 
-  void removeEpisode(const Uint ind);
-  void pushBackEpisode(Episode & seq);
+  void removeBackEpisode();
+  void pushBackEpisode(std::unique_ptr<Episode> e);
 
   Episode& get(const Uint ID) {
-    return episodes[ID];
+    return * episodes[ID].get();
   }
   const Episode& get(const Uint ID) const {
-    return episodes[ID];
+    return * episodes[ID].get();
   }
   Episode& getInProgress(const Uint ID) {
-    return inProgress[ID];
+    return * inProgress[ID].get();
   }
 };
 
