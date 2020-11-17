@@ -17,6 +17,7 @@ namespace smarties
 class DQN : public Learner_approximator
 {
   const Uint nA = MDP.maxActionLabel;
+  const bool bUseRetrace = settings.returnsEstimator != "none";
 
   Real annealingFactor() const
   {

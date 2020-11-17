@@ -118,9 +118,9 @@ def applicationSetup(parsed, absRunPath):
       print("app setup.sh: set executable name '%s'." % execn)
       parsed.execname = execn
 
-  elif is_exe(app):
-    shutil.copy(app, absRunPath + '/exec')
-    parsed.execname = 'exec'
+  # elif is_exe(app):
+  #   shutil.copy(app, absRunPath + '/exec')
+  #   parsed.execname = 'exec'
   elif is_exe(app+'/'+parsed.execname):
     shutil.copy(app+'/'+parsed.execname, absRunPath + '/')
   elif is_exe(app+'/'+parsed.execname+'.py'):

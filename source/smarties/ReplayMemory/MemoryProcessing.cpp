@@ -425,9 +425,9 @@ returnsEstimator_f createReturnEstimator(const MemoryBuffer & RM)
   else
   if(RM.settings.returnsEstimator == "retraceExplore") {
     const Fval coef = (1-gamma);
-    //const Fval baseline = RM.stats.avgAbsError;
-    static constexpr Real EPS = std::numeric_limits<float>::epsilon();
-    const Fval baseline = std::sqrt(std::max(EPS, RM.stats.maxAbsError));
+    const Fval baseline = RM.stats.maxAbsError;
+    //static constexpr Real EPS = std::numeric_limits<float>::epsilon();
+    //const Fval baseline = std::sqrt(std::max(EPS, RM.stats.avgSquaredErr));
     ret = [=](const Episode& EP, const Uint t) {
       return computeRetraceExplBonus(EP, t, baseline, coef, gamma, lambda);
     };

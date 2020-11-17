@@ -21,6 +21,22 @@
 namespace smarties
 {
 
+static inline Real expectedValue(const Rvec& Qhats,
+                                 const Rvec& Qtildes,
+                                 const ActionInfo& aI)
+{
+  assert( aI.dimDiscrete() == Qhats.size() );
+  assert( aI.dimDiscrete() == Qhats.size() );
+  #ifdef DQN_USE_POLICY
+    Discrete_policy_t<Exp> pol({0}, aI, Qhats);
+    Real ret = 0;
+    for(Uint i=0; i<aI.dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
+    return ret;
+  #else
+    return Qtildes[ Utilities::maxInd(Qhats) ];
+  #endif
+}
+
 DQN::DQN(MDPdescriptor& M, HyperParameters& S, ExecutionInfo& D):
   Learner_approximator(M, S, D)
 {
@@ -46,28 +62,35 @@ void DQN::selectAction(const MiniBatch& MB, Agent& agent)
   networks[0]->load(MB, agent, 0);
   //Compute policy and value on most recent element of the sequence. If RNN
   // recurrent connection from last call from same agent will be reused
-  auto outVec = networks[0]->forward(agent);
+  auto Qs = networks[0]->forward(agent);
 
   #ifdef DQN_USE_POLICY
-    Discrete_policy_t<Exp> POL({0}, aInfo, outVec);
-    Uint act = POL.selectAction(agent, settings.explNoise>0);
-    agent.setAction(act, POL.getVector());
+    const Discrete_policy_t<Exp> POL({0}, aInfo, Qs);
+    const Uint act = POL.selectAction(agent, settings.explNoise>0);
+    const Rvec MU = POL.getVector();
   #else // from paper : annealed epsilon-greedy
-    const Real anneal = annealingFactor(), explNoise = settings.explNoise;
-    const Real annealedEps = bTrain? anneal +(1-anneal)*explNoise : explNoise;
-    const Uint greedyAct = Utilities::maxInd(outVec);
+    const Real anneal = annealingFactor(), eps = settings.explNoise;
+    const Real annealedEps = bTrain? anneal + (1-anneal)*eps : eps;
+    const Uint greedyAct = Utilities::maxInd(Qs);
     Rvec MU(policyVecDim, annealedEps/nA);
     MU[greedyAct] += 1-annealedEps;
-
     std::uniform_real_distribution<Real> dis(0.0, 1.0);
+    Uint act = greedyAct;
     if(dis(agent.generator) < annealedEps)
-      agent.setAction(nA * dis(agent.generator), MU);
-    else agent.setAction(greedyAct, MU);
+      act = nA * dis(agent.generator);
   #endif
+  agent.setAction(act, MU);
+  MB.appendValues(expectedValue(Qs, Qs, aInfo), Qs[act]);
 }
 
 void DQN::processTerminal(const MiniBatch& MB, Agent& agent)
 {
+  //whether episode is truncated or terminated, action advantage is 0
+  if( agent.agentStatus == LAST ) {
+    networks[0]->load(MB, agent, 0);
+    const Rvec Qs = networks[0]->forward(agent);
+    MB.appendValues(expectedValue(Qs, Qs, aInfo));
+  } else MB.appendValues(0); //value of terminal state is 0
 }
 
 void DQN::setupTasks(TaskQueue& tasks)
@@ -124,21 +147,6 @@ void DQN::setupTasks(TaskQueue& tasks)
   tasks.add(stepComplete);
 }
 
-static inline Real expectedValue(const Rvec& Qhats, const Rvec& Qtildes,
-                                 const ActionInfo& aI)
-{
-  assert( aI.dimDiscrete() == Qhats.size() );
-  assert( aI.dimDiscrete() == Qhats.size() );
-  #ifdef DQN_USE_POLICY
-    Discrete_policy_t<Exp> pol({0}, aI, Qhats);
-    Real ret = 0;
-    for(Uint i=0; i<aI.dimDiscrete(); ++i) ret += pol.probs[i] * Qtildes[i];
-    return ret;
-  #else
-    return Qtildes[ Utilities::maxInd(Qhats) ];
-  #endif
-}
-
 void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 {
   const Uint t = MB.sampledTstep(bID), thrID = omp_get_thread_num();
@@ -149,24 +157,40 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const Uint actt = aInfo.actionMessage2label(MB.action(bID,t));
   assert(actt < Qs.size()); // enough to store advantages and value
 
-  Real Vsnew = MB.reward(bID, t);
-  if (not MB.isTerminal(bID, t+1)) {
-    // find best action for sNew with moving wghts, evaluate it with tgt wgths:
-    // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
-    const Rvec Qhats = networks[0]->forward(bID, t+1);
-    const Rvec Qtildes = settings.targetDelay <= 0 ? Qhats // no target nets
-                         : networks[0]->forward_tgt(bID, t+1);
-    //v_s = r + gamma * Q(greedy action) :
-    Vsnew += gamma * expectedValue(Qhats, Qtildes, aInfo);
+  Real TD_error;
+  if (bUseRetrace)
+  {
+    // Update Retrace if we are at the end of an episode:
+    if( MB.isTruncated(bID, t+1) ) {
+      assert( t+1 == MB.nDataSteps(bID) );
+      const Rvec Qhats = networks[0]->forward(bID, t+1);
+      const Real vNext = expectedValue(Qhats, Qhats, aInfo);
+      MB.setValues(bID, t+1, vNext);
+    }
+    TD_error = MB.returnEstimate(bID, t) - Qs[actt];
   }
-  const Real ERR = Vsnew - Qs[actt];
+  else
+  {
+    Real Vsnew = MB.reward(bID, t);
+    if (not MB.isTerminal(bID, t+1)) {
+      // find best action for sNew with moving wghts, evaluate it with tgt wgths:
+      // Double Q Learning ( http://arxiv.org/abs/1509.06461 )
+      const Rvec Qhats = networks[0]->forward(bID, t+1);
+      const Rvec Qtildes = settings.targetDelay <= 0 ? Qhats // no target nets
+                           : networks[0]->forward_tgt(bID, t+1);
+      //v_s = r + gamma * Q(greedy action) :
+      Vsnew += gamma * expectedValue(Qhats, Qtildes, aInfo);
+    }
+    TD_error = Vsnew - Qs[actt];
+  }
+
 
   Rvec gradient(nA, 0);
-  gradient[actt] = ERR;
+  gradient[actt] = TD_error;
 
   #ifdef DQN_USE_POLICY
     Discrete_policy_t<Exp> POL({0}, aInfo, Qs);
-    const Real RHO = POL.importanceWeight(MB.action(bID,t), MB.mu(bID,t));
+    const Real RHO = POL.importanceWeight(actt, MB.mu(bID,t));
     const Real DKL = POL.KLDivergence(MB.mu(bID,t));
     const bool isOff = isFarPolicy(RHO, CmaxRet, CinvRet);
 
@@ -176,9 +200,9 @@ void DQN::Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
       for(Uint i=0; i<nA; ++i)
         gradient[i] = beta * gradient[i] + (1-beta) * penGrad[i];
     }
-    MB.setMseDklImpw(bID, t, ERR, DKL, RHO, CmaxRet, CinvRet);
+    MB.setMseDklImpw(bID, t, TD_error, DKL, RHO, CmaxRet, CinvRet);
   #else
-    MB.setMseDklImpw(bID, t, ERR, 0, 1, CmaxRet, CinvRet);
+    MB.setMseDklImpw(bID, t, TD_error, 0, 1, CmaxRet, CinvRet);
   #endif
   MB.setValues(bID, t, expectedValue(Qs, Qs, aInfo), Qs[actt]);
 

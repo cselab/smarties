@@ -84,6 +84,9 @@ struct Discrete_policy_t
 
   Real importanceWeight(const Rvec& action, const Rvec& beta) const {
     const Uint option = aInfo.actionMessage2label(action);
+    return importanceWeight(option, beta);
+  }
+  Real importanceWeight(const Uint option, const Rvec& beta) const {
     assert(beta.size() == nO && option < nO);
     return probs[option] / beta[option];
   }
