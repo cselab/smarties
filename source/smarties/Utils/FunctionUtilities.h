@@ -223,7 +223,7 @@ inline Rvec penalizeReFER(const Rvec& grad, const Rvec& penal, const Real beta)
   assert(grad.size() == penal.size());
   Rvec ret(grad.size());
   for(Uint i=0; i<grad.size(); ++i)
-    ret[i] = beta * grad[i]+ (1-beta)/beta * penal[i];
+    ret[i] = beta * grad[i]+ (1-beta) * penal[i];
   return ret;
 }
 

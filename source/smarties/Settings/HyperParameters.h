@@ -66,10 +66,10 @@ struct HyperParameters
 
   Real nnLambda = std::numeric_limits<float>::epsilon();
   Real learnrate = 1e-4;
-  Real outWeightsPrefac = 0.1;
+  Real outWeightsPrefac = 1e-3;
 
   std::string nnOutputFunc = "Linear";
-  std::string nnFunc = "SoftSign";
+  std::string nnFunc = "Tanh";
   std::string nnType = "FFNN";
 
   //////////////////////////////////////////////////////////////////////////////

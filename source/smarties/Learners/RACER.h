@@ -36,7 +36,7 @@ struct Zero_advantage;
 //template<Uint nExperts>
 //class Mixture_advantage;
 
-#define RACER_simpleSigma
+//#define RACER_simpleSigma
 #define RACER_singleNet
 //#define RACER_TABC
 
@@ -49,8 +49,6 @@ class RACER : public Learner_approximator
   const Uint nA = Policy_t::compute_nA(aInfo);
   // number of parameters of advantage approximator
   const Uint nL = Advantage_t::compute_nL(aInfo);
-
-  // tgtFrac_param: target fraction of off-pol samples
 
   // indices identifying number and starting position of the different output // groups from the network, that are read by separate functions
   // such as state value, policy mean, policy std, adv approximator

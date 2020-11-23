@@ -8,6 +8,8 @@
 ##
 
 import gym, sys, os, numpy as np
+#import pybullet_envs
+#import pybulletgym
 os.environ['MUJOCO_PY_FORCE_CPU'] = '1'
 import smarties as rl
 from HumanoidWrapper import HumanoidWrapper
@@ -52,20 +54,8 @@ def setupSmartiesCommon(comm, task):
   elif hasattr(env.action_space, 'shape'):
     dimAction = env.action_space.shape[0]
     comm.setStateActionDims(dimState, dimAction, 0) # 1 agent
-    upprScale = dimAction * [0.0]
-    lowrScale = dimAction * [0.0]
-    isBounded = dimAction * [False]
-    for i in range(dimAction):
-      test = env.reset()
-      test_act = 0.5*(env.action_space.low + env.action_space.high)
-      test_act[i] = env.action_space.high[i]+1
-      try: test = env.step(test_act)
-      except: isBounded[i] = True
-      assert(env.action_space.high[i]< 1e6) # make sure that values
-      assert(env.action_space.low[i] >-1e6) # make sense
-      upprScale[i] = env.action_space.high[i]
-      lowrScale[i] = env.action_space.low[i]
-    comm.setActionScales(upprScale, lowrScale, isBounded, 0)
+    isBounded = dimAction * [True]
+    comm.setActionScales(env.action_space.high, env.action_space.low, isBounded, 0)
   else: assert(False)
 
   return env

@@ -69,8 +69,8 @@ void updateCounters(MemoryBuffer& RM, const bool bInit)
   // size N (bigger N decreases accuracy because there are more samples to
   // update). We pick coef 0.1 to match learning rate chosen in original paper:
   // we had B=256 and N=2^18 and eta=1e-4. 0.1*B*N \approx 1e-4
-  const long maxN = RM.settings.maxTotObsNum, BS = RM.settings.batchSize;
-  const Real nDataSize = std::max((long) maxN, nDataGlobal[3]);
+  const Real maxN = RM.settings.maxTotObsNum, BS = RM.settings.batchSize;
+  const Real nDataSize = std::max(maxN, (Real) nDataGlobal[3]);
   const Real learnRefer = 0.1 * BS / nDataSize;
   const auto fixPointIter = [&] (const Real val, const bool goTo0) {
     if (goTo0) // fixed point iter converging to 0:
@@ -169,8 +169,8 @@ void updateRewardsStats(MemoryBuffer& RM, const bool bInit, const Real rRateFac)
 
   if(WR>0)
   {
-      updateStats(MDP.rewardsMean, MDP.rewardsStdDev, MDP.rewardsScale, WR,
-                  newSRstats[2*dimS+1] / count, newSRstats[2*dimS+2] / count);
+    updateStats(MDP.rewardsMean, MDP.rewardsStdDev, MDP.rewardsScale, WR,
+                newSRstats[2*dimS+1] / count, newSRstats[2*dimS+2] / count);
   }
 
   if(WS>0)
@@ -235,7 +235,9 @@ void updateTrainingStatistics(MemoryBuffer& RM)
   if (RM.CmaxRet<=1) nOffPol = 0; //then this counter and its effects are skipped
   const Uint nData = RM.nStoredSteps();
   stats.nFarPolicySteps = nOffPol;
-  stats.maxAbsError     = maxAbsE;
+  const Real maxN = RM.settings.maxTotObsNum, BS = RM.settings.batchSize;
+  const Real learnRefer = 0.1 * BS / std::max(maxN, (Real) nData);
+  stats.maxAbsError    += learnRefer * (maxAbsE - stats.maxAbsError);
   stats.avgKLdivergence = sumDKL / nData;
   stats.avgSquaredErr   = sumE2 / nData;
   stats.avgReturn       = sumR / setSize;
@@ -426,8 +428,6 @@ returnsEstimator_f createReturnEstimator(const MemoryBuffer & RM)
   if(RM.settings.returnsEstimator == "retraceExplore") {
     const Fval coef = (1-gamma);
     const Fval baseline = RM.stats.maxAbsError;
-    //static constexpr Real EPS = std::numeric_limits<float>::epsilon();
-    //const Fval baseline = std::sqrt(std::max(EPS, RM.stats.avgSquaredErr));
     ret = [=](const Episode& EP, const Uint t) {
       return computeRetraceExplBonus(EP, t, baseline, coef, gamma, lambda);
     };

@@ -93,8 +93,7 @@ struct Adam
     #else
       const nnReal numer = M1;
     #endif
-    #ifdef SMARTIES_SAFE_ADAM
-      //numerical safety, assumes that 1-beta2 = (1-beta1)^2/10
+    #ifdef SMARTIES_SAFE_ADAM // numerical safety
       M2 = M2 < M1*M1 ? M1*M1 : M2;
     #endif
     const nnReal ret = numer / ( nnEPS + std::sqrt(M2) );

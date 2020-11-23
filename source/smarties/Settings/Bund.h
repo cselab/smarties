@@ -31,6 +31,9 @@ namespace smarties
 // policies, advantages, and all math objects that require pos def net outputs
 #define SMARTIES_CHEAP_SOFTPLUS
 
+// Switch between Adabelied and Adam optimizers
+#define SMARTIES_ADABELIEF
+
 // Switch between network computing \sigma (stdev) or \Sigma (covar).
 // Does have an effect only if sigma is linked to network output rather than
 // being a separate set of lerned parameters shared by all states.
