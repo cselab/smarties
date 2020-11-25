@@ -26,7 +26,7 @@ MemoryBuffer::MemoryBuffer(MDPdescriptor& M, HyperParameters& S, ExecutionInfo& 
   globalCounterRdx(distrib, std::vector<long>{0, 0, 0, 0}),
   sampler( Sampling::prepareSampler(this, S, D) )
 {
-  episodes.reserve(settings.maxTotObsNum);
+  episodes.reserve(2*settings.maxTotObsNum);
   inProgress.reserve(distrib.nAgents);
   for (Uint i=0; i<distrib.nAgents; ++i)
     inProgress.push_back(std::make_unique<Episode>(MDP));

@@ -114,6 +114,9 @@ struct MemoryBuffer
   long nLocTimeStepsTrain() const {
     return nLocalSeenSteps() - counters.nGatheredB4Startup;
   }
+  Real getAvgEpisodeLength() const {
+    return nStoredSteps() / (Real) nStoredEps();
+  }
 
   void storeState(Agent& a);
   void storeAction(const Agent& a);
@@ -124,12 +127,15 @@ struct MemoryBuffer
   void pushBackEpisode(std::unique_ptr<Episode> e);
 
   Episode& get(const Uint ID) {
+    assert(episodes[ID]);
     return * episodes[ID].get();
   }
   const Episode& get(const Uint ID) const {
+    assert(episodes[ID]);
     return * episodes[ID].get();
   }
   Episode& getInProgress(const Uint ID) {
+    assert(inProgress[ID]);
     return * inProgress[ID].get();
   }
 };

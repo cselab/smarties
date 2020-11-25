@@ -21,8 +21,9 @@ using returnsEstimator_f = std::function<Fval(const Episode& EP, const Uint t)>;
 returnsEstimator_f createReturnEstimator(const MemoryBuffer & RM);
 
 inline Fval updateReturnEstimator(
-  Episode & EP, const Uint lastUpdated, const returnsEstimator_f & compute)
+  Episode & EP, const Sint lastUpdated, const returnsEstimator_f & compute)
 {
+  assert(lastUpdated + 1 < (Sint) EP.nsteps());
   assert(EP.stateValue.size() == EP.nsteps());
   assert(EP.offPolicImpW.size() == EP.nsteps());
   assert(EP.actionAdvantage.size() == EP.nsteps());
@@ -428,6 +429,8 @@ returnsEstimator_f createReturnEstimator(const MemoryBuffer & RM)
   if(RM.settings.returnsEstimator == "retraceExplore") {
     const Fval coef = (1-gamma);
     const Fval baseline = RM.stats.maxAbsError;
+    //static constexpr Real EPS = std::numeric_limits<float>::epsilon();
+    //const Fval baseline = std::sqrt(std::max(EPS, RM.stats.avgSquaredErr));
     ret = [=](const Episode& EP, const Uint t) {
       return computeRetraceExplBonus(EP, t, baseline, coef, gamma, lambda);
     };
