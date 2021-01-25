@@ -96,6 +96,7 @@ struct Adam
     #ifdef SMARTIES_SAFE_ADAM // numerical safety
       M2 = M2 < M1*M1 ? M1*M1 : M2;
     #endif
+    //const nnReal ret = numer / std::sqrt(nnEPS + M2);
     const nnReal ret = numer / ( nnEPS + std::sqrt(M2) );
     assert(not std::isnan(ret) && not std::isinf(ret));
     #ifdef SMARTIES_ADAMW

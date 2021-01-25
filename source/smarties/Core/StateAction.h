@@ -115,12 +115,10 @@ struct MDPdescriptor
 
   Real getActScale(const Uint i) const {
     assert(getActMaxVal(i)-getActMinVal(i) > std::numeric_limits<Real>::epsilon());
-    return isActBounded(i) ? getActMaxVal(i)-getActMinVal(i) :
-                            (getActMaxVal(i)-getActMinVal(i))/2;
+    return (getActMaxVal(i)-getActMinVal(i))/2;
   }
   Real getActShift(const Uint i) const {
-    return isActBounded(i) ? getActMinVal(i) :
-                            (getActMaxVal(i)+getActMinVal(i))/2;
+    return (getActMaxVal(i)+getActMinVal(i))/2;
   }
 };
 
@@ -239,9 +237,9 @@ struct ActionInfo
     std::vector<T> learnerAct(MDP.dimAct());
     assert( envAct.size() == learnerAct.size() );
     for (Uint i=0; i<MDP.dimAct(); ++i) {
-      learnerAct[i] = (envAct[i] - MDP.getActShift(i)) / MDP.getActScale(i);
-      // if bounded action space learner samples a beta distribution:
-      if(MDP.isActBounded(i)) assert(learnerAct[i]>0 && learnerAct[i] < 1);
+      const Real descaled = (envAct[i] - MDP.getActShift(i))/MDP.getActScale(i);
+      if(MDP.isActBounded(i)) assert(descaled > -1 && descaled < 1);
+      learnerAct[i] = std::log((1+descaled)/(1-descaled)) / 2;
     }
     return learnerAct;
   }
@@ -256,13 +254,23 @@ struct ActionInfo
   {
     if(MDP.bDiscreteActions())
       return std::vector<T>(policy.begin(), policy.end());
-    assert(policy.size() == 2*MDP.dimAct() && "Supports only gaussian/beta distrib");
-    std::vector<T> envPol(2*MDP.dimAct());
-    for (Uint i=0; i<MDP.dimAct(); ++i) {
-      envPol[i] = MDP.getActScale(i) * policy[i] + MDP.getActShift(i);
-      envPol[i+MDP.dimAct()] = MDP.getActScale(i) * policy[i+MDP.dimAct()];
-      // if bounded action space learner samples a beta distribution:
-      if(MDP.isActBounded(i)) assert(policy[i]>=0 && policy[i] < 1);
+
+    const auto stdFactor = [&] (const Uint i, const Real mean) {
+      if (not MDP.isActBounded(i)) return static_cast<Real>(1);
+      // var(f(x)) ~= (f'(mean(x)))^2 var(x), here f(x) is tanh(x)
+      // f'(x)^2 = (2*exp(x)/(1+exp(x)*exp(x)))^4, but we write the stdev
+      const Real expmean = std::exp(mean);
+      return std::pow((2*expmean/(1 + expmean*expmean)), 2);
+    };
+
+    const Uint dimA = MDP.dimAct();
+    assert(policy.size() == 2*dimA && "Supports only gaussian/beta distrib");
+    std::vector<T> envPol(2*dimA);
+    for (Uint i=0; i<dimA; ++i) {
+      const auto scale = MDP.getActScale(i), shift = MDP.getActShift(i);
+      const auto bound = MDP.isActBounded(i)? std::tanh(policy[i]) : policy[i];
+      envPol[i]      = scale * bound + shift;
+      envPol[i+dimA] = scale * stdFactor(i, policy[i]) * policy[i+dimA];
     }
     return envPol;
   }
@@ -280,9 +288,8 @@ struct ActionInfo
     std::vector<T> envAct(MDP.dimAct());
     assert( learnerAct.size() == envAct.size() );
     for (Uint i=0; i<MDP.dimAct(); ++i) {
-      envAct[i] = MDP.getActScale(i) * learnerAct[i] + MDP.getActShift(i);
-      // if bounded action space learner samples a beta distribution:
-      if(MDP.isActBounded(i)) assert(learnerAct[i]>=0 && learnerAct[i] < 1);
+      const auto bound = MDP.isActBounded(i)? std::tanh(learnerAct[i]) : learnerAct[i];
+      envAct[i] = MDP.getActScale(i) * bound + MDP.getActShift(i);
     }
     return envAct;
   }

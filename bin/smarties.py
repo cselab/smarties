@@ -6,7 +6,7 @@
 #
 #  Created by Guido Novati (novatig@ethz.ch).
 #
-import argparse, os, psutil, sys, shutil, subprocess, signal
+import argparse, os, psutil, sys, shutil, subprocess, signal, glob
 
 def signal_handler(sig, frame):
   JOBID = os.getenv('SLURM_JOB_ID')
@@ -173,23 +173,6 @@ def setComputationalResources(parsed):
                  " --workerProcessesPerEnv %d " % (parsed.nEnvironments, \
                  parsed.nLearners, parsed.nThreads, parsed.mpiProcsPerEnv)
 
-  if parsed.nEvalEpisodes == 0:
-    parsed.args += " --nTrainSteps %d " % parsed.nTrainSteps
-    if parsed.restart is None: parsed.args += " --restart none "
-    else: parsed.args += " --restart %s " % parsed.restart
-  else:
-    parsed.args += " --nEvalEpisodes %d " % parsed.nEvalEpisodes
-    if parsed.restart is None: parsed.args += " --restart ./ "
-    else:
-      if os.path.isdir( parsed.runprefix + "/" + parsed.restart ):
-        absRestartPath = os.path.abspath(parsed.runprefix+"/"+parsed.restart)
-        parsed.args += " --restart %s " % absRestartPath
-      elif os.path.isdir( parsed.restart ):
-        absRestartPath = os.path.abspath(parsed.restart)
-        parsed.args += " --restart %s " % absRestartPath
-      else:
-        print('FATAL: Did not find the restart dir %s' % parsed.restart)
-        exit()
 
   if parsed.netsOnlyLearners:
     parsed.args += " --learnersOnWorkers 0 "
@@ -198,6 +181,41 @@ def setComputationalResources(parsed):
   if parsed.disableDataLogging:
     parsed.args += " --logAllSamples 0 "
 
+def setTrainOrEvaluate(parsed):
+  def contains_files(dirn):
+      if not os.path.isdir(dirn): return False
+      # whether dir contains network parameter files
+      return len(glob.glob(dirn + '/agent*weights.raw')) > 0
+
+  if parsed.nEvalEpisodes == 0:
+    # training run
+    parsed.args += " --nTrainSteps %d " % parsed.nTrainSteps
+    if parsed.restart is None: parsed.args += " --restart none "
+    else: parsed.args += " --restart %s " % parsed.restart
+  else:
+    # evaluation run, we actually need to restart
+    parsed.args += " --nEvalEpisodes %d " % parsed.nEvalEpisodes
+    if parsed.restart is None:
+      if contains_files('.'): parsed.restart = './'
+      else:
+        print("FATAL: Did not find restart files in current directory. "
+              "Please use the option --restart")
+        exit()
+
+    if contains_files(parsed.runprefix + "/" + parsed.restart):
+        dirn = parsed.runprefix + "/" + parsed.restart
+        absRestartPath = os.path.abspath(dirn)
+    elif contains_files(parsed.restart):
+        absRestartPath = os.path.abspath(parsed.restart)
+    elif contains_files(SMARTIES_ROOT + '/runs/' + parsed.restart):
+        dirn = SMARTIES_ROOT + '/runs/' + parsed.restart
+        absRestartPath = os.path.abspath(dirn)
+    else:
+      print('FATAL: Did not find restart files in %s' % parsed.restart)
+      exit()
+
+    print('Using restart files from directory %s' % absRestartPath)
+    parsed.args += " --restart %s " % absRestartPath
 
 def setEnvironmentFlags(parsed):
   env = "unset LSB_AFFINITY_HOSTFILE  #euler cluster \n" \
@@ -391,6 +409,8 @@ if __name__ == '__main__':
   applicationSetup(parsed, absRunPath)
   # once application is defined, we can figure out all computational resouces:
   setComputationalResources(parsed)
+  # define how many training steps, evaluation episodes, where/if to find restart
+  setTrainOrEvaluate(parsed)
 
   subprocess.run("cd ${SMARTIES_ROOT} && git log | head > ${RUNDIR}/gitlog.log", \
                  executable=parsed.shell, shell=True)

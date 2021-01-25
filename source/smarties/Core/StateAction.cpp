@@ -8,6 +8,7 @@
 
 #include "StateAction.h"
 #include "../Utils/MPIUtilities.h"
+#include <stdio.h>
 
 namespace smarties
 {

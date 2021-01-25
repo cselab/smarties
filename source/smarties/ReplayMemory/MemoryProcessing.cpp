@@ -216,8 +216,8 @@ void updateTrainingStatistics(MemoryBuffer& RM)
         nRetUpdates += EP.nsteps()-1;
       }
     } else if (bNeedsReturnEst and EP.just_sampled > 0) {
-      sumERet += updateReturnEstimator(EP, EP.just_sampled-1, returnsCompute);
-      nRetUpdates += EP.just_sampled;
+      //sumERet += updateReturnEstimator(EP, EP.just_sampled-1, returnsCompute);
+      //nRetUpdates += EP.just_sampled;
     }
     const Fval Nsteps = EP.nsteps();
     maxAbsE  = std::max(EP.maxAbsError, maxAbsE);

@@ -159,7 +159,7 @@ struct Approximator
     }
     else if(C.addedInputType(sampID) == ACTION)
     {
-      const Rvec addedinp = Continuous_policy::map2unbounded(aI,C.getAction(t));
+      const auto& addedinp = C.getAction(t);
       INP.insert(INP.end(), addedinp.begin(), addedinp.end());
     }
     else if(C.addedInputType(sampID) == VECTOR)

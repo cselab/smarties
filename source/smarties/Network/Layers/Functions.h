@@ -111,7 +111,11 @@ struct Tanh : public Function
       return (e2x-1)/(1+e2x);
     }
   }
-
+  template <typename T> static T _inv(const T in)
+  {
+    assert(std::fabs(in)<1);
+    return std::log((1+in)/(1-in)) / 2;
+  }
   template <typename T> static T _evalDiff(const T in, const T out)
   {
     return 1 - out*out;
@@ -130,8 +134,7 @@ struct Tanh : public Function
   }
   nnReal inverse(const nnReal in) const override
   {
-    assert(std::fabs(in)<1);
-    return std::log((1+in)/(1-in)) / 2;
+    return _inv(in);
   }
   nnReal evalDiff(const nnReal in, const nnReal out) const override
   {

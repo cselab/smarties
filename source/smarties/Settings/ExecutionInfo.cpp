@@ -80,14 +80,15 @@ ExecutionInfo::~ExecutionInfo()
     for(int i=0; i<argc; ++i) delete [] argv[i];
     delete [] argv;
   }
-  if(MPI_COMM_NULL not_eq     master_workers_comm)
-          MPI_Comm_free(&     master_workers_comm);
-  if(MPI_COMM_NULL not_eq workerless_masters_comm)
-          MPI_Comm_free(& workerless_masters_comm);
-  if(MPI_COMM_NULL not_eq     learners_train_comm)
-          MPI_Comm_free(&     learners_train_comm);
-  if(MPI_COMM_NULL not_eq    environment_app_comm)
-          MPI_Comm_free(&    environment_app_comm);
+  const auto freeMPIcom = [] (MPI_Comm C) {
+    if (C==MPI_COMM_SELF) return;
+    if (C==MPI_COMM_NULL) return;
+    MPI_Comm_free(&C);
+  };
+  freeMPIcom(master_workers_comm);
+  freeMPIcom(workerless_masters_comm);
+  freeMPIcom(learners_train_comm);
+  freeMPIcom(environment_app_comm);
   MPI_Finalize();
 }
 

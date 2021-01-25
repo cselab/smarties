@@ -51,7 +51,7 @@ struct HyperParameters
 
   Uint minTotObsNum = 0;
   Uint maxTotObsNum = std::pow(2, 14) * std::sqrt(dimA + dimS);
-  Uint saveFreq = 200000;
+  Uint saveFreq = 50000;
 
   //////////////////////////////////////////////////////////////////////////////
   //SETTINGS PERTAINING TO NETWORK

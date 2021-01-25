@@ -1,8 +1,7 @@
 #mkdir -p build/
 #cd build
 #cmake ..
-#make
+make
 #cd ..
 
-make
 cp exec ${RUNDIR}/exec

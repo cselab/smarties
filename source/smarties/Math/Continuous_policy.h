@@ -209,6 +209,156 @@ struct NormalPolicy : public Base1Dpolicy
   }
 };
 
+struct SquashedNormalPolicy : public Base1Dpolicy
+{
+  using PosDefFunction = SoftPlus;
+  const Real mean, stdev, invStdev = 1/stdev;
+
+  Real getMean() const { return mean; }
+  Real getStdev() const { return stdev; }
+  Real linearNetToMean(const Rvec& nnOut) const
+  {
+    return nnOut[nnIndMean + component_id];
+  }
+  Real linearNetToStdev(const Rvec& nnOut) const
+  {
+    return PosDefFunction::_eval(nnOut[nnIndStdev + component_id]);
+  }
+
+  SquashedNormalPolicy(const ActionInfo & aI, const Rvec& nnOut, const size_t comp,
+                const size_t startMean, const size_t startStdev) :
+      Base1Dpolicy(aI, comp, startMean, startStdev),
+      mean(linearNetToMean(nnOut)), stdev(linearNetToStdev(nnOut))
+  {
+  }
+
+  static Real logProb(const Real a, const Real _mean, const Real _invStdev)
+  {
+    // logP(a) = logM(u) - log(1-tanh^2(h)) if a = tanh(u)
+    static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
+    const Real squash = std::tanh(a), J = std::max(1-squash*squash, EPS);
+    const Real arg = - std::pow((a - _mean) * _invStdev, 2) / 2;
+    //const Real fac = std::log(2 * M_PI) / 2; //log is not constexpr, equal:
+    static constexpr Real fac = 9.1893853320467266954096885456237942e-01;
+    return arg + std::log(_invStdev / J) - fac;
+  }
+
+  static Real prob(const Real a, const Real _mean, const Real _invStdev)
+  {
+    // P(a) = M(u) / (da/du) with a = tanh(u)
+    static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
+    const Real squash = std::tanh(a), J = std::max(1-squash*squash, EPS);
+    const Real arg = - std::pow((a - _mean) * _invStdev, 2) / 2;
+    //const Real fac = std::sqrt(1.0 / M_PI / 2); //sqrt is not constexpr, equal:
+    static constexpr Real fac = 3.989422804014326857328237574407125976e-01;
+    return _invStdev * fac * std::exp(arg) / J;
+  }
+
+  Real prob(const Rvec & act, const Rvec & beta_vec) const
+  {
+    const Real beta_mean = beta_vec[component_id];
+    const Real beta_stdev = beta_vec[component_id + aInfo.dim()];
+    return prob(act[component_id], beta_mean, 1/beta_stdev);
+  }
+
+  Real prob(const Rvec & act) const
+  {
+    return prob(act[component_id], mean, invStdev);
+  }
+
+  Real logProb(const Rvec& act, const Rvec& beta_vec) const
+  {
+    const Real beta_mean = beta_vec[component_id];
+    const Real beta_stdev = beta_vec[component_id + aInfo.dim()];
+    return logProb(act[component_id], beta_mean, 1/beta_stdev);
+  }
+
+  Real logProb(const Rvec& act) const
+  {
+    return logProb(act[component_id], mean, invStdev);
+  }
+
+  Real KLdivergence(const Rvec& beta_vec) const
+  {
+    const Real beta_mean = beta_vec[component_id];
+    const Real beta_stdev = beta_vec[component_id + aInfo.dim()];
+    #ifndef SMARTIES_OPPOSITE_KL // do Dkl(mu||pi) :
+      const Real CmuCpi = std::pow( beta_stdev * invStdev, 2);
+      const Real sumDmeanC = std::pow((mean-beta_mean) * invStdev, 2);
+    #else                        // do Dkl(pi||mu) :
+      const Real CmuCpi = std::pow(stdev/beta_stdev, 2);
+      const Real sumDmeanC = std::pow((mean-beta_mean)/beta_stdev, 2);
+    #endif
+    return ( CmuCpi-1 + sumDmeanC - std::log(CmuCpi) )/2;
+  }
+
+  std::array<Real, 2> gradLogP(
+              const Rvec& act, const Real factor, const Rvec& nnOut) const
+  {
+    const Real u = (act[component_id] - mean) * invStdev;
+    const Real dLogPdMean = u * invStdev, dLogPdStdv = (u*u - 1) * invStdev;
+    const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
+    return {factor * dLogPdMean, dPosdNet * factor * dLogPdStdv};
+  }
+
+  std::array<Real, 2> gradKLdiv(
+              const Rvec& beta_vec, const Real factor, const Rvec& nnOut) const
+  {
+    const Real beta_mean = beta_vec[component_id], dMean = mean - beta_mean;
+    const Real beta_stdev = beta_vec[component_id + aInfo.dim()];
+    #ifndef SMARTIES_OPPOSITE_KL // do grad Dkl(mu||pi) :
+      const Real varMu = std::pow(beta_stdev, 2), var = stdev*stdev;
+      const Real dDKLdMean = dMean * std::pow(invStdev, 2);
+      const Real dDKLdStdv = (var - varMu - dMean*dMean) * std::pow(invStdev,3);
+    #else                        // do grad Dkl(pi||mu) :
+      const Real invVarMu = 1 / std::pow(beta_stdev, 2);
+      const Real dDKLdMean = dMean * invVarMu;
+      const Real dDKLdStdv = (invVarMu - std::pow(invStdev,2)) * stdev;
+    #endif
+    const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
+    return {factor * dDKLdMean,dPosdNet *  factor * dDKLdStdv};
+  }
+
+  std::array<Real, 2> fixExplorationGrad(
+              const Real targetNoise, const Rvec& nnOut) const
+  {
+    const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
+    return {0, dPosdNet * (targetNoise - stdev) / 2};
+  }
+
+  static Real initial_Stdev(const ActionInfo& aI, Real explNoise) {
+    return PosDefFunction::_inv(explNoise);
+  }
+
+  static Real sampleClippedGaussian(std::mt19937& gen)
+  {
+    std::normal_distribution<Real> dist(0, 1);
+    std::uniform_real_distribution<Real> safety(-NORMDIST_MAX, NORMDIST_MAX);
+    Real noise = dist(gen);
+    if (noise >  NORMDIST_MAX || noise < -NORMDIST_MAX) return safety(gen);
+    else return noise;
+  }
+
+  Real sample(const Real noise) const {
+    return mean + stdev * noise;
+  }
+
+  Real sample(std::mt19937& gen) const {
+    return sample(sampleClippedGaussian(gen));
+  }
+
+  Real sample_OrnsteinUhlenbeck(Rvec& state, const Real noise) const {
+    const Real force = 0.85 * state[component_id];
+    state[component_id] = noise + force; // update for next sample
+    return mean + stdev * (noise + force);
+  }
+
+  Real sample_OrnsteinUhlenbeck(Rvec& state, std::mt19937& gen) const {
+    const Real noise = sampleClippedGaussian(gen);
+    return sample_OrnsteinUhlenbeck(state, noise);
+  }
+};
+
 struct BetaPolicy : public Base1Dpolicy
 {
   using ClipFunction = HardSigmoid;
@@ -402,13 +552,14 @@ struct Continuous_policy
   const Uint startMean, startStdev, nA;
   const Rvec netOutputs;
   const std::vector<std::unique_ptr<Base1Dpolicy>> policiesVector;
+  using BoundedPol = SquashedNormalPolicy;
 
   std::vector<std::unique_ptr<Base1Dpolicy>> make_policies()
   {
     std::vector<std::unique_ptr<Base1Dpolicy>> ret;
     for (Uint i=0; i<aInfo.dim(); ++i) {
       if(aInfo.isBounded(i))
-        ret.emplace_back(std::make_unique<BetaPolicy>(
+        ret.emplace_back(std::make_unique<BoundedPol>(
           aInfo, netOutputs, i, startMean, startStdev) );
       else
         ret.emplace_back(std::make_unique<NormalPolicy>(
@@ -434,7 +585,7 @@ struct Continuous_policy
       S = std::numeric_limits<float>::epsilon();
     }
     for(Uint i=0; i<aI.dim(); ++i)
-        if(aI.isBounded(i)) O.push_back(BetaPolicy::initial_Stdev(aI, S));
+        if(aI.isBounded(i)) O.push_back(BoundedPol::initial_Stdev(aI, S));
         else                O.push_back(NormalPolicy::initial_Stdev(aI, S));
   }
   static Rvec initial_Stdev(const ActionInfo& aI, const Real S) {
@@ -443,13 +594,15 @@ struct Continuous_policy
     return ret;
   }
 
+  /*
   static Rvec map2unbounded(const ActionInfo& aI, const Rvec & action) {
     Rvec ret = action;
     assert(action.size() == aI.dim());
     for(Uint i=0; i<aI.dim(); ++i)
-        if(aI.isBounded(i)) ret[i] = BetaPolicy::ClipFunction::_inv(ret[i]);
+        if(aI.isBounded(i)) ret[i] = BoundedPol::ClipFunction::_inv(ret[i]);
     return ret;
   }
+  */
 
   ~Continuous_policy() = default;
   Continuous_policy(const Continuous_policy &p) = delete;

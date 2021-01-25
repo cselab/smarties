@@ -32,7 +32,7 @@ namespace smarties
 #define SMARTIES_CHEAP_SOFTPLUS
 
 // Switch between Adabelied and Adam optimizers
-#define SMARTIES_ADABELIEF
+//#define SMARTIES_ADABELIEF
 
 // Switch between network computing \sigma (stdev) or \Sigma (covar).
 // Does have an effect only if sigma is linked to network output rather than

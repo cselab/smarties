@@ -11,6 +11,26 @@
 namespace smarties
 {
 
+/*
+ * Like R2D2 https://openreview.net/pdf?id=r1lyTjAqYX
+ * Scaling between values and network output
+ * */
+template <typename T> inline T scaleV2Net(const T x)
+{
+  if (x>0) return 1e-2 * x + std::sqrt(1 + x) - 1;
+  else     return 1e-2 * x - std::sqrt(1 - x) + 1;
+}
+template <typename T> inline T scaleNet2V(const T x)
+{
+  if (x>0) return 100*(x+51) - 100*std::sqrt(2601 + 100*x);
+  else     return 100*(x-51) + 100*std::sqrt(2601 - 100*x);
+}
+template <typename T> inline T scaleVdiff(const T x)
+{
+  if (x>0) return 100 - 5000 / std::sqrt(2601 + 100*x);
+  else     return 100 - 5000 / std::sqrt(2601 - 100*x);
+}
+
 template<typename Advantage_t, typename Policy_t, typename Action_t>
 void RACER<Advantage_t, Policy_t, Action_t>::prepareCMALoss()
 {

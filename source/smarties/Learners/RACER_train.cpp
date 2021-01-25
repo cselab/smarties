@@ -22,7 +22,8 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   //Update Qret of eps' last state if sampled T-1. (and V(s_T) for truncated ep)
   if( MB.isTruncated(bID, t+1) ) {
     assert( t+1 == MB.nDataSteps(bID) );
-    MB.setValues(bID, t+1, NET.forward(bID, t+1)[VsID]);
+    const auto Onext = NET.forward(bID, t+1);
+    MB.setValues(bID, t+1, scaleNet2V(Onext[VsID]));
   }
 
   if(thrID==0) profiler->stop_start("CMP");
@@ -34,7 +35,8 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
   const bool isFarPol = isFarPolicy(RHO, CmaxRet, CinvRet);
 
   const Advantage_t ADV(adv_start, aInfo, O, &POL);
-  const Real Aval = ADV.computeAdvantage(ACT), Vval = O[VsID], Qval = Aval+Vval;
+  const Real Aval = ADV.computeAdvantage(ACT);
+  const Real Vval = scaleNet2V(O[VsID]), Qval = Aval+Vval;
   // shift retrace-advantage with current V(s) estimate:
   const Real A_RET = MB.returnEstimate(bID, t) - Vval, deltaQ = A_RET - Aval;
   const Real Ver = std::min((Real)1, RHO) * deltaQ;
@@ -43,7 +45,10 @@ Train(const MiniBatch& MB, const Uint wID, const Uint bID) const
 
   // compute the gradient:
   Rvec gradient = Rvec(networks[0]->nOutputs(), 0);
-  gradient[VsID] = isFarPol? 0 : beta * Ver;
+  //const Real vPenalGrad = (1-beta) * (MB.value(bID, t) - Vval);
+  //const Real vTargtGrad = isFarPol? 0 : Ver;
+  //gradient[VsID] = beta * (vPenalGrad + vTargtGrad) * scaleVdiff(O[VsID]);
+  gradient[VsID] = isFarPol? 0 : Ver * beta * scaleVdiff(O[VsID]);
   const Rvec penalG  = POL.KLDivGradient(MU, -1);
   const Rvec polG = isFarPol? Rvec(penalG.size(), 0) :
                     POL.policyGradient(ACT, A_RET * std::min(CmaxRet, RHO));

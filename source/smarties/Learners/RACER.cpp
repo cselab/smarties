@@ -41,8 +41,8 @@ selectAction(const MiniBatch& MB, Agent& agent)
   // this should only be used for evaluating a learned policy
   auto action = pol.selectAction(agent, distrib.bTrain);
   const Advantage_t adv(adv_start, aInfo, output, &pol);
-
-  MB.appendValues(output[VsID], output[VsID] + adv.computeAdvantage(action));
+  const Real V = scaleNet2V(output[VsID]);
+  MB.appendValues(V, V + adv.computeAdvantage(action));
   agent.setAction(action, pol.getVector());
 }
 
@@ -54,7 +54,7 @@ processTerminal(const MiniBatch& MB, Agent& agent)
   if( agent.agentStatus == LAST ) {
     networks[0]->load(MB, agent, 0);
     Rvec output = networks[0]->forward(agent);
-    MB.appendValues(output[VsID]); // not a terminal state
+    MB.appendValues(scaleNet2V(output[VsID])); // not a terminal state
   } else MB.appendValues(0); //value of terminal state is 0
 }
 
