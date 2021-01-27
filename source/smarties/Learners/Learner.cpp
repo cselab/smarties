@@ -58,8 +58,7 @@ void Learner::initializeLearner()
   MemoryProcessing::updateCounters(* data.get(), true);
   MemoryProcessing::updateRewardsStats(* data.get(), true);
   // shift counters after initial data is gathered and sync is concluded
-  data->counters.nGatheredB4Startup = data->nLocalSeenSteps();
-  _nObsB4StartTraining = nObsB4StartTraining;
+  data->counters.nGatheredB4Startup = nObsB4StartTraining;
 
   data->updateSampler();
   // Rewards second moment is computed right before actual training begins
@@ -106,7 +105,7 @@ bool Learner::blockDataAcquisition() const
   //_warn("readNSeen:%ld nData:%ld nDataGatheredB4Start:%ld gradSteps:%ld obsPerStep:%f",
   //data->readNSeen_loc(), data->readNData(), nDataGatheredB4Startup, _nGradSteps.load(), obsPerStep_loc);
 
-  if( data->nStoredSteps() < _nObsB4StartTraining ) return false;
+  if (data->nStoredSteps() < data->counters.nGatheredB4Startup) return false;
 
   // block data if we have observed too many observations
   // here we add one to concurrently gather data and compute gradients

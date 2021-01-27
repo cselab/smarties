@@ -190,8 +190,9 @@ def setTrainOrEvaluate(parsed):
   if parsed.nEvalEpisodes == 0:
     # training run
     parsed.args += " --nTrainSteps %d " % parsed.nTrainSteps
-    if parsed.restart is None: parsed.args += " --restart none "
-    else: parsed.args += " --restart %s " % parsed.restart
+    if parsed.restart is None:
+        parsed.args += " --restart none "
+        return
   else:
     # evaluation run, we actually need to restart
     parsed.args += " --nEvalEpisodes %d " % parsed.nEvalEpisodes
@@ -202,20 +203,20 @@ def setTrainOrEvaluate(parsed):
               "Please use the option --restart")
         exit()
 
-    if contains_files(parsed.runprefix + "/" + parsed.restart):
-        dirn = parsed.runprefix + "/" + parsed.restart
-        absRestartPath = os.path.abspath(dirn)
-    elif contains_files(parsed.restart):
-        absRestartPath = os.path.abspath(parsed.restart)
-    elif contains_files(SMARTIES_ROOT + '/runs/' + parsed.restart):
-        dirn = SMARTIES_ROOT + '/runs/' + parsed.restart
-        absRestartPath = os.path.abspath(dirn)
-    else:
-      print('FATAL: Did not find restart files in %s' % parsed.restart)
-      exit()
+  if contains_files(parsed.runprefix + "/" + parsed.restart):
+      dirn = parsed.runprefix + "/" + parsed.restart
+      absRestartPath = os.path.abspath(dirn)
+  elif contains_files(parsed.restart):
+      absRestartPath = os.path.abspath(parsed.restart)
+  elif contains_files(SMARTIES_ROOT + '/runs/' + parsed.restart):
+      dirn = SMARTIES_ROOT + '/runs/' + parsed.restart
+      absRestartPath = os.path.abspath(dirn)
+  else:
+    print('FATAL: Did not find restart files in %s' % parsed.restart)
+    exit()
 
-    print('Using restart files from directory %s' % absRestartPath)
-    parsed.args += " --restart %s " % absRestartPath
+  print('Using restart files from directory %s' % absRestartPath)
+  parsed.args += " --restart %s " % absRestartPath
 
 def setEnvironmentFlags(parsed):
   env = "unset LSB_AFFINITY_HOSTFILE  #euler cluster \n" \
