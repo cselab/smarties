@@ -300,7 +300,7 @@ void MemoryBuffer::save(const std::string base)
   const unsigned long nLocalSeenEps = counters.nSeenEpisodes_loc;
   const unsigned long nLocalSeenObs = counters.nSeenTransitions_loc;
   const long nGatheredB4Startup = counters.nGatheredB4Startup;
-  const long doneGradSteps = counters.nGradSteps;
+  const long doneGradSteps = counters.nGradSteps + 1;
 
   FILE * const fstat = fopen((fName + "status_backup.raw").c_str(), "w");
   assert(fstat != NULL);
