@@ -235,8 +235,8 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   static Real logProb(const Real a, const Real _mean, const Real _invStdev)
   {
     // logP(a) = logM(u) - log(1-tanh^2(h)) if a = tanh(u)
-    static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
-    const Real squash = std::tanh(a), J = std::max(1-squash*squash, EPS);
+    static constexpr Real MIN = std::numeric_limits<float>::min();
+    const Real squash = std::tanh(a), J = std::max(1-squash*squash, MIN);
     const Real arg = - std::pow((a - _mean) * _invStdev, 2) / 2;
     //const Real fac = std::log(2 * M_PI) / 2; //log is not constexpr, equal:
     static constexpr Real fac = 9.1893853320467266954096885456237942e-01;
@@ -246,8 +246,8 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   static Real prob(const Real a, const Real _mean, const Real _invStdev)
   {
     // P(a) = M(u) / (da/du) with a = tanh(u)
-    static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
-    const Real squash = std::tanh(a), J = std::max(1-squash*squash, EPS);
+    static constexpr Real MIN = std::numeric_limits<float>::min();
+    const Real squash = std::tanh(a), J = std::max(1-squash*squash, MIN);
     const Real arg = - std::pow((a - _mean) * _invStdev, 2) / 2;
     //const Real fac = std::sqrt(1.0 / M_PI / 2); //sqrt is not constexpr, equal:
     static constexpr Real fac = 3.989422804014326857328237574407125976e-01;
@@ -295,10 +295,18 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   std::array<Real, 2> gradLogP(
               const Rvec& act, const Real factor, const Rvec& nnOut) const
   {
+    // anti NaN. tanh(MAX) = 1 - std::numeric_limits<float>::epsilon()
+    static constexpr Real MAX = 8.31776613503286;
     const Real u = (act[component_id] - mean) * invStdev;
     const Real dLogPdMean = u * invStdev, dLogPdStdv = (u*u - 1) * invStdev;
     const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
-    return {factor * dLogPdMean, dPosdNet * factor * dLogPdStdv};
+    // anti NaN: prevent pol grad from pushing mean beyond numerical safety
+    if      (mean >  MAX and factor * dLogPdMean > 0)
+      return {Real(0),             dPosdNet * factor * dLogPdStdv};
+    else if (mean < -MAX and factor * dLogPdMean < 0)
+      return {Real(0),             dPosdNet * factor * dLogPdStdv};
+    else
+      return {factor * dLogPdMean, dPosdNet * factor * dLogPdStdv};
   }
 
   std::array<Real, 2> gradKLdiv(
@@ -340,7 +348,9 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   }
 
   Real sample(const Real noise) const {
-    return mean + stdev * noise;
+    // anti NaN. tanh(MAX) = 1 - std::numeric_limits<float>::epsilon()
+    static constexpr Real MAX = 8.31776613503286;
+    return Utilities::clipInInterval(mean + stdev * noise, -MAX, MAX);
   }
 
   Real sample(std::mt19937& gen) const {
@@ -348,9 +358,11 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   }
 
   Real sample_OrnsteinUhlenbeck(Rvec& state, const Real noise) const {
+    // anti NaN. tanh(MAX) = 1 - std::numeric_limits<float>::epsilon()
+    static constexpr Real MAX = 8.31776613503286;
     const Real force = 0.85 * state[component_id];
     state[component_id] = noise + force; // update for next sample
-    return mean + stdev * (noise + force);
+    return Utilities::clipInInterval(mean + stdev * (noise + force), -MAX, MAX);
   }
 
   Real sample_OrnsteinUhlenbeck(Rvec& state, std::mt19937& gen) const {
@@ -547,7 +559,6 @@ struct BetaPolicy : public Base1Dpolicy
 struct Continuous_policy
 {
   typedef Rvec Action_t;
-  static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
   const ActionInfo & aInfo;
   const Uint startMean, startStdev, nA;
   const Rvec netOutputs;
@@ -633,18 +644,20 @@ struct Continuous_policy
   Real evalBehavior(const Rvec& act, const Rvec& beta) const {
     Real prob  = 1;
     assert(act.size() == nA);
+    static constexpr Real MIN = std::numeric_limits<float>::min();
     for (const auto & pol : policiesVector) {
       prob *= pol->prob(act, beta);
-      if(prob < EPS) prob = EPS; // prevent NaN caused by underflow
+      if(prob < MIN) prob = MIN; // prevent NaN caused by underflow
     }
     return prob;
   }
   Real evalProbability(const Rvec& act) const {
     Real prob  = 1;
     assert(act.size() == nA);
+    static constexpr Real MIN = std::numeric_limits<float>::min();
     for (const auto & pol : policiesVector) {
       prob *= pol->prob(act);
-      if(prob < EPS) prob = EPS; // prevent NaN caused by underflow
+      if(prob < MIN) prob = MIN; // prevent NaN caused by underflow
     }
     return prob;
   }
@@ -752,8 +765,7 @@ struct Continuous_policy
 
   Rvec selectAction(Agent& agent, const bool bTrain) const {
     //if (not bTrain || not agent.trackEpisode) return getMean();
-    if (not bTrain) return getMean();
-    // else sample:
+    if (not bTrain) return getMean(); // else sample:
     Rvec act(nA);
     if (agent.MDP.bAgentsShareNoise) {
         const Rvec noiseVec = agent.sampleActionNoise();
@@ -767,8 +779,7 @@ struct Continuous_policy
 
   Rvec selectAction_OrnsteinUhlenbeck(Agent& agent, const bool bTrain, Rvec& state) const {
     //if (not bTrain || not agent.trackEpisode) return getMean();
-    if (not bTrain) return getMean();
-    // else sample:
+    if (not bTrain) return getMean(); // else sample:
     Rvec act(nA);
     if (agent.MDP.bAgentsShareNoise) {
       const Rvec noiseVec = agent.sampleActionNoise();
