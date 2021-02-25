@@ -62,6 +62,7 @@ def applicationSetup(parsed, absRunPath):
     gymScriptPath = SMARTIES_ROOT + '/apps/OpenAI_gym/'
     shutil.copy(gymScriptPath + "HumanoidWrapper.py", absRunPath + '/')
     shutil.copy(gymScriptPath + "exec.py", absRunPath + '/')
+    shutil.copytree(gymScriptPath + "pyBulletEnvironments", absRunPath + '/pyBulletEnvironments')
     parsed.args = parsed.app + parsed.args
     return
   # will run application contained in the OpenAI gym atari library:
