@@ -214,7 +214,12 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   using PosDefFunction = SoftPlus;
   const Real mean, stdev, invStdev = 1/stdev;
 
-  Real getMean() const { return mean; }
+  Real getMean() const {
+    static constexpr Real MAX = 8.31776613503286;
+    if (mean >  MAX) return  MAX;
+    if (mean < -MAX) return -MAX;
+    return mean;
+  }
   Real getStdev() const { return stdev; }
   Real linearNetToMean(const Rvec& nnOut) const
   {
@@ -263,7 +268,7 @@ struct SquashedNormalPolicy : public Base1Dpolicy
 
   Real prob(const Rvec & act) const
   {
-    return prob(act[component_id], mean, invStdev);
+    return prob(act[component_id], getMean(), invStdev);
   }
 
   Real logProb(const Rvec& act, const Rvec& beta_vec) const
@@ -275,7 +280,7 @@ struct SquashedNormalPolicy : public Base1Dpolicy
 
   Real logProb(const Rvec& act) const
   {
-    return logProb(act[component_id], mean, invStdev);
+    return logProb(act[component_id], getMean(), invStdev);
   }
 
   Real KLdivergence(const Rvec& beta_vec) const
@@ -297,13 +302,14 @@ struct SquashedNormalPolicy : public Base1Dpolicy
   {
     // anti NaN. tanh(MAX) = 1 - std::numeric_limits<float>::epsilon()
     static constexpr Real MAX = 8.31776613503286;
-    const Real u = (act[component_id] - mean) * invStdev;
-    const Real dLogPdMean = u * invStdev, dLogPdStdv = (u*u - 1) * invStdev;
+    const Real dLogPdMean = (act[component_id] - mean) * invStdev * invStdev;
+    const Real u = (act[component_id] - getMean()) * invStdev;
+    const Real dLogPdStdv = (u*u - 1) * invStdev;
     const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
     // anti NaN: prevent pol grad from pushing mean beyond numerical safety
-    if      (mean >  MAX and factor * dLogPdMean > 0)
+    if      (mean >=  MAX and factor * dLogPdMean > 0)
       return {Real(0),             dPosdNet * factor * dLogPdStdv};
-    else if (mean < -MAX and factor * dLogPdMean < 0)
+    else if (mean <= -MAX and factor * dLogPdMean < 0)
       return {Real(0),             dPosdNet * factor * dLogPdStdv};
     else
       return {factor * dLogPdMean, dPosdNet * factor * dLogPdStdv};
@@ -324,7 +330,7 @@ struct SquashedNormalPolicy : public Base1Dpolicy
       const Real dDKLdStdv = (invVarMu - std::pow(invStdev,2)) * stdev;
     #endif
     const Real dPosdNet = PosDefFunction::_evalDiff(nnOut[nnIndStdev+component_id]);
-    return {factor * dDKLdMean,dPosdNet *  factor * dDKLdStdv};
+    return {factor * dDKLdMean, dPosdNet * factor * dDKLdStdv};
   }
 
   std::array<Real, 2> fixExplorationGrad(
@@ -390,7 +396,9 @@ struct BetaPolicy : public Base1Dpolicy
   mutable Real M_BetaA=0, M_BetaB=0, M_Beta_logB = 0;
   mutable Real M_BetaDiGa=0, M_BetaDiGb=0, M_BetaDiGab=0;
 
-  Real getMean() const { return mean; }
+  Real getMean() const {
+    return std::log(mean/(1-mean)) / 2;
+  }
   Real getStdev() const { return stdev; }
 
   Real linearNetToMean(const Rvec& nnOut) const {
@@ -415,18 +423,18 @@ struct BetaPolicy : public Base1Dpolicy
   }
 
   static Real prob(const Real u, const Real alpha, const Real beta, const Real norm) {
-    assert(u>0 && u<1);
-    return std::pow(u, alpha-1) * std::pow(1-u, beta-1) / norm;
+    const Real squash = (std::tanh(u) + 1 ) / 2;
+    return std::pow(squash, alpha-1) * std::pow(1-squash, beta-1) / norm;
   }
   static Real logProb(const Real u, const Real alpha, const Real beta, const Real norm) {
-    assert(u>0 && u<1);
-    return (alpha-1)*std::log(u) +(beta-1)*std::log(1-u) - norm;
+    const Real squash = (std::tanh(u) + 1 ) / 2;
+    return (alpha-1)*std::log(squash) +(beta-1)*std::log(1-squash) - norm;
   }
 
   // Converts {mean,stdev} used for storage and NN output into {alpha,beta}
   void betaVec2alphaBeta(const Rvec& beta_vec) const {
     if(storedOnBetaDigamma == false) {
-      const Real beta_mean  = beta_vec[component_id];
+      const Real beta_mean  = (std::tanh(beta_vec[component_id]) + 1) / 2;
       const Real beta_stdev = beta_vec[component_id + aInfo.dim()];
       const Real beta_varCoef = beta_stdev * beta_stdev / (beta_mean * (1-beta_mean));
       assert(beta_mean>0 && beta_mean<1);
@@ -470,7 +478,7 @@ struct BetaPolicy : public Base1Dpolicy
   std::array<Real, 2> gradLogP(
                 const Rvec& act, const Real factor, const Rvec& nnOut) const
   {
-    const Real u = act[component_id];
+    const Real u = (std::tanh(act[component_id]) + 1 ) / 2;
     const Real dLogPdAlpha = M_DiGab + std::log(u) - M_DiGa;
     const Real dLogPdBeta = M_DiGab + std::log(1-u) - M_DiGb;
     const Real dAlphadMean = (1/varCoef-1);
@@ -534,10 +542,12 @@ struct BetaPolicy : public Base1Dpolicy
   {
     std::gamma_distribution<Real> gamma_alpha(alpha, 1);
     std::gamma_distribution<Real> gamma_beta(beta, 1);
-    static constexpr Real EPS = std::numeric_limits<Real>::epsilon();
     const Real sampleAlpha = gamma_alpha(gen), sampleBeta = gamma_beta(gen);
-    const Real sample = sampleAlpha/std::max(EPS, sampleAlpha + sampleBeta);
-    return Utilities::clipInInterval(sample, EPS, 1-EPS);
+    static constexpr Real MIN = std::numeric_limits<Real>::min();
+    const Real sample = sampleAlpha/std::max(MIN, sampleAlpha + sampleBeta);
+    static constexpr Real MAX = 1.0 - std::numeric_limits<float>::epsilon();
+    const Real clipSample = Utilities::clipInInterval(2*sample-1, -MAX, MAX);
+    return std::log((1+clipSample)/(1-clipSample)) / 2;
   }
 
   Real sample(std::mt19937& gen) const {
@@ -564,6 +574,7 @@ struct Continuous_policy
   const Rvec netOutputs;
   const std::vector<std::unique_ptr<Base1Dpolicy>> policiesVector;
   using BoundedPol = SquashedNormalPolicy;
+  //using BoundedPol = BetaPolicy;
 
   std::vector<std::unique_ptr<Base1Dpolicy>> make_policies()
   {

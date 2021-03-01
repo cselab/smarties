@@ -3,6 +3,5 @@
   "dataSamplingAlgo": "uniform",
   "returnsEstimator": "retrace",
   "ERoldSeqFilter": "oldest",
-  "clipImpWeight": 4,
   "nnLayerSizes": [128, 128]
 }
