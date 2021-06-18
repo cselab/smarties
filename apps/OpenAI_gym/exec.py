@@ -13,6 +13,7 @@ import gym, sys, os, numpy as np
 os.environ['MUJOCO_PY_FORCE_CPU'] = '1'
 import smarties as rl
 from HumanoidWrapper import HumanoidWrapper
+import pyBulletEnvironments
 
 def getAction(comm, env):
   buf = comm.recvAction()
