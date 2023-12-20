@@ -11,6 +11,7 @@
 
 #include <mpi.h>
 #include <omp.h>
+#include <stdexcept>
 
 namespace smarties
 {
